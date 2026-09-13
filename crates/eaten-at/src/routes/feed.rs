@@ -23,7 +23,7 @@ pub async fn feed(
         .items
         .iter()
         .map(|visit_doc| Item {
-            title: view::document_headline(Some(visit_doc), &visit_doc.document().title),
+            title: visit_doc.document().title.clone(),
             link: view::canonical_url(
                 &state,
                 &did,

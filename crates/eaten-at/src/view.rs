@@ -114,10 +114,14 @@ pub fn summary(visit_doc: &VisitDocument) -> String {
 }
 
 pub fn listing_item(did: &Did, pub_rkey: &str, visit_doc: &VisitDocument) -> ListingItem {
+    let title = visit_doc.document().title.clone();
+    let place_name = &visit_doc.visit.place.name;
     ListingItem {
         href: paths::document(did, pub_rkey, visit_doc.rkey()),
-        title: visit_doc.document().title.clone(),
-        place_name: visit_doc.visit.place.name.clone(),
+        // The place's name is the default title (D29); saying it twice
+        // on one card helps nobody.
+        place_name: (place_name.trim() != title.trim()).then(|| place_name.clone()),
+        title,
         rating: visit_doc.visit.rating.map(rating_view),
         published: date_only(visit_doc.document().published_at.as_str()),
         excerpt: summary(visit_doc),
@@ -237,14 +241,6 @@ pub fn comments_view(thread: &crate::bsky::Thread, thread_href: String) -> Comme
     }
 }
 
-/// The place's name for a visit document, else the document title.
-pub fn document_headline(visit_doc: Option<&VisitDocument>, title: &str) -> String {
-    visit_doc.map_or_else(
-        || title.to_owned(),
-        |visit_doc| visit_doc.visit.place.name.clone(),
-    )
-}
-
 /// Head metadata for a document page.
 pub fn document_meta(
     state: &AppState,
@@ -259,7 +255,7 @@ pub fn document_meta(
         None => doc.value.description.clone().unwrap_or_default(),
     };
     PageMeta {
-        title: document_headline(visit_doc, &doc.value.title),
+        title: doc.value.title.clone(),
         description,
         canonical: canonical_url(state, did, pub_rkey, doc, publication),
         kind: Kind::Article,

@@ -483,7 +483,7 @@ async fn document_page_renders_card_body_tags_and_canonical() {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(
-        body.contains("<title>Third Place — Ross Writes — eaten.at</title>"),
+        body.contains("<title>Third Post — Ross Writes — eaten.at</title>"),
         "{body}"
     );
     assert!(
@@ -948,7 +948,7 @@ async fn document_head_byo_domain_points_canonical_away_and_derives_description(
     assert!(!head.contains("modified_time"), "{head}");
     assert!(head.contains("<meta property=\"og:image\" content=\"https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d3?size=og\">"), "{head}");
     assert!(
-        head.contains("<meta property=\"og:title\" content=\"Third Place\">"),
+        head.contains("<meta property=\"og:title\" content=\"Third Post\">"),
         "{head}"
     );
     insta::assert_snapshot!(head);
@@ -1002,7 +1002,7 @@ async fn publication_head_and_icon() {
 #[tokio::test]
 async fn feed_lists_visit_documents_with_canonical_links() {
     let mut repo = one_publication();
-    repo.documents[0].1["content"]["place"]["name"] = Value::String("Third & <Place>".into());
+    repo.documents[0].1["title"] = Value::String("Third & <Place>".into());
     let server = mount(&repo).await;
     let state = state_for(&server, StaticDns::new());
     let response = router(state.clone())
@@ -1478,11 +1478,15 @@ async fn editor_reports_problems_beside_fields_and_previews_a_good_draft() {
     fields.push(("visited_on", "yesterday"));
     let (status, body) = post_editor(&state, "/write", &cookie, &fields, None).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
-    assert!(body.contains("id=\"title-error\""), "{body}");
+    // A blank title is not a problem (D29); a blank place name is.
+    assert!(!body.contains("id=\"title-error\""), "{body}");
     assert!(body.contains("id=\"place_name-error\""), "{body}");
     assert!(body.contains("id=\"visited_on-error\""), "{body}");
-    assert!(body.contains("aria-describedby=\"title-error\""), "{body}");
-    assert!(body.contains("3 things to fix below"), "{body}");
+    assert!(
+        body.contains("aria-describedby=\"place_name-error\""),
+        "{body}"
+    );
+    assert!(body.contains("2 things to fix below"), "{body}");
 
     let (status, body) = post_editor(&state, "/write", &cookie, &good_fields(), None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -2593,7 +2597,7 @@ async fn crosspost_writes_document_then_post_then_the_reference() {
         external["uri"],
         "https://ross.eaten.at/2026/09/a-room-with-the-lights-off"
     );
-    assert_eq!(external["title"], "Promises");
+    assert_eq!(external["title"], "A room with the lights off");
     assert_eq!(
         external["description"], "A write-up of Promises.",
         "the summary: first paragraph, frozen into the card (plan §7.5)"

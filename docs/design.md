@@ -196,7 +196,8 @@ lifts or moves.
 **Listing card** (`.listing-item`). Cards in a column, 16px apart. Small
 cover left (10px radius); right, a kicker date, the title in the display
 serif at card size, the place name as a mono meta line with the rating
-marks beside it (`.listing-place`), and the excerpt in the sans at small
+marks beside it (`.listing-place`; the name is left out when it is the
+title, which it is by default), and the excerpt in the sans at small
 size in `ink-secondary`. It is the document page in miniature and in the
 same order.
 

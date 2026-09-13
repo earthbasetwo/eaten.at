@@ -121,9 +121,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     let mut errors = FieldErrors::default();
 
     let title = form.title.trim();
-    if title.is_empty() {
-        errors.add("title", "Give the write-up a title.");
-    } else if graphemes(title) > MAX_TITLE_GRAPHEMES {
+    if graphemes(title) > MAX_TITLE_GRAPHEMES {
         errors.add(
             "title",
             format!("Keep the title under {MAX_TITLE_GRAPHEMES} characters."),
@@ -384,8 +382,15 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         preserve_unknown_fields(&mut visit, original);
     }
 
+    // Standard requires a title; left blank, the place's name is it.
+    let title = if title.is_empty() {
+        place_name.to_owned()
+    } else {
+        title.to_owned()
+    };
+
     Ok(DocumentDraft {
-        title: title.to_owned(),
+        title,
         markdown: markdown.to_owned(),
         description: (!description.is_empty()).then(|| description.to_owned()),
         tags,
@@ -604,7 +609,6 @@ mod tests {
         form.publication = "at://did:plc:other/site.standard.publication/x".into();
         let errors = validate(&form, &ctx(&pubs)).unwrap_err();
         let expected = [
-            ("title", "Give the write-up a title."),
             ("body", "Write something."),
             ("place_name", "Name the place."),
             ("place_price", "Choose a price band from the list."),
@@ -632,6 +636,46 @@ mod tests {
         assert_eq!(
             errors.get("visited_on"),
             Some("Give the date of the visit.")
+        );
+    }
+
+    #[test]
+    fn a_blank_title_is_the_place_name() {
+        let pubs = [publication()];
+        let mut form = good_form();
+        form.title = "  ".into();
+        let draft = validate(&form, &ctx(&pubs)).unwrap();
+        assert_eq!(draft.title, "Promises");
+        form.title = "x".repeat(501);
+        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        assert!(errors.get("title").unwrap().contains("500"), "{errors:?}");
+        // A blank title and a blank place name are one problem, not two.
+        form.title = String::new();
+        form.place_name = String::new();
+        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        assert_eq!(errors.get("title"), None);
+        assert_eq!(errors.get("place_name"), Some("Name the place."));
+    }
+
+    #[test]
+    fn a_title_that_is_the_place_name_prefills_blank() {
+        let make = |title: &str| -> eaten_at_atproto::lexicon::Document {
+            serde_json::from_value(serde_json::json!({
+                "site": "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1",
+                "title": title,
+                "publishedAt": "2026-08-30T12:00:00.000Z",
+                "content": {"$type": "at.eaten.visit", "place": {"name": "Promises"}, "visitedOn": "2026-09-01"}
+            }))
+            .unwrap()
+        };
+        let visit: Visit = serde_json::from_value(make("x").content.clone().unwrap()).unwrap();
+        assert_eq!(
+            EditorForm::from_document(&make("Promises "), &visit).title,
+            ""
+        );
+        assert_eq!(
+            EditorForm::from_document(&make("Late at Promises"), &visit).title,
+            "Late at Promises"
         );
     }
 
