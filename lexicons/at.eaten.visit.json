@@ -1,0 +1,67 @@
+{
+  "lexicon": 1,
+  "id": "at.eaten.visit",
+  "defs": {
+    "main": {
+      "type": "object",
+      "description": "A visit to a place to eat, as the content of a site.standard.document. Placed in the document's content open union; a document whose content carries this $type is an eaten.at write-up. The document's textContent SHOULD hold a plaintext rendering (place, date, verdict, prose, dishes) for readers that do not know this type.",
+      "required": ["place", "visitedOn"],
+      "properties": {
+        "place": {
+          "type": "ref",
+          "ref": "at.eaten.place",
+          "description": "Where the author ate."
+        },
+        "visitedOn": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "description": "The calendar date of the visit as YYYY-MM-DD (ISO 8601), in the place's local calendar. A date, not an instant: no time, no offset."
+        },
+        "meal": {
+          "type": "string",
+          "description": "Which meal it was. Consumers dispatch on an exact match against knownValues. Values outside knownValues belong to the authoring client's own vocabulary and MUST be preserved on rewrite and shown as written.",
+          "knownValues": ["breakfast", "brunch", "lunch", "dinner", "lateNight"],
+          "maxLength": 640
+        },
+        "dishes": {
+          "type": "array",
+          "description": "What was eaten, in the author's order.",
+          "maxLength": 24,
+          "items": { "type": "ref", "ref": "#dish" }
+        },
+        "rating": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "description": "The author's verdict on the house scale: 1 Solid (+), 2 Recommended (++), 3 Strongly Recommended (+++), 4 Can't Miss (++++). Absent means the author declined to rate."
+        },
+        "body": {
+          "type": "union",
+          "refs": [],
+          "closed": false,
+          "description": "The prose, as an open union keyed by $type. eaten.at writes at.markpub.markdown. Readers that know no member fall back to the document's textContent."
+        }
+      }
+    },
+    "dish": {
+      "type": "object",
+      "description": "One dish eaten on the visit.",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The dish, as the author names it.",
+          "maxLength": 2000,
+          "maxGraphemes": 200
+        },
+        "note": {
+          "type": "string",
+          "description": "A short remark on the dish.",
+          "maxLength": 10000,
+          "maxGraphemes": 1000
+        }
+      }
+    }
+  }
+}

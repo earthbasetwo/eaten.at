@@ -2,10 +2,12 @@
 
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
-use eaten_at_atproto::lexicon::{Publication, ThemeBasic};
+use eaten_at_atproto::lexicon::{
+    ExternalUrl, Meal, Place, PriceBand, Publication, Rating, ThemeBasic, Visit,
+};
 use eaten_at_atproto::repo::Record;
 use eaten_at_web::components::{
-    CommentView, CommentsView, Link, ListingItem, PublicationView, SubjectCard,
+    CommentView, CommentsView, DishView, Link, ListingItem, PublicationView, RatingView, VisitCard,
 };
 use eaten_at_web::markdown::{excerpt, EXCERPT_TARGET};
 use eaten_at_web::meta::{Kind, PageMeta};
@@ -13,32 +15,90 @@ use eaten_at_web::theme::{Rgb, Theme};
 
 use crate::state::AppState;
 
-use crate::model::{Body, SubjectDocument};
+use crate::model::{Body, VisitDocument};
 use crate::paths;
 
-/// Build the subject card for a document from its subject.
-pub fn subject_card(did: &Did, subject_doc: &SubjectDocument) -> SubjectCard {
-    let subject = &subject_doc.subject;
-    SubjectCard {
-        title: subject.title.clone(),
-        cover_src: Some(paths::cover(did, subject_doc.rkey())),
-        links: subject
-            .external_urls
+/// Build the visit card for a document from its visit.
+pub fn visit_card(did: &Did, visit_doc: &VisitDocument) -> VisitCard {
+    card_for(&visit_doc.visit, Some(paths::cover(did, visit_doc.rkey())))
+}
+
+/// The card for a visit with a given cover, shared by the document page
+/// and the editor's preview.
+pub fn card_for(visit: &Visit, cover_src: Option<String>) -> VisitCard {
+    let place = &visit.place;
+    VisitCard {
+        place_name: place.name.clone(),
+        address: place
+            .address
+            .as_deref()
+            .map(str::trim)
+            .filter(|a| !a.is_empty())
+            .map(str::to_owned),
+        price: place.price.map(PriceBand::signs),
+        visited_on: visit.visited_on.as_string(),
+        meal: visit.meal.as_deref().map(meal_label),
+        rating: visit.rating.map(rating_view),
+        dishes: visit
+            .dishes
             .iter()
-            .filter(|u| {
-                url::Url::parse(&u.url).is_ok_and(|p| matches!(p.scheme(), "http" | "https"))
-            })
-            .map(|u| Link {
-                label: u.label.clone().unwrap_or_else(|| link_label(u)),
-                href: u.url.clone(),
+            .map(|d| DishView {
+                name: d.name.clone(),
+                note: d
+                    .note
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|n| !n.is_empty())
+                    .map(str::to_owned),
             })
             .collect(),
+        cover_src,
+        links: place_links(place),
     }
+}
+
+/// The rating as the page shows it.
+pub fn rating_view(rating: Rating) -> RatingView {
+    RatingView {
+        word: rating.word().to_owned(),
+        marks: rating.marks().to_owned(),
+    }
+}
+
+/// A meal value in words: the known label, or another client's value as
+/// written.
+pub fn meal_label(value: &str) -> String {
+    Meal::from_value(value).map_or_else(|| value.to_owned(), |m| m.display_name().to_owned())
+}
+
+/// Links out for a place: the author's URLs, then a map page for each
+/// known id that has one. Only http(s) URLs are linked.
+pub fn place_links(place: &Place) -> Vec<Link> {
+    let mut links: Vec<Link> = place
+        .urls
+        .iter()
+        .filter(|u| url::Url::parse(&u.url).is_ok_and(|p| matches!(p.scheme(), "http" | "https")))
+        .map(|u| Link {
+            label: u.label.clone().unwrap_or_else(|| link_label(u)),
+            href: u.url.clone(),
+        })
+        .collect();
+    for id in &place.ids {
+        if let Some(service) = id.known_service() {
+            if let Some(href) = service.url_for(&id.id) {
+                let label = service.display_name().to_owned();
+                if !links.iter().any(|l| l.label == label) {
+                    links.push(Link { label, href });
+                }
+            }
+        }
+    }
+    links
 }
 
 /// Label a link from its declared service when known, else the
 /// URL's hostname (plan §7.2).
-fn link_label(u: &eaten_at_atproto::lexicon::ExternalUrl) -> String {
+fn link_label(u: &ExternalUrl) -> String {
     if let Some(service) = u.known_service() {
         return service.display_name().to_owned();
     }
@@ -53,27 +113,28 @@ fn link_label(u: &eaten_at_atproto::lexicon::ExternalUrl) -> String {
 
 /// The summary shown in listings and meta tags: the author's own
 /// `description` when present, else derived from the body (plan §7.5).
-pub fn summary(subject_doc: &SubjectDocument) -> String {
-    if let Some(description) = subject_doc.document().description.as_deref() {
+pub fn summary(visit_doc: &VisitDocument) -> String {
+    if let Some(description) = visit_doc.document().description.as_deref() {
         let trimmed = description.trim();
         if !trimmed.is_empty() {
             return trimmed.to_owned();
         }
     }
-    match subject_doc.body() {
+    match visit_doc.body() {
         Body::Markdown(text) | Body::Plain(text) => excerpt(text, EXCERPT_TARGET),
         Body::Empty => String::new(),
     }
 }
 
-pub fn listing_item(did: &Did, pub_rkey: &str, subject_doc: &SubjectDocument) -> ListingItem {
+pub fn listing_item(did: &Did, pub_rkey: &str, visit_doc: &VisitDocument) -> ListingItem {
     ListingItem {
-        href: paths::document(did, pub_rkey, subject_doc.rkey()),
-        title: subject_doc.document().title.clone(),
-        subject_title: subject_doc.subject.title.clone(),
-        published: date_only(subject_doc.document().published_at.as_str()),
-        excerpt: summary(subject_doc),
-        cover_src: Some(paths::cover(did, subject_doc.rkey())),
+        href: paths::document(did, pub_rkey, visit_doc.rkey()),
+        title: visit_doc.document().title.clone(),
+        place_name: visit_doc.visit.place.name.clone(),
+        rating: visit_doc.visit.rating.map(rating_view),
+        published: date_only(visit_doc.document().published_at.as_str()),
+        excerpt: summary(visit_doc),
+        cover_src: Some(paths::cover(did, visit_doc.rkey())),
     }
 }
 
@@ -189,11 +250,11 @@ pub fn comments_view(thread: &crate::bsky::Thread, thread_href: String) -> Comme
     }
 }
 
-/// The subject's title for a subject document, else the document title.
-pub fn document_headline(subject_doc: Option<&SubjectDocument>, title: &str) -> String {
-    subject_doc.map_or_else(
+/// The place's name for a visit document, else the document title.
+pub fn document_headline(visit_doc: Option<&VisitDocument>, title: &str) -> String {
+    visit_doc.map_or_else(
         || title.to_owned(),
-        |subject_doc| subject_doc.subject.title.clone(),
+        |visit_doc| visit_doc.visit.place.name.clone(),
     )
 }
 
@@ -203,15 +264,15 @@ pub fn document_meta(
     did: &Did,
     pub_rkey: &str,
     doc: &Record<eaten_at_atproto::lexicon::Document>,
-    subject_doc: Option<&SubjectDocument>,
+    visit_doc: Option<&VisitDocument>,
     publication: &Publication,
 ) -> PageMeta {
-    let description = match subject_doc {
-        Some(subject_doc) => summary(subject_doc),
+    let description = match visit_doc {
+        Some(visit_doc) => summary(visit_doc),
         None => doc.value.description.clone().unwrap_or_default(),
     };
     PageMeta {
-        title: document_headline(subject_doc, &doc.value.title),
+        title: document_headline(visit_doc, &doc.value.title),
         description,
         canonical: canonical_url(state, did, pub_rkey, doc, publication),
         kind: Kind::Article,
@@ -245,8 +306,8 @@ pub fn publication_meta(
 
 #[cfg(test)]
 mod tests {
-    use super::bluesky_post_url;
-    use eaten_at_atproto::lexicon::{Document, StrongRef};
+    use super::{bluesky_post_url, card_for, place_links};
+    use eaten_at_atproto::lexicon::{Document, Place, StrongRef, Visit};
 
     fn doc(uri: Option<&str>) -> Document {
         let mut doc: Document = serde_json::from_value(serde_json::json!({
@@ -288,5 +349,68 @@ mod tests {
             None
         );
         assert_eq!(bluesky_post_url(&doc(Some("https://bsky.app/x"))), None);
+    }
+
+    #[test]
+    fn place_links_label_urls_and_add_map_pages_for_known_ids() {
+        let place: Place = serde_json::from_value(serde_json::json!({
+            "name": "P",
+            "ids": [
+                {"service": "googlePlace", "id": "g1"},
+                {"service": "overtureGers", "id": "o1"},
+                {"service": "yelp", "id": "y1"}
+            ],
+            "urls": [
+                {"url": "https://example.com/menu.pdf", "service": "menu"},
+                {"url": "https://www.other.example/x", "service": "bc"},
+                {"url": "ftp://nope.example/x"},
+                {"url": "https://example.com/book", "label": "Book"}
+            ]
+        }))
+        .unwrap();
+        let labels: Vec<(String, String)> = place_links(&place)
+            .into_iter()
+            .map(|l| (l.label, l.href))
+            .collect();
+        assert_eq!(
+            labels,
+            vec![
+                ("Menu".to_owned(), "https://example.com/menu.pdf".to_owned()),
+                (
+                    "other.example".to_owned(),
+                    "https://www.other.example/x".to_owned()
+                ),
+                ("Book".to_owned(), "https://example.com/book".to_owned()),
+                (
+                    "Google Maps".to_owned(),
+                    "https://www.google.com/maps/place/?q=place_id:g1".to_owned()
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn card_words_the_meal_and_rating_and_drops_blank_notes() {
+        let visit: Visit = serde_json::from_value(serde_json::json!({
+            "place": {"name": "P", "address": "  ", "price": 3},
+            "visitedOn": "2026-09-12",
+            "meal": "lateNight",
+            "dishes": [{"name": "Soup", "note": " "}, {"name": "Pie", "note": "good"}],
+            "rating": 4
+        }))
+        .unwrap();
+        let card = card_for(&visit, None);
+        assert_eq!(card.address, None);
+        assert_eq!(card.price.as_deref(), Some("$$$"));
+        assert_eq!(card.meal.as_deref(), Some("Late night"));
+        assert_eq!(card.rating.as_ref().unwrap().marks, "++++");
+        assert_eq!(card.rating.as_ref().unwrap().word, "Can’t Miss");
+        assert_eq!(card.dishes[0].note, None);
+        assert_eq!(card.dishes[1].note.as_deref(), Some("good"));
+        let foreign_meal: Visit = serde_json::from_value(serde_json::json!({
+            "place": {"name": "P"}, "visitedOn": "2026-09-12", "meal": "tea"
+        }))
+        .unwrap();
+        assert_eq!(card_for(&foreign_meal, None).meal.as_deref(), Some("tea"));
     }
 }

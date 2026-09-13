@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Start a local atproto network (PLC + PDS, no AppView, no Docker) from a
 // sibling checkout of bluesky-social/atproto, seed it with a lexicon
-// publisher account and an author with a few write-ups, and write the
+// publisher account and an author with a few visits, and write the
 // matching EATEN_AT_* variables to .env.dev.
 //
 //   ATPROTO_DIR=../atproto node scripts/dev-env.mjs
@@ -71,7 +71,7 @@ const { uri: publicationUri } = await createRecord(alice.agent, 'site.standard.p
   $type: 'site.standard.publication',
   url: 'https://alice.eaten.test',
   name: 'Field Notes',
-  description: 'Write-ups by Alice, one subject at a time.',
+  description: 'Write-ups by Alice, one visit at a time.',
 })
 const { uri: themedPublicationUri } = await createRecord(alice.agent, 'site.standard.publication', {
   $type: 'site.standard.publication',
@@ -104,12 +104,16 @@ await alice.agent.com.atproto.repo.putRecord({
 // strong ref's CID, so it has to be a real record.
 const { uri: postUri, cid: postCid } = await createRecord(alice.agent, 'app.bsky.feed.post', {
   $type: 'app.bsky.feed.post',
-  text: 'New write-up: First Subject.',
+  text: 'New write-up: Noodle House.',
   createdAt: '2026-07-28T13:00:00.000Z',
 })
 
-// Plain text for `textContent`: markdown syntax stripped, one paragraph
-// per line. Good enough for a seed; the app derives its own excerpts.
+// Plain text for `textContent`: what a reader that does not know
+// at.eaten.visit sees. Markdown syntax stripped, one paragraph per line,
+// with the place, date, and verdict first and the dishes last, the way
+// the app writes it. Good enough for a seed; the app derives its own
+// excerpts.
+const RATING_WORDS = { 1: 'Solid', 2: 'Recommended', 3: 'Strongly Recommended', 4: 'Can’t Miss' }
 const plain = (md) =>
   md
     .replace(/^#+\s+/gm, '')
@@ -119,22 +123,44 @@ const plain = (md) =>
     .replace(/[*_`]/g, '')
     .replace(/\n{2,}/g, '\n')
     .trim()
+const textContent = (d) =>
+  [
+    [d.place.name, d.visitedOn, d.rating && RATING_WORDS[d.rating]].filter(Boolean).join(' · '),
+    plain(d.markdown),
+    d.dishes.length ? `Dishes: ${d.dishes.map((x) => x.name).join(', ')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 
-// Placeholder write-ups. Enough to see a listing, a document with a
-// description and one whose excerpt is derived, a comment section, tags,
-// and links out; the prose is invented for the seed.
+// Placeholder visits. Enough to see a listing with ratings, a document
+// with a description and one whose excerpt is derived, an unrated visit,
+// a comment section, tags, ids, and links out; the prose is invented for
+// the seed.
 const docs = [
   {
     title: 'A first write-up',
-    path: '/2026/09/first-subject',
+    path: '/2026/09/noodle-house',
     publishedAt: '2026-09-07T12:00:00.000Z',
-    tags: ['notes', 'one long sit'],
-    description: 'What a write-up with a subject, an excerpt, tags, and a comment thread looks like.',
-    subject: 'First Subject',
-    urls: [
-      { url: 'https://example.com/first', service: 'officialSite' },
-      { url: 'https://example.com/first/elsewhere', service: 'shop', label: 'Elsewhere' },
+    tags: ['noodles', 'one long sit'],
+    description: 'What a write-up with a place, a rating, dishes, an excerpt, tags, and a comment thread looks like.',
+    place: {
+      name: 'Noodle House',
+      address: '12 Example Lane',
+      price: 2,
+      ids: [{ service: 'googlePlace', id: 'ChIJexampleNoodleHouse' }],
+      urls: [
+        { url: 'https://example.com/noodle-house', service: 'officialSite' },
+        { url: 'https://example.com/noodle-house/menu', service: 'menu' },
+        { url: 'https://example.com/noodle-house/elsewhere', service: 'shop', label: 'Elsewhere' },
+      ],
+    },
+    visitedOn: '2026-09-06',
+    meal: 'dinner',
+    dishes: [
+      { name: 'Hand-pulled noodles', note: 'the reason to come' },
+      { name: 'Cucumber salad' },
     ],
+    rating: 3,
     bskyPostRef: { uri: postUri, cid: postCid },
     markdown: `# A first write-up
 
@@ -144,20 +170,29 @@ as the excerpt.
 
 ## What to look for
 
-- The subject card above this prose: the subject's title beside a
-  generated placeholder cover.
-- Two links in the footer: one labelled from its known service, one by
-  the label the author gave it.
+- The visit card above this prose: the place's name beside a generated
+  placeholder cover, then the date, the meal, the price band, the address,
+  the rating as plus signs, and the dishes.
+- Links in the footer: two labelled from their known service, one by the
+  label the author gave it, and a map link made from the Google place id.
 - A comment section, because the record names a Bluesky post. The local
   network has no AppView, so it stays empty here.`,
   },
   {
     title: 'A second write-up',
-    path: '/2026/08/second-subject',
+    path: '/2026/08/corner-cafe',
     publishedAt: '2026-08-15T09:30:00.000Z',
-    tags: ['notes'],
-    subject: 'Second Subject',
-    urls: [{ url: 'https://example.com/second', service: 'officialSite' }],
+    tags: ['coffee'],
+    place: {
+      name: 'Corner Café',
+      price: 1,
+      ids: [{ service: 'applePlace', id: 'I1234567890' }],
+      urls: [{ url: 'https://example.com/corner-cafe', service: 'officialSite' }],
+    },
+    visitedOn: '2026-08-14',
+    meal: 'brunch',
+    dishes: [{ name: 'Flat white' }],
+    rating: 4,
     markdown: `This one has no description, so the listing derives its excerpt from the
 first paragraph of the body, cut at a sentence boundary.
 
@@ -167,30 +202,39 @@ And a second paragraph that the excerpt never reaches.`,
   },
   {
     title: 'A third write-up',
-    path: '/2026/07/third-subject',
+    path: '/2026/07/the-old-mill',
     publishedAt: '2026-07-28T13:00:00.000Z',
     tags: ['long read'],
-    subject: 'Third Subject',
-    urls: [],
-    markdown: `The oldest of the three, with no links out at all: the footer shows only
-the tags, the feed, and the author.
+    place: { name: 'The Old Mill', address: '1 Mill Road' },
+    visitedOn: '2026-07-27',
+    dishes: [],
+    markdown: `The oldest of the three, unrated and with no links out at all: the footer
+shows only the tags, the feed, and the author.
 
 Tags are the author's own words. \`long read\` is one here, matched
 loosely on the tag page, so \`Long  Read\` finds it too.`,
   },
 ]
-// The themed publication's write-ups: enough for a listing, a document, and
+// The themed publication's visits: enough for a listing, a document, and
 // a tag page in the author's colours.
 const themedDocs = [
   {
     site: themedPublicationUri,
     title: 'A themed write-up',
-    path: '/2026/09/themed-subject',
+    path: '/2026/09/night-market',
     publishedAt: '2026-09-05T22:00:00.000Z',
     tags: ['late'],
     description: 'The same pages as Field Notes, recoloured by the publication\'s theme.',
-    subject: 'Themed Subject',
-    urls: [{ url: 'https://example.com/themed', service: 'officialSite' }],
+    place: {
+      name: 'Night Market',
+      price: 1,
+      ids: [{ service: 'overtureGers', id: '08f2a5b6c7d8e9f0a1b2c3d4e5f60718' }],
+      urls: [{ url: 'https://example.com/night-market', service: 'officialSite' }],
+    },
+    visitedOn: '2026-09-05',
+    meal: 'lateNight',
+    dishes: [{ name: 'Skewers', note: 'charred just right' }],
+    rating: 2,
     markdown: `This publication declares a dark theme whose text colour fails contrast
 on purpose, so the page shows the clamped colours, not the author's.
 
@@ -201,11 +245,13 @@ Everything else, the type, the spacing, the shapes, stays the site's.`,
   {
     site: themedPublicationUri,
     title: 'Another themed write-up',
-    path: '/2026/08/second-themed-subject',
+    path: '/2026/08/the-diner',
     publishedAt: '2026-08-20T23:30:00.000Z',
     tags: ['late', 'short'],
-    subject: 'Second Themed Subject',
-    urls: [],
+    place: { name: 'The Diner' },
+    visitedOn: '2026-08-20',
+    dishes: [],
+    rating: 1,
     markdown: `A second entry, so the listing has more than one card.`,
   },
 ]
@@ -223,20 +269,23 @@ for (const d of [...docs, ...themedDocs].sort((a, b) => a.publishedAt.localeComp
     ...(d.description ? { description: d.description } : {}),
     ...(d.bskyPostRef ? { bskyPostRef: d.bskyPostRef } : {}),
     content: {
-      $type: 'at.markpub.markdown',
-      flavor: 'commonmark',
-      text: { $type: 'at.markpub.text', markdown: d.markdown },
+      $type: 'at.eaten.visit',
+      place: d.place,
+      visitedOn: d.visitedOn,
+      ...(d.meal ? { meal: d.meal } : {}),
+      ...(d.dishes.length ? { dishes: d.dishes } : {}),
+      ...(d.rating ? { rating: d.rating } : {}),
+      body: {
+        $type: 'at.markpub.markdown',
+        flavor: 'commonmark',
+        text: { $type: 'at.markpub.text', markdown: d.markdown },
+      },
     },
-    textContent: plain(d.markdown),
-    links: {
-      $type: 'at.eaten.subject',
-      title: d.subject,
-      externalUrls: d.urls,
-    },
+    textContent: textContent(d),
   })
   docUris.push(uri)
 }
-// A document without a subject in the same publication, to prove filtering.
+// A document that is not a visit in the same publication, to prove filtering.
 await createRecord(alice.agent, 'site.standard.document', {
   $type: 'site.standard.document',
   site: publicationUri,

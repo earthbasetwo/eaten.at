@@ -6,19 +6,27 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use eaten_at_atproto::at_uri::AtUri;
-use eaten_at_atproto::lexicon::{ExternalUrl, Subject, SUBJECT_NSID};
+use eaten_at_atproto::lexicon::{
+    Dish, ExternalId, ExternalUrl, Place, PriceBand, Rating, Visit, VisitDate, PLACE_NSID,
+    VISIT_NSID,
+};
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::form::{EditorForm, PUBLICATION_NEW};
-use super::{MAX_BODY_BYTES, MAX_LINKS, MAX_TAGS, MAX_UPLOAD_IMAGE_BYTES};
+use super::{MAX_BODY_BYTES, MAX_DISHES, MAX_IDS, MAX_LINKS, MAX_TAGS, MAX_UPLOAD_IMAGE_BYTES};
 use crate::img;
 use crate::publish::MAX_POST_GRAPHEMES;
 use crate::tags;
 
-/// Lexicon limits, in graphemes.
+/// Lexicon limits, in graphemes unless named otherwise.
 const MAX_TITLE_GRAPHEMES: usize = 500;
 const MAX_DESCRIPTION_GRAPHEMES: usize = 3000;
-const MAX_SUBJECT_TITLE_GRAPHEMES: usize = 200;
+const MAX_PLACE_NAME_GRAPHEMES: usize = 200;
+const MAX_ADDRESS_GRAPHEMES: usize = 300;
+const MAX_DISH_NAME_GRAPHEMES: usize = 200;
+const MAX_DISH_NOTE_GRAPHEMES: usize = 1000;
+const MAX_ID_BYTES: usize = 512;
+const MAX_SERVICE_BYTES: usize = 640;
 const MAX_LABEL_GRAPHEMES: usize = 64;
 const MAX_TAG_GRAPHEMES: usize = 128;
 const MAX_TAG_BYTES: usize = 1280;
@@ -85,8 +93,9 @@ pub struct DocumentDraft {
     /// Only what the author typed (D19). `None` when blank.
     pub description: Option<String>,
     pub tags: Vec<String>,
-    /// The subject, with any unknown fields of the original carried over.
-    pub subject: Subject,
+    /// The visit, without its body (the markdown is beside it), with any
+    /// unknown fields of the original carried over.
+    pub visit: Visit,
     /// A new cover. `None` keeps the existing one, if any.
     pub cover: Option<Cover>,
     pub target: Target,
@@ -95,9 +104,9 @@ pub struct DocumentDraft {
     pub crosspost: Option<String>,
 }
 
-/// The post text offered by default: the subject's title.
-pub fn default_post_text(subject_title: &str) -> String {
-    subject_title.trim().to_owned()
+/// The post text offered by default: the place's name.
+pub fn default_post_text(place_name: &str) -> String {
+    place_name.trim().to_owned()
 }
 
 /// What validation needs to know beyond the form.
@@ -105,8 +114,8 @@ pub fn default_post_text(subject_title: &str) -> String {
 pub struct Context<'a> {
     /// The author's publications, by AT-URI.
     pub publications: &'a [AtUri],
-    /// The subject being edited, whose unknown fields are preserved.
-    pub original: Option<&'a Subject>,
+    /// The visit being edited, whose unknown fields are preserved.
+    pub original: Option<&'a Visit>,
 }
 
 /// Check every field. All problems are reported at once.
@@ -139,20 +148,69 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         );
     }
 
-    let subject_title = form.subject_title.trim();
-    if subject_title.is_empty() {
-        errors.add("subject_title", "Name the subject.");
-    } else if graphemes(subject_title) > MAX_SUBJECT_TITLE_GRAPHEMES {
+    let place_name = form.place_name.trim();
+    if place_name.is_empty() {
+        errors.add("place_name", "Name the place.");
+    } else if graphemes(place_name) > MAX_PLACE_NAME_GRAPHEMES {
         errors.add(
-            "subject_title",
-            format!("Keep the subject title under {MAX_SUBJECT_TITLE_GRAPHEMES} characters."),
+            "place_name",
+            format!("Keep the place's name under {MAX_PLACE_NAME_GRAPHEMES} characters."),
         );
     }
+
+    let address = form.place_address.trim();
+    if graphemes(address) > MAX_ADDRESS_GRAPHEMES {
+        errors.add(
+            "place_address",
+            format!("Keep the address under {MAX_ADDRESS_GRAPHEMES} characters."),
+        );
+    }
+
+    let price = match form.place_price.trim() {
+        "" => None,
+        raw => {
+            let band = raw.parse::<u8>().ok().and_then(PriceBand::new);
+            if band.is_none() {
+                errors.add("place_price", "Choose a price band from the list.");
+            }
+            band
+        }
+    };
+
+    let visited_on = match form.visited_on.trim() {
+        "" => {
+            errors.add("visited_on", "Give the date of the visit.");
+            None
+        }
+        raw => {
+            let date = VisitDate::parse(raw).ok();
+            if date.is_none() {
+                errors.add("visited_on", "Use a date like 2026-09-12.");
+            }
+            date
+        }
+    };
+
+    let meal = form.meal.record_value(&form.meal_other);
+    if meal.as_ref().is_some_and(|m| m.len() > MAX_SERVICE_BYTES) {
+        errors.add("meal_other", "That's too long for a meal.");
+    }
+
+    let rating = match form.rating.trim() {
+        "" => None,
+        raw => {
+            let rating = raw.parse::<u8>().ok().and_then(Rating::from_value);
+            if rating.is_none() {
+                errors.add("rating", "Choose a rating from the scale.");
+            }
+            rating
+        }
+    };
 
     let crosspost = form.crosspost.then(|| {
         let typed = form.post_text.trim();
         let text = if typed.is_empty() {
-            default_post_text(subject_title)
+            default_post_text(place_name)
         } else {
             typed.to_owned()
         };
@@ -165,7 +223,72 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         text
     });
 
-    let mut external_urls = Vec::new();
+    let mut dishes = Vec::new();
+    for (i, dish) in form.dishes.iter().enumerate() {
+        if dish.is_blank() {
+            continue;
+        }
+        let name = dish.name.trim();
+        let note = dish.note.trim();
+        if name.is_empty() {
+            errors.add(format!("dish_name_{i}"), "Name the dish.");
+            continue;
+        }
+        if graphemes(name) > MAX_DISH_NAME_GRAPHEMES {
+            errors.add(
+                format!("dish_name_{i}"),
+                format!("Keep the dish's name under {MAX_DISH_NAME_GRAPHEMES} characters."),
+            );
+        }
+        if graphemes(note) > MAX_DISH_NOTE_GRAPHEMES {
+            errors.add(
+                format!("dish_note_{i}"),
+                format!("Keep the note under {MAX_DISH_NOTE_GRAPHEMES} characters."),
+            );
+        }
+        dishes.push(Dish {
+            name: name.to_owned(),
+            note: (!note.is_empty()).then(|| note.to_owned()),
+            extra: serde_json::Map::new(),
+        });
+    }
+    if dishes.len() > MAX_DISHES {
+        errors.add("dishes", format!("At most {MAX_DISHES} dishes."));
+    }
+
+    let mut ids = Vec::new();
+    for (i, row) in form.ids.iter().enumerate() {
+        if row.is_blank() {
+            continue;
+        }
+        let id = row.id.trim();
+        let service = row.service_value();
+        match (service, id.is_empty()) {
+            (None, _) => errors.add(format!("id_service_{i}"), "Choose what kind of id this is."),
+            (Some(_), true) => errors.add(format!("id_value_{i}"), "Enter the id."),
+            (Some(service), false) => {
+                if service.len() > MAX_SERVICE_BYTES {
+                    errors.add(
+                        format!("id_service_other_{i}"),
+                        "That's too long for a service.",
+                    );
+                }
+                if id.len() > MAX_ID_BYTES {
+                    errors.add(format!("id_value_{i}"), "That id is too long.");
+                }
+                ids.push(ExternalId {
+                    service,
+                    id: id.to_owned(),
+                    extra: serde_json::Map::new(),
+                });
+            }
+        }
+    }
+    if ids.len() > MAX_IDS {
+        errors.add("ids", format!("At most {MAX_IDS} ids."));
+    }
+
+    let mut urls = Vec::new();
     for (i, link) in form.links.iter().enumerate() {
         let url = link.url.trim();
         if url.is_empty() {
@@ -180,9 +303,19 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
                         format!("Keep the label under {MAX_LABEL_GRAPHEMES} characters."),
                     );
                 }
-                external_urls.push(ExternalUrl {
+                let service = link.service_value();
+                if service
+                    .as_ref()
+                    .is_some_and(|s| s.len() > MAX_SERVICE_BYTES)
+                {
+                    errors.add(
+                        format!("link_service_other_{i}"),
+                        "That's too long for a service.",
+                    );
+                }
+                urls.push(ExternalUrl {
                     url,
-                    service: link.service_value(),
+                    service,
                     label: (!label.is_empty()).then(|| label.to_owned()),
                     extra: serde_json::Map::new(),
                 });
@@ -190,7 +323,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
             Err(message) => errors.add(format!("link_url_{i}"), message),
         }
     }
-    if external_urls.len() > MAX_LINKS {
+    if urls.len() > MAX_LINKS {
         errors.add("links", format!("At most {MAX_LINKS} links."));
     }
 
@@ -261,18 +394,31 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         }
     };
 
-    if !errors.is_empty() {
+    // A missing date is already an error, so this only passes with one.
+    let Some(visited_on) = visited_on.filter(|_| errors.is_empty()) else {
         return Err(errors);
-    }
+    };
 
-    let mut subject = Subject {
-        type_: Some(SUBJECT_NSID.to_owned()),
-        title: subject_title.to_owned(),
-        external_urls,
+    let mut visit = Visit {
+        type_: Some(VISIT_NSID.to_owned()),
+        place: Place {
+            type_: None,
+            name: place_name.to_owned(),
+            address: (!address.is_empty()).then(|| address.to_owned()),
+            price,
+            ids,
+            urls,
+            extra: serde_json::Map::new(),
+        },
+        visited_on,
+        meal,
+        dishes,
+        rating,
+        body: None,
         extra: serde_json::Map::new(),
     };
     if let Some(original) = ctx.original {
-        preserve_unknown_fields(&mut subject, original);
+        preserve_unknown_fields(&mut visit, original);
     }
 
     Ok(DocumentDraft {
@@ -280,7 +426,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         markdown: markdown.to_owned(),
         description: (!description.is_empty()).then(|| description.to_owned()),
         tags,
-        subject,
+        visit,
         cover,
         target,
         crosspost,
@@ -288,12 +434,34 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
 }
 
 /// Fields our form does not know about live in the `extra` maps. Carry
-/// them over from the original for the subject itself and for every
-/// link that is still present, matched by URL.
-fn preserve_unknown_fields(subject: &mut Subject, original: &Subject) {
-    subject.extra.clone_from(&original.extra);
-    for link in &mut subject.external_urls {
-        if let Some(known) = original.external_urls.iter().find(|u| u.url == link.url) {
+/// them over from the original for the visit, its place, and every dish,
+/// id, and link that is still present, matched by name, by service and
+/// id, and by URL. A `$type` the original put on its place stays too.
+fn preserve_unknown_fields(visit: &mut Visit, original: &Visit) {
+    visit.extra.clone_from(&original.extra);
+    visit.place.extra.clone_from(&original.place.extra);
+    visit.place.type_ = original
+        .place
+        .type_
+        .clone()
+        .filter(|t| t == PLACE_NSID || !t.is_empty());
+    for dish in &mut visit.dishes {
+        if let Some(known) = original.dishes.iter().find(|d| d.name == dish.name) {
+            dish.extra = known.extra.clone();
+        }
+    }
+    for id in &mut visit.place.ids {
+        if let Some(known) = original
+            .place
+            .ids
+            .iter()
+            .find(|k| k.service == id.service && k.id == id.id)
+        {
+            id.extra = known.extra.clone();
+        }
+    }
+    for link in &mut visit.place.urls {
+        if let Some(known) = original.place.urls.iter().find(|u| u.url == link.url) {
             link.extra = known.extra.clone();
         }
     }
@@ -345,8 +513,8 @@ pub fn parse_tags(raw: &str) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::form::{LinkField, ServiceChoice, Upload};
-    use eaten_at_atproto::lexicon::KnownService;
+    use crate::editor::form::{Choice, DishField, IdField, LinkField, Upload};
+    use eaten_at_atproto::lexicon::{KnownIdService, KnownService, Meal};
 
     fn publication() -> AtUri {
         AtUri::parse("at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1")
@@ -358,17 +526,42 @@ mod tests {
             title: "A room with the lights off".into(),
             body: "Forty-six minutes.\n".into(),
             description: String::new(),
-            subject_title: "Promises".into(),
+            place_name: "Promises".into(),
+            place_address: " 1 Example St ".into(),
+            place_price: "2".into(),
+            visited_on: "2026-09-08".into(),
+            meal: Choice::Known(Meal::Dinner),
+            meal_other: String::new(),
+            rating: "3".into(),
+            dishes: vec![
+                DishField {
+                    name: "Soup".into(),
+                    note: "hot".into(),
+                },
+                DishField {
+                    name: "Bread".into(),
+                    note: String::new(),
+                },
+                DishField::default(),
+            ],
+            ids: vec![
+                IdField {
+                    service: Choice::Known(KnownIdService::GooglePlace),
+                    service_other: String::new(),
+                    id: "g1".into(),
+                },
+                IdField::default(),
+            ],
             links: vec![
                 LinkField {
                     url: "https://example.com/official".into(),
-                    service: ServiceChoice::Known(KnownService::OfficialSite),
+                    service: Choice::Known(KnownService::OfficialSite),
                     service_other: String::new(),
                     label: String::new(),
                 },
                 LinkField {
                     url: "https://example.com/buy".into(),
-                    service: ServiceChoice::Other,
+                    service: Choice::Other,
                     service_other: "shop".into(),
                     label: "Buy the LP".into(),
                 },
@@ -401,7 +594,7 @@ mod tests {
         assert_eq!(
             draft.crosspost.as_deref(),
             Some("Promises"),
-            "blank text means the subject title"
+            "blank text means the place's name"
         );
         form.post_text = "  New one from me  ".into();
         assert_eq!(
@@ -422,24 +615,24 @@ mod tests {
         assert_eq!(draft.markdown, "Forty-six minutes.");
         assert_eq!(draft.description, None);
         assert_eq!(draft.tags, ["notes", "Short", "one long sit"]);
-        assert_eq!(draft.subject.type_.as_deref(), Some(SUBJECT_NSID));
-        assert_eq!(
-            draft.subject.external_urls.len(),
-            2,
-            "blank rows are skipped"
-        );
-        assert_eq!(
-            draft.subject.external_urls[0].service.as_deref(),
-            Some("officialSite")
-        );
-        assert_eq!(
-            draft.subject.external_urls[1].service.as_deref(),
-            Some("shop")
-        );
-        assert_eq!(
-            draft.subject.external_urls[1].label.as_deref(),
-            Some("Buy the LP")
-        );
+        let visit = &draft.visit;
+        assert_eq!(visit.type_.as_deref(), Some(VISIT_NSID));
+        assert_eq!(visit.place.name, "Promises");
+        assert_eq!(visit.place.address.as_deref(), Some("1 Example St"));
+        assert_eq!(visit.place.price, PriceBand::new(2));
+        assert_eq!(visit.visited_on.as_string(), "2026-09-08");
+        assert_eq!(visit.meal.as_deref(), Some("dinner"));
+        assert_eq!(visit.rating, Some(Rating::StronglyRecommended));
+        assert_eq!(visit.body, None);
+        assert_eq!(visit.dishes.len(), 2, "blank rows are skipped");
+        assert_eq!(visit.dishes[0].note.as_deref(), Some("hot"));
+        assert_eq!(visit.dishes[1].note, None);
+        assert_eq!(visit.place.ids.len(), 1);
+        assert_eq!(visit.place.ids[0].service, "googlePlace");
+        assert_eq!(visit.place.urls.len(), 2, "blank rows are skipped");
+        assert_eq!(visit.place.urls[0].service.as_deref(), Some("officialSite"));
+        assert_eq!(visit.place.urls[1].service.as_deref(), Some("shop"));
+        assert_eq!(visit.place.urls[1].label.as_deref(), Some("Buy the LP"));
         assert_eq!(draft.target, Target::Existing(publication()));
         assert!(draft.cover.is_none());
     }
@@ -450,7 +643,14 @@ mod tests {
         let mut form = good_form();
         form.title = "  ".into();
         form.body = String::new();
-        form.subject_title = " ".into();
+        form.place_name = " ".into();
+        form.place_price = "9".into();
+        form.visited_on = "12/09/2026".into();
+        form.rating = "0".into();
+        form.dishes[1].name = String::new();
+        form.dishes[1].note = "orphan note".into();
+        form.ids[0].id = String::new();
+        form.ids[1].id = "no-service".into();
         form.links[0].url = "http://insecure.example/page".into();
         form.links[1].label = "x".repeat(65);
         form.tags = "a, ".to_owned() + &"y".repeat(129);
@@ -464,7 +664,13 @@ mod tests {
         let expected = [
             ("title", "Give the write-up a title."),
             ("body", "Write something."),
-            ("subject_title", "Name the subject."),
+            ("place_name", "Name the place."),
+            ("place_price", "Choose a price band from the list."),
+            ("visited_on", "Use a date like 2026-09-12."),
+            ("rating", "Choose a rating from the scale."),
+            ("dish_name_1", "Name the dish."),
+            ("id_value_0", "Enter the id."),
+            ("id_service_1", "Choose what kind of id this is."),
             ("link_url_0", "Links must be https."),
             ("link_label_1", "Keep the label under 64 characters."),
             ("cover", "Choose an image under 5 MB."),
@@ -478,6 +684,14 @@ mod tests {
             "{errors:?}"
         );
         assert_eq!(errors.len(), expected.len() + 1, "{errors:?}");
+
+        let mut form = good_form();
+        form.visited_on = String::new();
+        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        assert_eq!(
+            errors.get("visited_on"),
+            Some("Give the date of the visit.")
+        );
     }
 
     #[test]
@@ -512,13 +726,22 @@ mod tests {
 
     #[test]
     fn a_foreign_document_round_trips_unchanged() {
-        let original: Subject = serde_json::from_value(serde_json::json!({
-            "$type": "at.eaten.subject",
-            "title": "Sample Subject",
-            "externalUrls": [
-                {"url": "https://example.com/loveless", "service": "bc", "label": "Elsewhere", "rank": 1},
-                {"url": "https://example.com/review", "note": "long read"}
-            ],
+        let original: Visit = serde_json::from_value(serde_json::json!({
+            "$type": "at.eaten.visit",
+            "place": {
+                "$type": "at.eaten.place",
+                "name": "Sample Place",
+                "ids": [{"service": "yelp", "id": "sample", "verified": true}],
+                "urls": [
+                    {"url": "https://example.com/loveless", "service": "bc", "label": "Elsewhere", "rank": 1},
+                    {"url": "https://example.com/review", "note": "long read"}
+                ],
+                "neighbourhood": "Old Town"
+            },
+            "visitedOn": "2026-09-01",
+            "meal": "tea",
+            "dishes": [{"name": "Scone", "spicy": false}],
+            "body": {"$type": "at.markpub.markdown", "text": {"$type": "at.markpub.text", "markdown": "Loud."}},
             "edition": "2021 remaster"
         }))
         .unwrap();
@@ -527,13 +750,19 @@ mod tests {
             "title": "Everything at once",
             "publishedAt": "2026-08-30T12:00:00.000Z",
             "tags": ["Longform"],
-            "content": {"$type": "at.markpub.markdown", "text": {"$type": "at.markpub.text", "markdown": "Loud."}}
+            "content": serde_json::to_value(&original).unwrap()
         }))
         .unwrap();
         let form = EditorForm::from_document(&doc, &original);
-        assert_eq!(form.links[0].service, ServiceChoice::Other);
+        assert_eq!(form.meal, Choice::Other);
+        assert_eq!(form.meal_other, "tea");
+        assert_eq!(form.ids[0].service, Choice::Other);
+        assert_eq!(form.ids[0].service_other, "yelp");
+        assert_eq!(form.links[0].service, Choice::Other);
         assert_eq!(form.links[0].service_other, "bc");
-        assert_eq!(form.links[1].service, ServiceChoice::None);
+        assert_eq!(form.links[1].service, Choice::None);
+        assert_eq!(form.rating, "");
+        assert_eq!(form.place_price, "");
         let pubs = [publication()];
         let draft = validate(
             &form,
@@ -543,7 +772,9 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(draft.subject, original, "nothing was normalised or lost");
+        let mut expected = original.clone();
+        expected.body = None;
+        assert_eq!(draft.visit, expected, "nothing was normalised or lost");
         assert_eq!(draft.title, "Everything at once");
         assert_eq!(draft.markdown, "Loud.");
         assert_eq!(draft.tags, ["Longform"]);

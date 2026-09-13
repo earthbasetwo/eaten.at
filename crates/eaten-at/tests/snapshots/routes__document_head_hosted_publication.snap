@@ -5,13 +5,13 @@ expression: head_of(&body)
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Third Subject — Ross Writes — eaten.at</title>
+<title>Third Place — Ross Writes — eaten.at</title>
 <link rel="stylesheet" href="/static/app.HASH.css">
 <meta name="description" content="The author's own excerpt.">
 <link rel="canonical" href="https://ross.eaten.at/2026/09/third-post">
 <meta property="og:url" content="https://ross.eaten.at/2026/09/third-post">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Third Subject">
+<meta property="og:title" content="Third Place">
 <meta property="og:description" content="The author's own excerpt.">
 <meta property="og:site_name" content="Ross Writes">
 <meta property="og:image" content="https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d3?size=og">

@@ -379,7 +379,7 @@
 
   /* Cards: a raised surface with a hairline border and the one soft
      shadow. Hovering darkens the border; nothing lifts or moves. */
-  .listing-item article, .chooser-item, .subject-card {
+  .listing-item article, .chooser-item, .visit-card {
     background: var(--color-raised);
     border: 1px solid var(--color-border); border-radius: var(--radius);
     box-shadow: var(--shadow-card);
@@ -391,7 +391,7 @@
   }
 
   /* Listing: one card per write-up, each a small version of the document
-     page (date, title, subject, excerpt) beside its cover. */
+     page (date, title, place and rating, excerpt) beside its cover. */
   .listing { display: flex; flex-direction: column; gap: var(--space-m); }
   .listing-item article { display: flex; gap: var(--card-gap); align-items: flex-start; padding: var(--card-pad); }
   .listing-cover {
@@ -404,7 +404,7 @@
   .listing-title { font-size: var(--text-card); line-height: 1.1; }
   .listing-title a { color: inherit; text-decoration: none; }
   .listing-title a:hover { color: var(--color-accent); text-decoration: none; }
-  .listing-subject {
+  .listing-place {
     margin-block-start: var(--space-xs);
     font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.02em; color: var(--color-ink-faint);
   }
@@ -486,7 +486,7 @@
   }
   .link-button:hover { background: none; color: var(--color-accent-hover); text-decoration: underline; }
 
-  /* Editor: the write-up on the left, the subject on the right, stacked
+  /* Editor: the write-up on the left, the visit on the right, stacked
      when the column is narrow. Every control is a plain form element with
      its problem beneath it. */
   .editor-panes { display: grid; gap: var(--space-xl) var(--space-l); grid-template-columns: minmax(0, 1fr); margin-block-start: var(--space-l); }
@@ -573,19 +573,40 @@
   .document > .kicker { margin-block-end: var(--space-s); }
   .doc-title { margin-block-end: var(--title-gap); text-wrap: balance; }
 
-  /* Subject card: cover beside the subject's name, on a raised card. */
-  .subject-card {
-    display: flex; gap: var(--card-gap); align-items: center;
+  /* Visit card: cover beside the place's name, then the date, meal, and
+     price in the metadata voice, the address, the rating, and the dishes,
+     on a raised card. */
+  .visit-card {
+    display: flex; gap: var(--card-gap); align-items: flex-start;
     padding: var(--card-pad);
     margin-block-end: var(--title-gap);
   }
-  .subject-cover {
+  .visit-cover {
     flex: none; inline-size: var(--cover-size); block-size: var(--cover-size);
     object-fit: cover; border-radius: var(--radius-nested);
     background: var(--color-sunken); box-shadow: var(--shadow-cover);
   }
-  .subject-card-body { min-inline-size: 0; }
-  .subject-title { font-family: var(--font-display); font-size: var(--text-card); line-height: 1.1; color: var(--color-ink); }
+  .visit-card-body { min-inline-size: 0; flex: 1; }
+  .visit-card-body > * + * { margin-block-start: var(--space-xs); }
+  .place-name { font-family: var(--font-display); font-size: var(--text-card); line-height: 1.1; color: var(--color-ink); }
+  .visit-meta {
+    display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-s);
+    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.02em; color: var(--color-ink-faint);
+  }
+  .visit-meta > * + *::before { content: "·"; margin-inline-end: var(--space-s); }
+  .place-address { font-size: var(--text-small); color: var(--color-ink-muted); }
+  /* The rating: the verdict as plus signs with the word beside them, in
+     the accent. Ratings and actions are the only accent fills. */
+  .rating {
+    font-family: var(--font-body); font-size: var(--text-button); font-weight: 700;
+    letter-spacing: 0; color: var(--color-accent);
+  }
+  .rating-marks { letter-spacing: 0.08em; }
+  .listing-place .rating { font-size: var(--text-mono); }
+  .dishes { list-style: none; padding: 0; margin: 0; font-size: var(--text-small); color: var(--color-ink-secondary); }
+  .dishes li + li { margin-block-start: 0.15em; }
+  .dish-name { font-weight: 500; color: var(--color-ink); }
+  .dish-note { color: var(--color-ink-muted); }
 
   /* Prose: the one place text runs long, so it is set larger than the
      interface and its links keep a faint underline at rest; color alone
@@ -643,7 +664,7 @@
   .comments-more a { color: var(--color-accent); }
   .comments-more a:hover { color: var(--color-accent-hover); }
 
-  /* Document footer: subject links, then tags; metadata voice throughout. */
+  /* Document footer: the place's links, then tags; metadata voice throughout. */
   .doc-footer {
     margin-block-start: var(--footer-gap); padding-block-start: var(--footer-pad);
     border-block-start: 1px solid var(--color-border);
@@ -654,8 +675,8 @@
   .doc-footer-row .push { margin-inline-start: auto; }
   .doc-footer a { color: var(--color-accent); }
   .doc-footer a:hover { color: var(--color-accent-hover); }
-  .subject-links { display: contents; }
-  .subject-links-list { display: contents; }
+  .visit-links { display: contents; }
+  .visit-links-list { display: contents; }
   .tags { display: contents; }
   .doc-footer .quiet-links { display: flex; gap: var(--space-m); }
   .doc-footer .quiet-links a { color: var(--color-ink-muted); }

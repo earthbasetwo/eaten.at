@@ -3,9 +3,7 @@
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use eaten_at_atproto::lexicon::Document;
-use eaten_at_web::components::{
-    comments, subject_card, subject_links, tag_links, CommentsView, Link,
-};
+use eaten_at_web::components::{comments, tag_links, visit_card, visit_links, CommentsView, Link};
 use eaten_at_web::dates::human_date;
 use eaten_at_web::layout::{self, Masthead, Page};
 use eaten_at_web::markdown;
@@ -16,7 +14,7 @@ use crate::auth::CurrentUser;
 
 use super::{require_publication, resolve_repo};
 use crate::error::AppError;
-use crate::model::{body_of, Body, SubjectDocument};
+use crate::model::{body_of, Body, VisitDocument};
 use crate::paths;
 use crate::security::Nonce;
 use crate::state::AppState;
@@ -60,21 +58,21 @@ pub async fn document_page(
         &pub_rkey,
         &crate::tags::distinct(record.value.tags.iter().map(String::as_str)),
     );
-    // A document without our subject is still shown; it just has no card.
+    // A document that is not a visit is still shown; it just has no card.
     // Readers arriving from a shared link should not hit a 404.
-    let subject_doc = SubjectDocument::from_record(record.clone());
+    let visit_doc = VisitDocument::from_record(record.clone());
     let page_meta = view::document_meta(
         &state,
         &did,
         &pub_rkey,
         &record,
-        subject_doc.as_ref(),
+        visit_doc.as_ref(),
         &publication.value,
     );
     let theme = view::theme(&publication.value);
-    let card = subject_doc
+    let card = visit_doc
         .as_ref()
-        .map(|subject_doc| view::subject_card(&did, subject_doc));
+        .map(|visit_doc| view::visit_card(&did, visit_doc));
     let thread = comment_thread(&state, &record.value).await;
     let publication_path = paths::publication(&did, &pub_rkey);
     let footer = Footer {
@@ -104,7 +102,7 @@ pub async fn document_page(
                 }
                 h1.doc-title { (title) }
                 @if let Some(card) = &card {
-                    (subject_card(card))
+                    (visit_card(card))
                 }
                 @if let Some(body) = body {
                     div.prose { (body) }
@@ -132,7 +130,7 @@ async fn comment_thread(state: &AppState, doc: &Document) -> Option<CommentsView
     Some(view::comments_view(&thread, href))
 }
 
-/// What the document footer shows: the subject's links, the comment
+/// What the document footer shows: the place's links, the comment
 /// thread, the tags, and the publication's feed and author.
 struct Footer<'a> {
     links: &'a [Link],
@@ -150,7 +148,7 @@ impl Footer<'_> {
             footer.doc-footer {
                 @if !self.links.is_empty() || self.comments_url.is_some() {
                     div.doc-footer-row {
-                        (subject_links(self.links))
+                        (visit_links(self.links))
                         @if let Some(url) = &self.comments_url {
                             a.push.comments href=(url) rel="noopener" { "Comments on Bluesky →" }
                         }

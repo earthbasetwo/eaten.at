@@ -37,18 +37,29 @@ fn publication(name: &str, url: &str) -> Value {
            "description": format!("{name} description")})
 }
 
-fn subject_doc(pub_rkey: &str, title: &str, subject: &str, tags: &[&str]) -> Value {
+fn visit_doc(pub_rkey: &str, title: &str, place: &str, tags: &[&str]) -> Value {
     json!({
         "$type": "site.standard.document",
         "site": format!("at://{DID}/site.standard.publication/{pub_rkey}"),
         "title": title, "path": format!("/2026/09/{}", title.to_lowercase().replace(' ', "-")),
         "publishedAt": "2026-09-07T12:00:00.000Z",
         "tags": tags,
-        "content": {"$type": "at.markpub.markdown", "text": {"$type": "at.markpub.text",
-                    "markdown": format!("# Heading\n\nA write-up of *{subject}*.\n\nMore text here.")}},
-        "links": {"$type": "at.eaten.subject", "title": subject,
-                  "externalUrls": [{"url": "https://example.com/official", "service": "officialSite"},
-                                   {"url": "https://example.com/buy", "service": "shop-thing"}]}
+        "textContent": format!("{place} · 2026-09-06 · Recommended\n\nHeading\n\nA write-up of {place}."),
+        "content": {
+            "$type": "at.eaten.visit",
+            "place": {
+                "name": place, "address": "1 Example St", "price": 2,
+                "ids": [{"service": "googlePlace", "id": "g1"}],
+                "urls": [{"url": "https://example.com/official", "service": "officialSite"},
+                         {"url": "https://example.com/buy", "service": "shop-thing"}]
+            },
+            "visitedOn": "2026-09-06",
+            "meal": "dinner",
+            "dishes": [{"name": "Soup", "note": "hot"}],
+            "rating": 2,
+            "body": {"$type": "at.markpub.markdown", "text": {"$type": "at.markpub.text",
+                     "markdown": format!("# Heading\n\nA write-up of *{place}*.\n\nMore text here.")}}
+        }
     })
 }
 
@@ -236,12 +247,12 @@ fn one_publication() -> Repo {
         documents: vec![
             (
                 "d3".into(),
-                subject_doc("pub1", "Third Post", "Third Subject", &["longform"]),
+                visit_doc("pub1", "Third Post", "Third Place", &["longform"]),
             ),
             ("d2".into(), plain_doc("pub1", "Plain Post")),
             (
                 "d1".into(),
-                subject_doc("pub1", "First Post", "First Subject", &[]),
+                visit_doc("pub1", "First Post", "First Place", &[]),
             ),
         ],
         ..Repo::default()
@@ -359,7 +370,7 @@ async fn repo_without_publications_says_so() {
 }
 
 #[tokio::test]
-async fn publication_page_lists_only_subject_documents_of_this_publication() {
+async fn publication_page_lists_only_visit_documents_of_this_publication() {
     let mut repo = one_publication();
     repo.publications
         .push(("pub2", publication("Side Blog", "https://side.example")));
@@ -367,7 +378,7 @@ async fn publication_page_lists_only_subject_documents_of_this_publication() {
         0,
         (
             "d4".into(),
-            subject_doc("pub2", "Elsewhere", "Other Subject", &[]),
+            visit_doc("pub2", "Elsewhere", "Other Place", &[]),
         ),
     );
     let server = mount(&repo).await;
@@ -384,7 +395,7 @@ async fn publication_page_lists_only_subject_documents_of_this_publication() {
     assert!(!body.contains("Plain Post"), "{body}");
     assert!(!body.contains("Elsewhere"), "{body}");
     assert!(
-        body.contains("A write-up of Third Subject."),
+        body.contains("A write-up of Third Place."),
         "excerpt derived: {body}"
     );
     assert!(body.contains(&format!("/at/{DID}/pub1/d3")), "{body}");
@@ -402,7 +413,7 @@ async fn listing_paginates_with_cursor() {
         .map(|i| {
             (
                 format!("d{:03}", 100 - i),
-                subject_doc("pub1", &format!("Post {i}"), &format!("Subject {i}"), &[]),
+                visit_doc("pub1", &format!("Post {i}"), &format!("Place {i}"), &[]),
             )
         })
         .collect();
@@ -436,7 +447,7 @@ async fn listing_paginates_with_cursor() {
 }
 
 #[tokio::test]
-async fn heavy_non_subject_collection_hits_scan_cap() {
+async fn heavy_non_visit_collection_hits_scan_cap() {
     let mut repo = one_publication();
     let mut docs: Vec<(String, Value)> = (0..110)
         .map(|i| {
@@ -448,7 +459,7 @@ async fn heavy_non_subject_collection_hits_scan_cap() {
         .collect();
     docs.push((
         "a000".into(),
-        subject_doc("pub1", "Buried Subject Post", "Deep Cut", &[]),
+        visit_doc("pub1", "Buried Visit Post", "Deep Cut", &[]),
     ));
     repo.documents = docs;
     let server = mount(&repo).await;
@@ -458,7 +469,7 @@ async fn heavy_non_subject_collection_hits_scan_cap() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(!body.contains("Buried Subject Post"), "{body}");
+    assert!(!body.contains("Buried Visit Post"), "{body}");
     assert!(body.contains("There may be older ones"), "{body}");
     assert!(body.contains("rel=\"next\""), "{body}");
 }
@@ -473,19 +484,29 @@ async fn document_page_renders_card_body_tags_and_canonical() {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(
-        body.contains("<title>Third Subject — Ross Writes — eaten.at</title>"),
+        body.contains("<title>Third Place — Ross Writes — eaten.at</title>"),
         "{body}"
     );
     assert!(
         body.contains("<link rel=\"canonical\" href=\"https://ross.eaten.at/2026/09/third-post\">"),
         "{body}"
     );
+    assert!(body.contains("class=\"place-name\">Third Place<"), "{body}");
     assert!(
-        body.contains("class=\"subject-title\">Third Subject<"),
+        body.contains("<time datetime=\"2026-09-06\">September 6, 2026</time><span class=\"visit-meal\">Dinner</span><span class=\"price\" aria-label=\"price band 2 of 4\">$$</span>"),
         "{body}"
     );
+    assert!(
+        body.contains("class=\"place-address\">1 Example St<"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<span class=\"rating-marks\" aria-hidden=\"true\">++</span> <span class=\"rating-word\">Recommended</span>"),
+        "{body}"
+    );
+    assert!(body.contains("class=\"dish-name\">Soup<"), "{body}");
     assert!(body.contains("<h2>Heading</h2>"), "{body}");
-    assert!(body.contains("<em>Third Subject</em>"), "{body}");
+    assert!(body.contains("<em>Third Place</em>"), "{body}");
     assert!(
         body.contains(">Official site<"),
         "known service label: {body}"
@@ -494,11 +515,15 @@ async fn document_page_renders_card_body_tags_and_canonical() {
         body.contains(">example.com<"),
         "unknown service labelled by host: {body}"
     );
+    assert!(
+        body.contains("href=\"https://www.google.com/maps/place/?q=place_id:g1\" rel=\"ugc nofollow noopener\">Google Maps</a>"),
+        "a known id becomes a map link: {body}"
+    );
     assert!(body.contains("longform"), "{body}");
 }
 
 #[tokio::test]
-async fn document_without_subject_renders_without_card() {
+async fn document_that_is_not_a_visit_renders_without_card() {
     let server = mount(&one_publication()).await;
     let (status, _, body) = get(
         &state_for(&server, StaticDns::new()),
@@ -506,7 +531,7 @@ async fn document_without_subject_renders_without_card() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(!body.contains("subject-card"), "{body}");
+    assert!(!body.contains("visit-card"), "{body}");
     assert!(body.contains("Just a blog post."), "{body}");
 }
 
@@ -650,8 +675,8 @@ fn png_bytes(w: u32, h: u32) -> Vec<u8> {
     out.into_inner()
 }
 
-fn subject_doc_with_cover(pub_rkey: &str, mime: &str) -> Value {
-    let mut doc = subject_doc(pub_rkey, "Covered", "Covered Subject", &[]);
+fn visit_doc_with_cover(pub_rkey: &str, mime: &str) -> Value {
+    let mut doc = visit_doc(pub_rkey, "Covered", "Covered Place", &[]);
     doc["coverImage"] =
         json!({"$type": "blob", "ref": {"$link": "bafkcover"}, "mimeType": mime, "size": 100});
     doc
@@ -692,10 +717,8 @@ fn jpeg_dimensions(bytes: &[u8]) -> (u32, u32) {
 #[tokio::test]
 async fn cover_proxy_serves_blob_as_jpeg_with_safe_headers() {
     let mut repo = one_publication();
-    repo.documents.insert(
-        0,
-        ("cov".into(), subject_doc_with_cover("pub1", "image/png")),
-    );
+    repo.documents
+        .insert(0, ("cov".into(), visit_doc_with_cover("pub1", "image/png")));
     let server = mount(&repo).await;
     mount_blob(&server, "image/png", png_bytes(1000, 1000)).await;
     let state = state_for(&server, StaticDns::new());
@@ -728,10 +751,7 @@ async fn svg_blob_is_refused_and_chain_falls_through_to_placeholder() {
     let mut repo = one_publication();
     repo.documents.insert(
         0,
-        (
-            "cov".into(),
-            subject_doc_with_cover("pub1", "image/svg+xml"),
-        ),
+        ("cov".into(), visit_doc_with_cover("pub1", "image/svg+xml")),
     );
     let server = mount(&repo).await;
     mount_blob(
@@ -753,10 +773,8 @@ async fn svg_blob_is_refused_and_chain_falls_through_to_placeholder() {
 async fn mislabelled_blob_is_decoded_by_content_not_declared_type() {
     // Declared PNG, actually an SVG: sniffing must reject it.
     let mut repo = one_publication();
-    repo.documents.insert(
-        0,
-        ("cov".into(), subject_doc_with_cover("pub1", "image/png")),
-    );
+    repo.documents
+        .insert(0, ("cov".into(), visit_doc_with_cover("pub1", "image/png")));
     let server = mount(&repo).await;
     mount_blob(
         &server,
@@ -775,7 +793,7 @@ async fn mislabelled_blob_is_decoded_by_content_not_declared_type() {
 }
 
 #[tokio::test]
-async fn cover_proxy_404s_for_missing_or_non_subject_documents() {
+async fn cover_proxy_404s_for_missing_or_non_visit_documents() {
     let server = mount(&one_publication()).await;
     let state = state_for(&server, StaticDns::new());
     let (status, _, _) = get_image(&state, &format!("/img/{DID}/nope")).await;
@@ -790,20 +808,15 @@ async fn tag_pages_filter_within_the_publication_and_match_loosely() {
     repo.documents = vec![
         (
             "t3".into(),
-            subject_doc(
-                "pub1",
-                "Loud One",
-                "Loud Subject",
-                &["Longform", "long read"],
-            ),
+            visit_doc("pub1", "Loud One", "Loud Place", &["Longform", "long read"]),
         ),
         (
             "t2".into(),
-            subject_doc("pub1", "Quiet One", "Quiet Subject", &["short"]),
+            visit_doc("pub1", "Quiet One", "Quiet Place", &["short"]),
         ),
         (
             "t1".into(),
-            subject_doc("pub1", "Old One", "Old Subject", &["longform"]),
+            visit_doc("pub1", "Old One", "Old Place", &["longform"]),
         ),
         ("x1".into(), plain_doc("pub1", "Blog post")),
     ];
@@ -855,16 +868,11 @@ async fn tag_links_appear_on_document_and_publication_pages() {
     repo.documents = vec![
         (
             "t3".into(),
-            subject_doc(
-                "pub1",
-                "Loud One",
-                "Loud Subject",
-                &["Longform", "long read"],
-            ),
+            visit_doc("pub1", "Loud One", "Loud Place", &["Longform", "long read"]),
         ),
         (
             "t1".into(),
-            subject_doc("pub1", "Old One", "Old Subject", &["longform"]),
+            visit_doc("pub1", "Old One", "Old Place", &["longform"]),
         ),
     ];
     let server = mount(&repo).await;
@@ -936,13 +944,13 @@ async fn document_head_byo_domain_points_canonical_away_and_derives_description(
         "{head}"
     );
     assert!(
-        head.contains("content=\"A write-up of Third Subject.\""),
+        head.contains("content=\"A write-up of Third Place.\""),
         "derived excerpt: {head}"
     );
     assert!(!head.contains("modified_time"), "{head}");
     assert!(head.contains("<meta property=\"og:image\" content=\"https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d3?size=og\">"), "{head}");
     assert!(
-        head.contains("<meta property=\"og:title\" content=\"Third Subject\">"),
+        head.contains("<meta property=\"og:title\" content=\"Third Place\">"),
         "{head}"
     );
     insta::assert_snapshot!(head);
@@ -994,9 +1002,9 @@ async fn publication_head_and_icon() {
 }
 
 #[tokio::test]
-async fn feed_lists_subject_documents_with_canonical_links() {
+async fn feed_lists_visit_documents_with_canonical_links() {
     let mut repo = one_publication();
-    repo.documents[0].1["links"]["title"] = Value::String("Third & <Subject>".into());
+    repo.documents[0].1["content"]["place"]["name"] = Value::String("Third & <Place>".into());
     let server = mount(&repo).await;
     let state = state_for(&server, StaticDns::new());
     let response = router(state.clone())
@@ -1028,11 +1036,11 @@ async fn feed_lists_subject_documents_with_canonical_links() {
         "{body}"
     );
     assert!(
-        body.contains("<title>Third &amp; &lt;Subject&gt;</title>"),
+        body.contains("<title>Third &amp; &lt;Place&gt;</title>"),
         "{body}"
     );
     assert!(
-        body.contains("<description>A write-up of Third Subject.</description>"),
+        body.contains("<description>A write-up of Third Place.</description>"),
         "{body}"
     );
     assert!(
@@ -1275,10 +1283,8 @@ async fn security_headers_on_every_route_family() {
 #[tokio::test]
 async fn nonces_differ_per_request_and_image_proxy_keeps_its_own_csp() {
     let mut repo = one_publication();
-    repo.documents.insert(
-        0,
-        ("cov".into(), subject_doc_with_cover("pub1", "image/png")),
-    );
+    repo.documents
+        .insert(0, ("cov".into(), visit_doc_with_cover("pub1", "image/png")));
     let server = mount(&repo).await;
     mount_blob(&server, "image/png", png_bytes(10, 10)).await;
     let state = state_for(&server, StaticDns::new());
@@ -1390,7 +1396,15 @@ fn good_fields<'a>() -> Vec<(&'a str, &'a str)> {
     vec![
         ("title", "A room with the lights off"),
         ("body", "Forty-six *minutes*.\n\nNine notes."),
-        ("subject_title", "Promises"),
+        ("place_name", "Promises"),
+        ("place_price", "2"),
+        ("visited_on", "2026-09-08"),
+        ("meal", "dinner"),
+        ("rating", "3"),
+        ("dish_name_0", "Soup"),
+        ("dish_note_0", "hot"),
+        ("id_service_0", "googlePlace"),
+        ("id_value_0", "g1"),
         ("link_url_0", "https://example.com/official"),
         ("link_service_0", "officialSite"),
         ("link_service_other_0", ""),
@@ -1459,15 +1473,17 @@ async fn editor_reports_problems_beside_fields_and_previews_a_good_draft() {
     let cookie = signed_in(&state).await;
 
     let mut fields = good_fields();
-    fields.retain(|(k, _)| *k != "title" && *k != "subject_title");
+    fields.retain(|(k, _)| *k != "title" && *k != "place_name" && *k != "visited_on");
     fields.push(("title", "   "));
-    fields.push(("subject_title", " "));
+    fields.push(("place_name", " "));
+    fields.push(("visited_on", "yesterday"));
     let (status, body) = post_editor(&state, "/write", &cookie, &fields, None).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
     assert!(body.contains("id=\"title-error\""), "{body}");
-    assert!(body.contains("id=\"subject_title-error\""), "{body}");
+    assert!(body.contains("id=\"place_name-error\""), "{body}");
+    assert!(body.contains("id=\"visited_on-error\""), "{body}");
     assert!(body.contains("aria-describedby=\"title-error\""), "{body}");
-    assert!(body.contains("2 things to fix below"), "{body}");
+    assert!(body.contains("3 things to fix below"), "{body}");
 
     let (status, body) = post_editor(&state, "/write", &cookie, &good_fields(), None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -1476,7 +1492,12 @@ async fn editor_reports_problems_beside_fields_and_previews_a_good_draft() {
         body.contains("<em>minutes</em>"),
         "markdown rendered: {body}"
     );
-    assert!(body.contains("class=\"subject-title\">Promises<"), "{body}");
+    assert!(body.contains("class=\"place-name\">Promises<"), "{body}");
+    assert!(
+        body.contains("<span class=\"rating-marks\" aria-hidden=\"true\">+++</span> <span class=\"rating-word\">Strongly Recommended</span>"),
+        "{body}"
+    );
+    assert!(body.contains("class=\"dish-name\">Soup<"), "{body}");
     assert!(body.contains(">Official site</a>"), "{body}");
     assert!(
         body.contains(">notes</a>") && body.contains(">Short</a>"),
@@ -1518,9 +1539,10 @@ async fn editor_reports_problems_beside_fields_and_previews_a_good_draft() {
 #[tokio::test]
 async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
     let mut repo = one_publication();
-    let mut foreign = subject_doc("pub1", "Foreign Post", "Foreign Subject", &["Tape"]);
-    foreign["links"]["externalUrls"] =
+    let mut foreign = visit_doc("pub1", "Foreign Post", "Foreign Place", &["Tape"]);
+    foreign["content"]["place"]["urls"] =
         json!([{"url": "https://x.example/a", "service": "bc", "rank": 1}]);
+    foreign["content"]["meal"] = json!("tea");
     repo.documents.push(("d9".into(), foreign));
     let server = mount(&repo).await;
     let state = state_for(&server, dns_for_handle());
@@ -1529,17 +1551,24 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
     let (status, _, body) = get_signed(&state, "/write/d9", &cookie).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("value=\"Foreign Post\""), "{body}");
-    assert!(body.contains("value=\"Foreign Subject\""), "{body}");
+    assert!(body.contains("value=\"Foreign Place\""), "{body}");
+    assert!(body.contains("value=\"2026-09-06\""), "{body}");
     assert!(body.contains("<option value=\"other\" selected>"), "{body}");
     assert!(body.contains("value=\"bc\""), "{body}");
+    assert!(body.contains("value=\"tea\""), "{body}");
+    assert!(
+        body.contains("value=\"2\" checked"),
+        "the rating is preselected: {body}"
+    );
     assert!(body.contains("value=\"Tape\""), "{body}");
     assert!(body.contains("action=\"/write/d9\""), "{body}");
-    assert!(body.contains("A write-up of *Foreign Subject*."), "{body}");
+    assert!(body.contains("A write-up of *Foreign Place*."), "{body}");
 
     let fields = [
         ("title", "Foreign Post"),
-        ("body", "A write-up of *Foreign Subject*."),
-        ("subject_title", "Foreign Subject"),
+        ("body", "A write-up of *Foreign Place*."),
+        ("place_name", "Foreign Place"),
+        ("visited_on", "2026-09-06"),
         ("link_url_0", "https://x.example/a"),
         ("link_service_0", "other"),
         ("link_service_other_0", "bc"),
@@ -1559,7 +1588,7 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
     );
 
     let (status, _, body) = get_signed(&state, "/write/d2", &cookie).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "no subject: {body}");
+    assert_eq!(status, StatusCode::BAD_REQUEST, "not a visit: {body}");
     let (status, _, _) = get_signed(&state, "/write/nope", &cookie).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
@@ -1712,13 +1741,27 @@ async fn first_publish_creates_the_publication_and_preferences_then_the_document
         doc["path"],
         format!("{}/a-room-with-the-lights-off", this_month())
     );
+    assert_eq!(doc["content"]["$type"], "at.eaten.visit");
     assert_eq!(
-        doc["content"]["text"]["markdown"],
+        doc["content"]["body"]["text"]["markdown"],
         "Forty-six *minutes*.\n\nNine notes."
     );
-    assert_eq!(doc["textContent"], "Forty-six minutes.\n\nNine notes.");
-    assert_eq!(doc["links"]["$type"], "at.eaten.subject");
-    assert_eq!(doc["links"]["externalUrls"][0]["service"], "officialSite");
+    assert_eq!(
+        doc["textContent"],
+        "Promises · 2026-09-08 · Strongly Recommended\n\nForty-six minutes.\n\nNine notes.\n\nDishes: Soup"
+    );
+    assert_eq!(doc["content"]["place"]["name"], "Promises");
+    assert_eq!(doc["content"]["place"]["price"], 2);
+    assert_eq!(doc["content"]["place"]["ids"][0]["id"], "g1");
+    assert_eq!(
+        doc["content"]["place"]["urls"][0]["service"],
+        "officialSite"
+    );
+    assert_eq!(doc["content"]["visitedOn"], "2026-09-08");
+    assert_eq!(doc["content"]["meal"], "dinner");
+    assert_eq!(doc["content"]["rating"], 3);
+    assert_eq!(doc["content"]["dishes"][0]["note"], "hot");
+    assert!(doc.get("links").is_none(), "{doc}");
     assert_eq!(doc["tags"], json!(["notes", "Short"]));
     assert!(doc.get("description").is_none());
     assert!(doc.get("updatedAt").is_none());
@@ -1774,7 +1817,8 @@ async fn editing_replaces_the_record_and_deleting_removes_it() {
     let fields = [
         ("title", "Third Post, revisited"),
         ("body", "New words."),
-        ("subject_title", "Third Subject"),
+        ("place_name", "Third Place"),
+        ("visited_on", "2026-09-06"),
         ("link_url_0", "https://example.com/official"),
         ("link_service_0", "officialSite"),
         ("tags", "longform"),
@@ -1797,11 +1841,16 @@ async fn editing_replaces_the_record_and_deleting_removes_it() {
     assert_eq!(doc["path"], "/2026/09/third-post", "the path never changes");
     assert_eq!(doc["publishedAt"], "2026-09-07T12:00:00.000Z");
     assert!(doc.get("updatedAt").is_some(), "{doc}");
-    assert_eq!(doc["links"]["externalUrls"][0]["service"], "officialSite");
     assert_eq!(
-        doc["links"]["externalUrls"][0]["url"],
+        doc["content"]["place"]["urls"][0]["service"],
+        "officialSite"
+    );
+    assert_eq!(
+        doc["content"]["place"]["urls"][0]["url"],
         "https://example.com/official"
     );
+    assert_eq!(doc["content"]["visitedOn"], "2026-09-06");
+    assert!(doc["content"].get("rating").is_none(), "unrated now: {doc}");
 
     let (status, _, page) = get_signed(&state, "/write/d3/delete", &cookie).await;
     assert_eq!(status, StatusCode::OK);
@@ -2170,7 +2219,7 @@ const POST_URI: &str = "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/app.bsky.feed.post
 
 /// A document whose comment thread is a Bluesky post.
 fn commented_repo() -> Repo {
-    let mut doc = subject_doc("pub1", "Third Post", "Third Subject", &[]);
+    let mut doc = visit_doc("pub1", "Third Post", "Third Place", &[]);
     doc["bskyPostRef"] = json!({"uri": POST_URI, "cid": "bafyroot"});
     Repo {
         publications: vec![("pub1", publication("Ross Writes", "https://ross.eaten.at"))],
@@ -2413,7 +2462,7 @@ async fn post_form(
 /// The document a publish creates, as the PDS hands it back at the key
 /// the createRecord mock mints.
 fn new_document() -> Value {
-    subject_doc("pub1", "A room with the lights off", "Promises", &["notes"])
+    visit_doc("pub1", "A room with the lights off", "Promises", &["notes"])
 }
 
 /// `getRecord` for the freshly created document; ahead of the catch-all
@@ -2733,7 +2782,7 @@ async fn crosspost_toggle_defaults_from_preferences() {
         page.contains("name=\"crosspost\" type=\"checkbox\" value=\"1\" checked"),
         "{page}"
     );
-    assert!(page.contains("placeholder=\"\""), "no subject yet: {page}");
+    assert!(page.contains("placeholder=\"\""), "no place yet: {page}");
 
     let server = mount(&one_publication()).await;
     mount_writes(&server).await;
@@ -2745,7 +2794,7 @@ async fn crosspost_toggle_defaults_from_preferences() {
         "{page}"
     );
     // A document that already names a post shows the link, not the toggle.
-    let mut doc = subject_doc("pub1", "Third Post", "Third Subject", &[]);
+    let mut doc = visit_doc("pub1", "Third Post", "Third Place", &[]);
     doc["bskyPostRef"] =
         json!({"uri": format!("at://{DID}/app.bsky.feed.post/3kpost"), "cid": "bafy"});
     let server = mount(&Repo {
@@ -2901,7 +2950,7 @@ async fn without_permission_publish_hands_over_to_the_crosspost_page_which_asks(
 
 #[tokio::test]
 async fn delete_offers_to_delete_the_post_when_it_may() {
-    let mut doc = subject_doc("pub1", "Third Post", "Third Subject", &[]);
+    let mut doc = visit_doc("pub1", "Third Post", "Third Place", &[]);
     doc["bskyPostRef"] =
         json!({"uri": format!("at://{DID}/app.bsky.feed.post/3kpost"), "cid": "bafy"});
     let repo = || Repo {

@@ -13,25 +13,38 @@ something.
 | D1 | Deployment model | Open write (any atproto identity), publication-scoped read. No global feed. |
 | D2 | Web tier | Rust: `axum` + typed HTML templates (`maud`). Server-rendered. |
 | D3 | Client JS | Hard budget. Progressive enhancement only; every page works with JS off. |
-| D4 | Ratings | **Decide for eaten.at.** album-report had none; a review site may want them. |
+| D4 | Ratings | Settled 2026-09-13: an optional four-step house scale stored as the integer 1–4 in `at.eaten.visit.rating`, rendered as plus signs with a word: Solid (+), Recommended (++), Strongly Recommended (+++), Can't Miss (++++). An integer with a range, not open `knownValues`: the scale is ordinal and ours. |
 | D5 | Subscriptions | Deferred. The follow story is RSS. |
 | D6 | Comments | Off-platform via `bskyPostRef` to a Bluesky thread. No native comments. |
 | D7 | Recommends | Out of scope (`site.standard.graph.recommend`). |
 | D8 | Publication hosting | User's choice: a subdomain on `eaten.at`, or bring your own domain. |
 | D9 | Indexing | No content index. Read-through from PDSes with a TTL cache. |
 | D10 | Routing | Publication-scoped. `/at/<did>/` is the default publication (or a chooser); `/at/<did>/<rkey>/` a specific one. Users may have many. |
-| D11 | Subject identity | **Decide for eaten.at.** album-report used an optional MusicBrainz release-group id; the placeholder subject here has only a title and links. |
+| D11 | Subject identity | Settled 2026-09-13: a place is matched across write-ups by external ids as `knownValues` (`googlePlace`, `applePlace`, `overtureGers`) in `at.eaten.place.ids`. Two places sharing a `(service, id)` pair are the same place; names and addresses are for people. Unknown services are preserved. |
 | D12 | Body | `at.markpub.markdown` in the `content` union. `text.markdown` only: no facets, lenses, or rendering rules. |
 | D13 | Internal crates | Two workspace crates, `eaten-at-web` and `eaten-at-atproto`. Local path deps, not published. |
 | D14 | OAuth scopes | Granular scopes requested directly. No custom permission set. |
 | D15 | NSID shape | Flat, single authority: `at.eaten.<name>`. One DNS record (`_lexicon.eaten.at`), one repo. |
 | D16 | Datastore | SQLite. Single node, tiny write volume, one-file backup, matches the single-binary shape. |
 | D17 | Bluesky crosspost | Opt-in and separately authorized. Creates the post that comments thread from. |
-| D18 | Tags | Free text, entirely the author's own. No suggested vocabulary. Publication-scoped tag pages. |
+| D18 | Tags | Free text, entirely the author's own. No suggested vocabulary. Publication-scoped tag pages. Reaffirmed as D26. |
 | D19 | Excerpt | `description` stores only what the author wrote. Summaries derived at point of use, never persisted. |
 | D20 | Site-route addressing | DID-addressed, not handle-addressed. Handles are lookup input only, resolved to a redirect. |
 | D21 | Document rendering | Site routes render documents in full, with `rel="canonical"` to the publication origin. |
 | D22 | Meta / unfurling | Full OpenGraph set; `og:url` and canonical are always the publication origin. `og:image` is one stable proxy URL per document. |
+
+## Decisions made for eaten.at
+
+Taken on 2026-09-13, when the placeholder subject became a visit.
+
+| # | Decision | Choice |
+|---|---|---|
+| D23 | Where our model lives | Our object is the document's **`content`**, not an entry in `links`. A write-up stays a `site.standard.document`, so publications, hosting, theming, canonical URLs, covers, tags, labels, and the Bluesky thread stay on the Standard record; `content.$type == at.eaten.visit` is what marks a document as ours. `textContent` carries a plaintext rendering (place, date, verdict, prose, dishes) for readers that do not know the type. The earlier "lens" idea, that a write-up should read as a plain post everywhere, was dropped; `links` is not ours and foreign entries there are carried over untouched. |
+| D24 | The subject is a visit | `at.eaten.visit`: a place, a calendar date, an optional meal, the dishes, an optional rating, and the prose as an open-union `body` (we write `at.markpub.markdown`, so D12 stands). |
+| D25 | Place fields | `at.eaten.place`, its own lexicon of object defs so later records can reference it: name, one-line address, a 1–4 price band, external ids, and links for readers. No cuisine field; cuisine is a tag if the author wants one. |
+| D26 | Tags | Free-text tags stay in `site.standard.document.tags` (D18 stands). The visit carries typed facts, never tags: add meaning only where Standard leaves a slot open, never shadow a field Standard already has. |
+| D27 | Visit date | `visitedOn` is a calendar date string `YYYY-MM-DD`, not an atproto `datetime`: a visit has no instant, and the server-rendered editor cannot know the author's offset. The PDS checks the length; the app checks the format. |
+| D28 | Company | No party size or companions in the record. Naming other people in a public record is left to the prose. |
 
 ## Stack choices
 
@@ -64,6 +77,6 @@ Cosmetic only; nothing here affects behaviour.
 - The markdown fixture `crates/eaten-at-web/tests/fixtures/write-up.md`
   and its snapshots still read as an album write-up. They exercise the
   markdown pipeline, not the subject.
-- Rust identifiers use "subject document" and "subject card" for what
-  album-report called the album document and album card; rename again
-  when eaten.at's own vocabulary settles.
+- Rust identifiers were renamed from "subject document" and "subject
+  card" to "visit document" and "visit card" on 2026-09-13, when the
+  vocabulary settled.

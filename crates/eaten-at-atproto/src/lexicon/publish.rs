@@ -223,7 +223,10 @@ mod tests {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lexicons");
         let schemas = load_dir(&dir).unwrap();
         let ids: Vec<&str> = schemas.iter().map(|s| s.id.as_str()).collect();
-        assert_eq!(ids, vec!["at.eaten.preferences", "at.eaten.subject"]);
+        assert_eq!(
+            ids,
+            vec!["at.eaten.place", "at.eaten.preferences", "at.eaten.visit"]
+        );
         assert!(matches!(
             load_dir(&dir.join("nope")),
             Err(LoadError::Io { .. })

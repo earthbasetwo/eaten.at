@@ -17,10 +17,17 @@ pub mod form;
 pub mod view;
 
 pub use draft::{default_post_text, validate, Context, Cover, DocumentDraft, FieldErrors, Target};
-pub use form::{Action, EditorForm, LinkField, ServiceChoice, Upload, PUBLICATION_NEW};
+pub use form::{
+    Action, Choice, DishField, EditorForm, IdField, LinkField, RowKind, ServiceChoice, Upload,
+    PUBLICATION_NEW,
+};
 
-/// Most external links on one subject (lexicon `maxLength`).
+/// Most external links on one place (lexicon `maxLength`).
 pub const MAX_LINKS: usize = 12;
+/// Most dishes on one visit (lexicon `maxLength`).
+pub const MAX_DISHES: usize = 24;
+/// Most external ids on one place (lexicon `maxLength`).
+pub const MAX_IDS: usize = 8;
 /// Most tags on one document. The lexicon sets no cap; this keeps the
 /// listing's chip row sane.
 pub const MAX_TAGS: usize = 20;
