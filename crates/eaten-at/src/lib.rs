@@ -14,6 +14,7 @@ pub mod img;
 pub mod labels;
 pub mod model;
 pub mod paths;
+pub mod places;
 pub mod publish;
 pub mod read;
 pub mod routes;

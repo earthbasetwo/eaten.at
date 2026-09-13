@@ -76,6 +76,8 @@ pub enum Namespace {
     BlueskyThread,
     /// Re-encoded cover images served by the proxy.
     Image,
+    /// Place search results from Open Places, by query and point.
+    PlaceSearch,
 }
 
 impl Namespace {
@@ -86,7 +88,7 @@ impl Namespace {
         const DAY: u64 = 24 * HOUR;
         Duration::from_secs(match self {
             Self::Identity => DAY,
-            Self::Handle | Self::Document => HOUR,
+            Self::Handle | Self::Document | Self::PlaceSearch => HOUR,
             Self::Publication => 15 * MINUTE,
             Self::DocumentList | Self::BlueskyThread => 5 * MINUTE,
             Self::Image => 6 * HOUR,
@@ -107,7 +109,7 @@ impl Namespace {
             | Self::DocumentList
             | Self::Document
             | Self::BlueskyThread => 5 * MINUTE,
-            Self::Image => 60 * MINUTE,
+            Self::Image | Self::PlaceSearch => 60 * MINUTE,
         })
     }
 
@@ -120,6 +122,7 @@ impl Namespace {
             Self::Document => "document",
             Self::BlueskyThread => "bluesky_thread",
             Self::Image => "image",
+            Self::PlaceSearch => "place_search",
         }
     }
 }

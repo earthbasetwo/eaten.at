@@ -15,6 +15,7 @@ use crate::auth::{self, SessionCookie, SqliteOAuthStore, WebSessions};
 use crate::bsky::BskyConfig;
 use crate::cache::{Cache, SystemClock};
 use crate::hosting::Claims;
+use crate::places::PlacesConfig;
 
 /// `User-Agent` sent to every upstream.
 pub const USER_AGENT: &str = concat!(
@@ -41,6 +42,7 @@ struct Inner {
     sessions: WebSessions,
     cookie: SessionCookie,
     claims: Claims,
+    places: PlacesConfig,
 }
 
 /// Where upstreams live and where we are. Defaults are production;
@@ -56,6 +58,8 @@ pub struct AppConfig {
     /// The OAuth client's key. With one the app is a confidential client;
     /// without one it is public, which works but earns shorter sessions.
     pub oauth_signing_key: Option<SigningKey>,
+    /// Where place search goes, and the key that enables it.
+    pub places: PlacesConfig,
 }
 
 impl Default for AppConfig {
@@ -65,6 +69,7 @@ impl Default for AppConfig {
             bsky: BskyConfig::default(),
             public_url: url::Url::parse("https://eaten.at").expect("constant"),
             oauth_signing_key: None,
+            places: PlacesConfig::default(),
         }
     }
 }
@@ -105,6 +110,7 @@ impl AppState {
                 oauth_store,
                 claims: Claims::new(db.clone(), Arc::clone(&clock)),
                 sessions: WebSessions::new(db, clock),
+                places: config.places,
             }),
         })
     }
@@ -179,6 +185,11 @@ impl AppState {
     /// Hosted subdomain claims.
     pub fn claims(&self) -> &Claims {
         &self.inner.claims
+    }
+
+    /// Place search configuration.
+    pub(crate) fn places(&self) -> &PlacesConfig {
+        &self.inner.places
     }
 
     /// A repo client for the PDS of a resolved identity.
