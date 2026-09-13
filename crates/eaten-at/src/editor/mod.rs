@@ -16,9 +16,9 @@ pub mod draft;
 pub mod form;
 pub mod view;
 
-pub use draft::{default_post_text, validate, Context, Cover, DocumentDraft, FieldErrors, Target};
+pub use draft::{default_post_text, validate, Context, DocumentDraft, FieldErrors, Target};
 pub use form::{
-    Action, Choice, EditorForm, IdField, LinkField, RowKind, ServiceChoice, Upload, PUBLICATION_NEW,
+    Action, Choice, EditorForm, IdField, LinkField, RowKind, ServiceChoice, PUBLICATION_NEW,
 };
 
 /// Most external links on one place (lexicon `maxLength`).
@@ -28,11 +28,9 @@ pub const MAX_IDS: usize = 8;
 /// Most tags on one document. The lexicon sets no cap; this keeps the
 /// listing's chip row sane.
 pub const MAX_TAGS: usize = 20;
-/// Largest image file accepted for upload before it is shrunk to the
-/// lexicon's 1 MB blob cap.
-pub const MAX_UPLOAD_IMAGE_BYTES: usize = 5 * 1024 * 1024;
-/// Request body cap for the editor routes: the image plus the text.
-pub const MAX_REQUEST_BYTES: usize = 6 * 1024 * 1024;
+/// Request body cap for the editor routes: the write-up plus every
+/// other field, URL-encoded, with room to spare.
+pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 /// Longest write-up, in bytes. Well past anything reasonable, well short
 /// of what would trouble a PDS.
 pub const MAX_BODY_BYTES: usize = 200 * 1024;

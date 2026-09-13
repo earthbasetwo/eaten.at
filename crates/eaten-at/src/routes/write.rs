@@ -7,7 +7,7 @@
 //! publish writes the records and, when asked, posts to Bluesky.
 
 use axum::extract::rejection::FormRejection;
-use axum::extract::{Multipart, Path, Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::Form;
@@ -166,7 +166,6 @@ fn render(
             action_path: &action_path,
             editing: editing.is_some(),
             heading: editing.map(|e| e.visit_doc.document().title.as_str()),
-            has_cover: editing.is_some_and(|e| e.visit_doc.document().cover_image.is_some()),
             preview: outcome.preview.clone(),
             publish_error: outcome.publish_error,
             crosspost,
@@ -224,10 +223,10 @@ pub async fn submit_new(
     State(state): State<AppState>,
     RequireUser(did): RequireUser,
     nonce: Nonce,
-    multipart: Multipart,
+    form: Result<Form<Vec<(String, String)>>, FormRejection>,
 ) -> Result<Response, AppError> {
     let author = author(&state, &did).await?;
-    submit(&state, &author, None, &nonce.0, multipart).await
+    submit(&state, &author, None, &nonce.0, form).await
 }
 
 /// `POST /write/{rkey}` — a submission for an existing write-up.
@@ -236,11 +235,11 @@ pub async fn submit_edit(
     RequireUser(did): RequireUser,
     Path(rkey): Path<String>,
     nonce: Nonce,
-    multipart: Multipart,
+    form: Result<Form<Vec<(String, String)>>, FormRejection>,
 ) -> Result<Response, AppError> {
     let author = author(&state, &did).await?;
     let editing = editing(&state, &author, &rkey).await?;
-    submit(&state, &author, Some(&editing), &nonce.0, multipart).await
+    submit(&state, &author, Some(&editing), &nonce.0, form).await
 }
 
 async fn submit(
@@ -248,11 +247,11 @@ async fn submit(
     author: &Author,
     editing: Option<&Editing>,
     nonce: &str,
-    multipart: Multipart,
+    form: Result<Form<Vec<(String, String)>>, FormRejection>,
 ) -> Result<Response, AppError> {
-    let (mut form, action) = EditorForm::from_multipart(multipart)
-        .await
-        .map_err(|e| AppError::BadRequest(format!("could not read the form: {e}")))?;
+    let Form(pairs) =
+        form.map_err(|e| AppError::BadRequest(format!("could not read the form: {e}")))?;
+    let (mut form, action) = EditorForm::from_pairs(pairs);
     let action = action.unwrap_or(Action::Preview);
     if !matches!(action, Action::Preview | Action::Publish) {
         form.apply(&action);

@@ -144,7 +144,8 @@ reader gets a complete post:
 | --- | --- |
 | `site` | The publication's AT-URI. |
 | `title` | The author's, or the place's name when they gave none (D29). Standard requires one. |
-| `description`, `tags`, `coverImage`, `labels` | The author's own. Tags are free text and stay here, never in the visit (D26). |
+| `description`, `tags`, `labels` | The author's own. Tags are free text and stay here, never in the visit (D26). |
+| `coverImage` | Not ours (D32): never written, carried over untouched when another client set it. The image proxy still reads it. |
 | `path`, `publishedAt`, `updatedAt` | Set on publish; the path never changes. |
 | `content` | The `at.eaten.visit`, with the markdown body inside it. |
 | `textContent` | `<place> · <date>[ · <verdict>]`, a blank line, the prose as plaintext. |

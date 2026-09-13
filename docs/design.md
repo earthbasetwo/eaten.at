@@ -148,19 +148,17 @@ Section spacing is 40px (`--section-gap`), card padding 16→20px
 | `--page-inline` | 20 → 24 | side padding |
 | `--title-gap` | 24 → 32 | below a page title, before content |
 | `--footer-gap` / `--footer-pad` | 32/16 → 40/24 | above and inside the document footer |
-| `--card-gap` | 12 → 16 | cover to text inside a card |
-| `--cover-size` / `--cover-small` | 84/72 → 120/96 | cover on the visit card / in a listing card |
+| `--card-gap` | 12 → 16 | between the parts of a card |
 
 | Radius | Value | Use |
 |---|---|---|
 | `--radius` | 12px | cards, fields, panels |
-| `--radius-nested` | 10px | covers and `pre` inside a card |
+| `--radius-nested` | 10px | `pre` inside a card |
 | `--radius-s` | 6px | small chips and swatches |
 | `--radius-pill` | 999px | buttons, tags, pagination, the skip link |
 
 Elevation: every raised surface has a 1px `--color-border`. Cards alone add
-`--shadow-card` (`0 2px 8px` oxblood at 6%). The visit cover keeps a
-slightly deeper `--shadow-cover`.
+`--shadow-card` (`0 2px 8px` oxblood at 6%).
 
 Motion: 180ms ease-out (`--ease`) on color, background, and border only.
 Nothing lifts, scales, or slides, and `prefers-reduced-motion` removes even
@@ -193,8 +191,8 @@ Raised surface, 1px border, 12px radius, card padding, the card shadow.
 On hover or focus-within the border darkens to `border-strong`. Nothing
 lifts or moves.
 
-**Listing card** (`.listing-item`). Cards in a column, 16px apart. Small
-cover left (10px radius); right, a kicker date, the title in the display
+**Listing card** (`.listing-item`). Cards in a column, 16px apart. A
+kicker date, the title in the display
 serif at card size, the place name as a mono meta line with the rating
 marks beside it (`.listing-place`; the name is left out when it is the
 title, which it is by default), and the excerpt in the sans at small
@@ -206,8 +204,7 @@ size, description in `ink-secondary`, the publication's URL in the mono
 voice. Settings reuses the same card with its hosting form inside.
 
 **Visit card** (`.visit-card`). A card between the page title and the
-prose: cover (with its shadow) beside the place name (`.place-name`) in
-the display serif. Under the name, in the mono voice, the visit date, the
+prose: the place name (`.place-name`) in the display serif. Under the name, in the mono voice, the visit date, the
 meal, and the price band as dollar signs, separated by middle dots
 (`.visit-meta`); then the address in the sans at small size
 (`.place-address`); then the rating.

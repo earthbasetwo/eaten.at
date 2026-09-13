@@ -48,6 +48,7 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | D29 | Titles | Settled 2026-09-13: optional in the editor. Standard requires `title`, so a blank one is written as the place's name, and it follows the name on every save; the edit form shows the field blank when the two match. Listing cards leave the place line's name out when it is the title. |
 | D30 | Link types | Settled 2026-09-13: one known link service, `officialSite`. Everything else is a plain link with no `service`, labelled by its label or host. `menu` and `reservations` were dropped. |
 | D31 | Foreign vocabulary | Settled 2026-09-13: the editor never offers a free-text "Other" for a `knownValues` field. A value another client wrote is shown as its own selected option and preserved on rewrite, but not authored here. |
+| D32 | Cover image | Settled 2026-09-13: a write-up has no authored cover. `coverImage` is never written and is carried over like `links`; the image proxy shows a foreign one, else a generated placeholder. Photos replace it (plan 07). |
 
 ## Stack choices
 

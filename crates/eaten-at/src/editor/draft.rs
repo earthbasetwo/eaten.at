@@ -3,7 +3,6 @@
 //! fields carried across untouched (plan §4.2).
 
 use std::collections::BTreeMap;
-use std::fmt;
 
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::lexicon::{
@@ -12,8 +11,7 @@ use eaten_at_atproto::lexicon::{
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::form::{EditorForm, PUBLICATION_NEW};
-use super::{MAX_BODY_BYTES, MAX_IDS, MAX_LINKS, MAX_TAGS, MAX_UPLOAD_IMAGE_BYTES};
-use crate::img;
+use super::{MAX_BODY_BYTES, MAX_IDS, MAX_LINKS, MAX_TAGS};
 use crate::publish::MAX_POST_GRAPHEMES;
 use crate::tags;
 
@@ -66,22 +64,6 @@ pub enum Target {
     New { name: String, url: String },
 }
 
-/// A cover image ready to upload.
-#[derive(Clone, PartialEq, Eq)]
-pub struct Cover {
-    pub bytes: Vec<u8>,
-    pub mime: &'static str,
-}
-
-impl fmt::Debug for Cover {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Cover")
-            .field("bytes", &self.bytes.len())
-            .field("mime", &self.mime)
-            .finish()
-    }
-}
-
 /// A validated write-up, ready to become records.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocumentDraft {
@@ -93,8 +75,6 @@ pub struct DocumentDraft {
     /// The visit, without its body (the markdown is beside it), with any
     /// unknown fields of the original carried over.
     pub visit: Visit,
-    /// A new cover. `None` keeps the existing one, if any.
-    pub cover: Option<Cover>,
     pub target: Target,
     /// The text of a Bluesky post to make on publish, when the author
     /// asked for one (plan §5.7).
@@ -294,31 +274,6 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         }
     };
 
-    let cover = match &form.cover {
-        None => None,
-        Some(upload) if upload.bytes.len() > MAX_UPLOAD_IMAGE_BYTES => {
-            errors.add(
-                "cover",
-                format!(
-                    "Choose an image under {} MB.",
-                    MAX_UPLOAD_IMAGE_BYTES / (1024 * 1024)
-                ),
-            );
-            None
-        }
-        Some(upload) => match img::cover_upload(&upload.bytes) {
-            Ok((bytes, mime)) => Some(Cover { bytes, mime }),
-            Err(err) => {
-                tracing::debug!(%err, "cover upload rejected");
-                errors.add(
-                    "cover",
-                    "That file isn't an image we can use. JPEG, PNG, GIF, or WebP, please.",
-                );
-                None
-            }
-        },
-    };
-
     let target = if form.publication.trim() == PUBLICATION_NEW {
         let name = form.new_publication_name.trim();
         if name.is_empty() {
@@ -392,7 +347,6 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         description: (!description.is_empty()).then(|| description.to_owned()),
         tags,
         visit,
-        cover,
         target,
         crosspost,
     })
@@ -473,7 +427,7 @@ pub fn parse_tags(raw: &str) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::form::{Choice, IdField, LinkField, Upload};
+    use crate::editor::form::{Choice, IdField, LinkField};
     use eaten_at_atproto::lexicon::{KnownIdService, KnownService, Meal};
 
     fn publication() -> AtUri {
@@ -516,7 +470,6 @@ mod tests {
             publication: publication().as_str().to_owned(),
             new_publication_name: String::new(),
             new_publication_url: String::new(),
-            cover: None,
             crosspost: false,
             post_text: String::new(),
         }
@@ -576,7 +529,6 @@ mod tests {
         assert_eq!(visit.place.urls[1].service.as_deref(), Some("shop"));
         assert_eq!(visit.place.urls[1].label.as_deref(), Some("Buy the LP"));
         assert_eq!(draft.target, Target::Existing(publication()));
-        assert!(draft.cover.is_none());
     }
 
     #[test]
@@ -594,11 +546,6 @@ mod tests {
         form.links[0].url = "http://insecure.example/page".into();
         form.links[1].label = "x".repeat(65);
         form.tags = "a, ".to_owned() + &"y".repeat(129);
-        form.cover = Some(Upload {
-            file_name: "big.png".into(),
-            content_type: "image/png".into(),
-            bytes: vec![0; MAX_UPLOAD_IMAGE_BYTES + 1],
-        });
         form.publication = "at://did:plc:other/site.standard.publication/x".into();
         let errors = validate(&form, &ctx(&pubs)).unwrap_err();
         let expected = [
@@ -611,7 +558,6 @@ mod tests {
             ("id_service_1", "Choose what kind of id this is."),
             ("link_url_0", "Links must be https."),
             ("link_label_1", "Keep the label under 64 characters."),
-            ("cover", "Choose an image under 5 MB."),
             ("publication", "Choose a publication."),
         ];
         for (field, message) in expected {

@@ -23,8 +23,6 @@ use crate::state::AppState;
 pub const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 /// Largest cover blob `site.standard.document` allows, in bytes.
 pub const MAX_COVER_BYTES: usize = 1_000_000;
-/// Long side a cover is shrunk to when it must be re-encoded to fit.
-const COVER_FIT_DIMENSION: u32 = 1600;
 /// Largest source dimensions we will decode.
 const MAX_SOURCE_DIMENSION: u32 = 6000;
 /// Decode memory budget handed to the image crate.
@@ -233,51 +231,6 @@ pub enum ImageError {
     Image(#[from] image::ImageError),
     #[error("read error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("image could not be brought under {0} bytes")]
-    CannotShrink(usize),
-}
-
-/// Prepare an author's upload for storage as a cover blob: a raster
-/// image, under the lexicon's size cap. A small enough JPEG, PNG, GIF, or
-/// WebP is kept as uploaded; a larger one is shrunk and re-encoded as
-/// JPEG. Returns the bytes and their MIME type.
-pub fn cover_upload(bytes: &[u8]) -> Result<(Vec<u8>, &'static str), ImageError> {
-    let format = ImageReader::new(Cursor::new(bytes))
-        .with_guessed_format()?
-        .format()
-        .ok_or(ImageError::Format)?;
-    let image = decode(bytes)?;
-    if bytes.len() <= MAX_COVER_BYTES {
-        let mime = match format {
-            ImageFormat::Jpeg => "image/jpeg",
-            ImageFormat::Png => "image/png",
-            ImageFormat::Gif => "image/gif",
-            ImageFormat::WebP => "image/webp",
-            _ => return Err(ImageError::Format),
-        };
-        return Ok((bytes.to_vec(), mime));
-    }
-    // Smaller and coarser until it fits. A photograph fits on the first
-    // try; only something like pure noise gets as far as the last.
-    for limit in [COVER_FIT_DIMENSION, 1200, 800] {
-        let (w, h) = image.dimensions();
-        let fitted = if w.max(h) > limit {
-            image.resize(limit, limit, FilterType::Lanczos3)
-        } else {
-            image.clone()
-        };
-        let rgb = fitted.to_rgb8();
-        for quality in [JPEG_QUALITY, 72, 60] {
-            let mut out = Cursor::new(Vec::new());
-            let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality);
-            rgb.write_with_encoder(encoder)?;
-            let out = out.into_inner();
-            if out.len() <= MAX_COVER_BYTES {
-                return Ok((out, "image/jpeg"));
-            }
-        }
-    }
-    Err(ImageError::CannotShrink(MAX_COVER_BYTES))
 }
 
 /// Decode with format sniffed from the bytes (never from the declared
@@ -436,36 +389,6 @@ mod tests {
             .write_to(&mut out, ImageFormat::Png)
             .unwrap();
         out.into_inner()
-    }
-
-    #[test]
-    fn cover_uploads_are_kept_or_shrunk_to_the_blob_cap() {
-        let small = png(64, 64);
-        let (bytes, mime) = cover_upload(&small).unwrap();
-        assert_eq!(mime, "image/png");
-        assert_eq!(bytes, small, "a small file is kept as uploaded");
-
-        // Noise does not compress: this PNG is several megabytes.
-        let mut seed = 0x9e37_79b9_u32;
-        let noisy = RgbImage::from_fn(1800, 1800, |_, _| {
-            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
-            let b = seed.to_be_bytes();
-            Rgb([b[0], b[1], b[2]])
-        });
-        let mut out = Cursor::new(Vec::new());
-        DynamicImage::ImageRgb8(noisy)
-            .write_to(&mut out, ImageFormat::Png)
-            .unwrap();
-        let big = out.into_inner();
-        assert!(big.len() > MAX_COVER_BYTES, "{}", big.len());
-        let (bytes, mime) = cover_upload(&big).unwrap();
-        assert_eq!(mime, "image/jpeg");
-        assert!(bytes.len() <= MAX_COVER_BYTES, "{}", bytes.len());
-        let shrunk = decode(&bytes).unwrap();
-        assert!(shrunk.dimensions().0.max(shrunk.dimensions().1) <= COVER_FIT_DIMENSION);
-
-        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#;
-        assert!(matches!(cover_upload(svg), Err(ImageError::Format)));
     }
 
     #[test]

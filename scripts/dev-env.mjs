@@ -164,9 +164,8 @@ as the excerpt.
 
 ## What to look for
 
-- The visit card above this prose: the place's name beside a generated
-  placeholder cover, then the date, the meal, the price band, the address,
-  and the rating as plus signs.
+- The visit card above this prose: the place's name, then the date, the
+  meal, the price band, the address, and the rating as plus signs.
 - Links in the footer: one labelled from its known service, one by its
   host (its \`menu\` service is another client's word, kept but not ours),
   one by the label the author gave it, and a map link made from the
