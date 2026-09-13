@@ -86,10 +86,12 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
         form.editor method="post" action=(page.action_path) enctype="multipart/form-data" novalidate {
             div.editor-panes {
                 div.editor-pane.editor-writing {
-                    (field("title", "Title", errors, &html! {
-                        input #title name="title" type="text" value=(form.title) required
+                    (field("title", "Title (optional)", errors, &html! {
+                        input #title name="title" type="text" value=(form.title)
+                            placeholder=(form.place_name.trim())
                             aria-describedby=[described(errors, "title")];
                     }))
+                    p.meta.field-hint { "Left blank, the place's name is the title." }
                     (field("body", "Write-up", errors, &html! {
                         textarea #body.editor-body name="body" rows="24" required
                             aria-describedby=[described(errors, "body")] { (form.body) }

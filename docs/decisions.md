@@ -45,6 +45,7 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | D26 | Tags | Free-text tags stay in `site.standard.document.tags` (D18 stands). The visit carries typed facts, never tags: add meaning only where Standard leaves a slot open, never shadow a field Standard already has. |
 | D27 | Visit date | `visitedOn` is a calendar date string `YYYY-MM-DD`, not an atproto `datetime`: a visit has no instant, and the server-rendered editor cannot know the author's offset. The PDS checks the length; the app checks the format. |
 | D28 | Company | No party size or companions in the record. Naming other people in a public record is left to the prose. |
+| D29 | Titles | Settled 2026-09-13: optional in the editor. Standard requires `title`, so a blank one is written as the place's name, and it follows the name on every save; the edit form shows the field blank when the two match. Listing cards leave the place line's name out when it is the title. |
 
 ## Stack choices
 

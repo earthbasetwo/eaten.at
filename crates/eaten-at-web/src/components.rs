@@ -103,7 +103,8 @@ pub fn visit_links(links: &[Link]) -> Markup {
 pub struct ListingItem {
     pub href: String,
     pub title: String,
-    pub place_name: String,
+    /// The place, when it is not already the title.
+    pub place_name: Option<String>,
     pub rating: Option<RatingView>,
     pub published: String,
     pub excerpt: String,
@@ -123,12 +124,16 @@ pub fn listing(items: &[ListingItem]) -> Markup {
                         div.listing-body {
                             p.kicker { time datetime=(item.published) { (human_date(&item.published)) } }
                             h2.listing-title { a href=(item.href) { (item.title) } }
-                            p.listing-place {
-                                span.listing-place-name { (item.place_name) }
-                                @if let Some(rating) = &item.rating {
-                                    " "
-                                    span.rating aria-label=(format!("Rated {}", rating.word)) {
-                                        span.rating-marks aria-hidden="true" { (rating.marks) }
+                            @if item.place_name.is_some() || item.rating.is_some() {
+                                p.listing-place {
+                                    @if let Some(name) = &item.place_name {
+                                        span.listing-place-name { (name) }
+                                    }
+                                    @if let Some(rating) = &item.rating {
+                                        @if item.place_name.is_some() { " " }
+                                        span.rating aria-label=(format!("Rated {}", rating.word)) {
+                                            span.rating-marks aria-hidden="true" { (rating.marks) }
+                                        }
                                     }
                                 }
                             }
@@ -349,7 +354,7 @@ mod tests {
         let out = listing(&[ListingItem {
             href: "/d".into(),
             title: "A night out".into(),
-            place_name: "Sample Place".into(),
+            place_name: Some("Sample Place".into()),
             rating: Some(RatingView {
                 word: "Can’t Miss".into(),
                 marks: "++++".into(),
@@ -364,6 +369,34 @@ mod tests {
             "{out}"
         );
         assert!(!out.contains("listing-excerpt"), "{out}");
+        // The title is the place's name: only the rating is left on the
+        // place line, and without one the line goes.
+        let item = ListingItem {
+            href: "/d".into(),
+            title: "Sample Place".into(),
+            place_name: None,
+            rating: Some(RatingView {
+                word: "Solid".into(),
+                marks: "+".into(),
+            }),
+            published: "2026-09-07T12:00:00.000Z".into(),
+            excerpt: String::new(),
+            cover_src: None,
+        };
+        let out = listing(std::slice::from_ref(&item)).into_string();
+        assert!(
+            out.contains(
+                "<p class=\"listing-place\"><span class=\"rating\" aria-label=\"Rated Solid\">"
+            ),
+            "{out}"
+        );
+        assert!(!out.contains("listing-place-name"), "{out}");
+        let out = listing(&[ListingItem {
+            rating: None,
+            ..item
+        }])
+        .into_string();
+        assert!(!out.contains("listing-place"), "{out}");
     }
 
     #[test]

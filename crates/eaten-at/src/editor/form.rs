@@ -294,8 +294,15 @@ impl EditorForm {
             None => (Choice::Unset, String::new()),
             some => Choice::from_record(some),
         };
+        // A title that is only the place's name is the default, not a
+        // choice: the field shows blank and the placeholder stands in.
+        let title = if doc.title.trim() == visit.place.name.trim() {
+            String::new()
+        } else {
+            doc.title.clone()
+        };
         let mut form = Self {
-            title: doc.title.clone(),
+            title,
             body,
             description: doc.description.clone().unwrap_or_default(),
             place_name: visit.place.name.clone(),

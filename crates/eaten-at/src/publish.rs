@@ -532,7 +532,7 @@ async fn link_card(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("publication {} not found", site.rkey())))?;
     let visit_doc = VisitDocument::from_record(record.clone());
-    let title = view::document_headline(visit_doc.as_ref(), &record.value.title);
+    let title = record.value.title.clone();
     let description = match &visit_doc {
         Some(visit_doc) => view::summary(visit_doc),
         None => record.value.description.clone().unwrap_or_default(),
