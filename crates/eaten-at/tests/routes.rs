@@ -49,7 +49,7 @@ fn visit_doc(pub_rkey: &str, title: &str, place: &str, tags: &[&str]) -> Value {
             "$type": "at.eaten.visit",
             "place": {
                 "name": place, "address": "1 Example St", "price": 2,
-                "ids": [{"service": "googlePlace", "id": "g1"}],
+                "gersId": "g1", "latE6": 40_688_838, "lonE6": -73_979_914,
                 "urls": [{"url": "https://example.com/official", "service": "officialSite"},
                          {"url": "https://example.com/buy", "service": "shop-thing"}]
             },
@@ -514,8 +514,8 @@ async fn document_page_renders_card_body_tags_and_canonical() {
         "unknown service labelled by host: {body}"
     );
     assert!(
-        body.contains("href=\"https://www.google.com/maps/place/?q=place_id:g1\" rel=\"ugc nofollow noopener\">Google Maps</a>"),
-        "a known id becomes a map link: {body}"
+        body.contains("href=\"https://www.openstreetmap.org/?mlat=40.688838&amp;mlon=-73.979914#map=18/40.688838/-73.979914\" rel=\"ugc nofollow noopener\">Map</a>"),
+        "the coordinates become a map link: {body}"
     );
     assert!(body.contains("longform"), "{body}");
 }
@@ -1394,8 +1394,7 @@ fn good_fields<'a>() -> Vec<(&'a str, &'a str)> {
         ("visited_on", "2026-09-08"),
         ("meal", "dinner"),
         ("rating", "3"),
-        ("id_service_0", "googlePlace"),
-        ("id_value_0", "g1"),
+        ("gers_id", "g1"),
         ("link_url_0", "https://example.com/official"),
         ("link_service_0", "officialSite"),
         ("link_label_0", ""),
@@ -1732,7 +1731,8 @@ async fn first_publish_creates_the_publication_and_preferences_then_the_document
     );
     assert_eq!(doc["content"]["place"]["name"], "Promises");
     assert_eq!(doc["content"]["place"]["price"], 2);
-    assert_eq!(doc["content"]["place"]["ids"][0]["id"], "g1");
+    assert_eq!(doc["content"]["place"]["gersId"], "g1");
+    assert!(doc["content"]["place"].get("ids").is_none());
     assert_eq!(
         doc["content"]["place"]["urls"][0]["service"],
         "officialSite"

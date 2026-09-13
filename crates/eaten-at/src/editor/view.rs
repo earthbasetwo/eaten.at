@@ -100,8 +100,14 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                                 }
                             }
                         }))
-                        (ids(form, errors))
-                        p.meta.field-hint { "An id says which place this is, so write-ups about the same place can be matched. Google and Apple ids also make a map link." }
+                        (field("gers_id", "Overture GERS id (optional)", errors, &html! {
+                            input #gers_id name="gers_id" type="text" value=(form.gers_id)
+                                spellcheck="false" autocomplete="off"
+                                aria-describedby=[described(errors, "gers_id")];
+                        }))
+                        p.meta.field-hint { "The id says which place this is, so write-ups about the same place can be matched. Searching for the place fills it in." }
+                        input type="hidden" name="lat_e6" value=(form.lat_e6);
+                        input type="hidden" name="lon_e6" value=(form.lon_e6);
                     }
                     fieldset.editor-group {
                         legend.kicker { "Visit" }
@@ -384,31 +390,6 @@ fn links(form: &EditorForm, errors: &FieldErrors) -> Markup {
                 }
             }
             (row_add(RowKind::Link, form.links.len(), "+ Add a link"))
-        }
-    }
-}
-
-fn ids(form: &EditorForm, errors: &FieldErrors) -> Markup {
-    html! {
-        div.rows aria-label="Ids" {
-            @if let Some(message) = errors.get("ids") { p.field-error { (message) } }
-            @for (i, id) in form.ids.iter().enumerate() {
-                div.row.row-id {
-                    (KnownSelect {
-                        name: format!("id_service_{i}"),
-                        label: "Id from",
-                        choice: &id.service,
-                        none_label: "Choose…",
-                    }.render(errors))
-                    (field(&format!("id_value_{i}"), "Id", errors, &html! {
-                        input id=(format!("id_value_{i}")) name=(format!("id_value_{i}")) type="text" value=(id.id)
-                            spellcheck="false" autocomplete="off"
-                            aria-describedby=[described(errors, &format!("id_value_{i}"))];
-                    }))
-                    (row_remove(RowKind::Id, i, form.ids.len()))
-                }
-            }
-            (row_add(RowKind::Id, form.ids.len(), "+ Add an id"))
         }
     }
 }

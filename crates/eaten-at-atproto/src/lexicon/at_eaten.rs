@@ -88,30 +88,6 @@ known_values! {
 }
 
 known_values! {
-    /// The `knownValues` of `at.eaten.place#externalId.service`.
-    KnownIdService {
-        GooglePlace => "googlePlace", "Google Maps";
-        ApplePlace => "applePlace", "Apple Maps";
-        OvertureGers => "overtureGers", "Overture Maps";
-    }
-}
-
-impl KnownIdService {
-    /// A page for the place at this service, when the service has one
-    /// that takes its own id.
-    pub fn url_for(self, id: &str) -> Option<String> {
-        let encoded = url::form_urlencoded::byte_serialize(id.as_bytes()).collect::<String>();
-        match self {
-            Self::GooglePlace => Some(format!(
-                "https://www.google.com/maps/place/?q=place_id:{encoded}"
-            )),
-            Self::ApplePlace => Some(format!("https://maps.apple.com/place?place-id={encoded}")),
-            Self::OvertureGers => None,
-        }
-    }
-}
-
-known_values! {
     /// The `knownValues` of `at.eaten.visit.meal`.
     Meal {
         Breakfast => "breakfast", "Breakfast";
@@ -169,8 +145,24 @@ pub struct Place {
         skip_serializing_if = "Option::is_none"
     )]
     pub price: Option<PriceBand>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub ids: Vec<ExternalId>,
+    /// The Overture Maps GERS id: the place's identity (D33).
+    #[serde(rename = "gersId", default, skip_serializing_if = "Option::is_none")]
+    pub gers_id: Option<String>,
+    /// Out-of-range values from other clients read as absent.
+    #[serde(
+        rename = "latE6",
+        default,
+        deserialize_with = "lenient_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub lat_e6: Option<LatE6>,
+    #[serde(
+        rename = "lonE6",
+        default,
+        deserialize_with = "lenient_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub lon_e6: Option<LonE6>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub urls: Vec<ExternalUrl>,
     #[serde(flatten)]
@@ -178,32 +170,75 @@ pub struct Place {
 }
 
 impl Place {
-    /// Whether two places share an identifier, which is what makes them
-    /// the same place.
+    /// Whether two places share a GERS id, which is what makes them the
+    /// same place. A place without one matches nothing.
     pub fn same_as(&self, other: &Self) -> bool {
-        self.ids.iter().any(|a| {
-            other
-                .ids
-                .iter()
-                .any(|b| a.service == b.service && a.id == b.id)
-        })
+        matches!((&self.gers_id, &other.gers_id), (Some(a), Some(b)) if a == b)
+    }
+
+    /// The place's position in degrees, when both halves are present.
+    pub fn coordinates(&self) -> Option<(f64, f64)> {
+        Some((self.lat_e6?.degrees(), self.lon_e6?.degrees()))
     }
 }
 
-/// `at.eaten.place#externalId`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ExternalId {
-    pub service: String,
-    pub id: String,
-    #[serde(flatten)]
-    pub extra: serde_json::Map<String, Value>,
+macro_rules! micro_degrees {
+    ($(#[$meta:meta])* $name:ident, $limit:literal, $what:literal) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+        #[serde(try_from = "i64", into = "i64")]
+        pub struct $name(i32);
+
+        impl $name {
+            /// The largest magnitude, in microdegrees.
+            pub const LIMIT: i32 = $limit;
+
+            /// A value from microdegrees, if it is in range.
+            pub fn new(value: i32) -> Option<Self> {
+                (-Self::LIMIT..=Self::LIMIT)
+                    .contains(&value)
+                    .then_some(Self(value))
+            }
+
+            /// The stored integer.
+            pub fn value(self) -> i32 {
+                self.0
+            }
+
+            /// The value in degrees.
+            pub fn degrees(self) -> f64 {
+                f64::from(self.0) / 1_000_000.0
+            }
+        }
+
+        impl TryFrom<i64> for $name {
+            type Error = String;
+
+            fn try_from(value: i64) -> Result<Self, Self::Error> {
+                i32::try_from(value)
+                    .ok()
+                    .and_then(Self::new)
+                    .ok_or_else(|| format!("{} {value} is out of range", $what))
+            }
+        }
+
+        impl From<$name> for i64 {
+            fn from(value: $name) -> Self {
+                Self::from(value.0)
+            }
+        }
+    };
 }
 
-impl ExternalId {
-    /// The service this id belongs to, if it is one we know.
-    pub fn known_service(&self) -> Option<KnownIdService> {
-        KnownIdService::from_value(&self.service)
-    }
+micro_degrees! {
+    /// A latitude in microdegrees, `-90_000_000..=90_000_000`. Atproto
+    /// lexicons have no float type; degrees × 1 000 000 are exact.
+    LatE6, 90_000_000, "latitude"
+}
+
+micro_degrees! {
+    /// A longitude in microdegrees, `-180_000_000..=180_000_000`.
+    LonE6, 180_000_000, "longitude"
 }
 
 /// `at.eaten.place#externalUrl`.
@@ -475,10 +510,9 @@ mod tests {
                 "name": "Sample Place",
                 "address": "1 Example St",
                 "price": 2,
-                "ids": [
-                    {"service": "googlePlace", "id": "ChIJexample"},
-                    {"service": "yelp", "id": "sample-place", "rank": 1}
-                ],
+                "gersId": "08f2a5b6c7d8e9f0a1b2c3d4e5f60718",
+                "latE6": 40_688_838,
+                "lonE6": -73_979_914,
                 "urls": [
                     {"url": "https://example.com/elsewhere", "service": "menu"},
                     {"url": "https://example.com", "service": "officialSite", "label": "Home"}
@@ -500,10 +534,10 @@ mod tests {
         assert_eq!(visit.place.name, "Sample Place");
         assert_eq!(visit.place.price, PriceBand::new(2));
         assert_eq!(
-            visit.place.ids[0].known_service(),
-            Some(KnownIdService::GooglePlace)
+            visit.place.gers_id.as_deref(),
+            Some("08f2a5b6c7d8e9f0a1b2c3d4e5f60718")
         );
-        assert_eq!(visit.place.ids[1].known_service(), None);
+        assert_eq!(visit.place.coordinates(), Some((40.688_838, -73.979_914)));
         assert_eq!(visit.place.urls[0].known_service(), None);
         assert_eq!(
             visit.place.urls[1].known_service(),
@@ -522,18 +556,10 @@ mod tests {
             Some(KnownService::OfficialSite)
         );
         assert_eq!(KnownService::from_value("OfficialSite"), None);
-        assert_eq!(
-            KnownIdService::from_value("googlePlace"),
-            Some(KnownIdService::GooglePlace)
-        );
-        assert_eq!(KnownIdService::from_value("google"), None);
         assert_eq!(Meal::from_value("lateNight"), Some(Meal::LateNight));
         assert_eq!(Meal::from_value("late night"), None);
         for s in KnownService::ALL {
             assert_eq!(KnownService::from_value(s.as_str()), Some(*s));
-        }
-        for s in KnownIdService::ALL {
-            assert_eq!(KnownIdService::from_value(s.as_str()), Some(*s));
         }
         for m in Meal::ALL {
             assert_eq!(Meal::from_value(m.as_str()), Some(*m));
@@ -541,16 +567,22 @@ mod tests {
     }
 
     #[test]
-    fn id_services_link_where_they_can() {
+    fn coordinates_are_bounded_microdegrees() {
+        assert_eq!(LatE6::new(90_000_000).map(LatE6::degrees), Some(90.0));
+        assert_eq!(LatE6::new(90_000_001), None);
         assert_eq!(
-            KnownIdService::GooglePlace.url_for("ChIJ a/b").as_deref(),
-            Some("https://www.google.com/maps/place/?q=place_id:ChIJ+a%2Fb")
+            LonE6::new(-180_000_000).map(LonE6::value),
+            Some(-180_000_000)
         );
-        assert_eq!(
-            KnownIdService::ApplePlace.url_for("I1").as_deref(),
-            Some("https://maps.apple.com/place?place-id=I1")
-        );
-        assert_eq!(KnownIdService::OvertureGers.url_for("x"), None);
+        assert_eq!(LonE6::new(180_000_001), None);
+        assert!(serde_json::from_value::<LatE6>(serde_json::json!(91_000_000)).is_err());
+        assert!(serde_json::from_value::<LatE6>(serde_json::json!(40.5)).is_err());
+        assert_eq!(serde_json::to_value(LonE6::new(-1).unwrap()).unwrap(), -1);
+        let mut json = visit_json();
+        json["place"]["latE6"] = serde_json::json!(95_000_000);
+        let visit: Visit = serde_json::from_value(json).unwrap();
+        assert_eq!(visit.place.lat_e6, None, "out of range reads as absent");
+        assert_eq!(visit.place.coordinates(), None, "half a position is none");
     }
 
     #[test]
@@ -613,18 +645,15 @@ mod tests {
     }
 
     #[test]
-    fn places_match_on_a_shared_id() {
-        let a: Place = serde_json::from_value(serde_json::json!({
-            "name": "A", "ids": [{"service": "googlePlace", "id": "1"}]
-        }))
-        .unwrap();
-        let b: Place = serde_json::from_value(serde_json::json!({
-            "name": "B", "ids": [{"service": "applePlace", "id": "1"}, {"service": "googlePlace", "id": "1"}]
-        }))
-        .unwrap();
+    fn places_match_on_a_shared_gers_id() {
+        let a: Place =
+            serde_json::from_value(serde_json::json!({"name": "A", "gersId": "1"})).unwrap();
+        let b: Place =
+            serde_json::from_value(serde_json::json!({"name": "B", "gersId": "1"})).unwrap();
         let c: Place = serde_json::from_value(serde_json::json!({"name": "A"})).unwrap();
         assert!(a.same_as(&b));
         assert!(!a.same_as(&c), "a shared name is not identity");
+        assert!(!c.same_as(&c), "no id matches nothing, not even itself");
         assert_eq!(PriceBand::new(2).unwrap().signs(), "$$");
         assert_eq!(PriceBand::new(5), None);
     }

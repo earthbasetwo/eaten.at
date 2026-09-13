@@ -13,8 +13,8 @@ pub mod site_standard;
 pub mod at_eaten;
 
 pub use at_eaten::{
-    ExternalId, ExternalUrl, KnownIdService, KnownService, KnownValue, Meal, Place, Preferences,
-    PriceBand, Rating, Visit, VisitDate, PLACE_NSID, VISIT_NSID,
+    ExternalUrl, KnownService, KnownValue, LatE6, LonE6, Meal, Place, Preferences, PriceBand,
+    Rating, Visit, VisitDate, PLACE_NSID, VISIT_NSID,
 };
 
 pub use common::{lenient_option, BlobRef, Datetime, SelfLabel, SelfLabels, StrongRef};

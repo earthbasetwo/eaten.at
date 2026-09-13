@@ -132,7 +132,7 @@ const textContent = (d) =>
 
 // Placeholder visits. Enough to see a listing with ratings, a document
 // with a description and one whose excerpt is derived, an unrated visit,
-// a comment section, tags, ids, and links out; the prose is invented for
+// a comment section, tags, a GERS id, and links out; the prose is invented for
 // the seed.
 const docs = [
   {
@@ -145,7 +145,9 @@ const docs = [
       name: 'Noodle House',
       address: '12 Example Lane',
       price: 2,
-      ids: [{ service: 'googlePlace', id: 'ChIJexampleNoodleHouse' }],
+      gersId: '08f2a5b6c7d8e9f0a1b2c3d4e5f60718',
+      latE6: 40688838,
+      lonE6: -73979914,
       urls: [
         { url: 'https://example.com/noodle-house', service: 'officialSite' },
         { url: 'https://example.com/noodle-house/menu', service: 'menu' },
@@ -168,8 +170,8 @@ as the excerpt.
   meal, the price band, the address, and the rating as plus signs.
 - Links in the footer: one labelled from its known service, one by its
   host (its \`menu\` service is another client's word, kept but not ours),
-  one by the label the author gave it, and a map link made from the
-  Google place id.
+  one by the label the author gave it, and a map link to OpenStreetMap
+  from the place's coordinates.
 - A comment section, because the record names a Bluesky post. The local
   network has no AppView, so it stays empty here.`,
   },
@@ -181,7 +183,7 @@ as the excerpt.
     place: {
       name: 'Corner Café',
       price: 1,
-      ids: [{ service: 'applePlace', id: 'I1234567890' }],
+      gersId: '08f2a5b6c7d8e9f0a1b2c3d4e5f60719',
       urls: [{ url: 'https://example.com/corner-cafe', service: 'officialSite' }],
     },
     visitedOn: '2026-08-14',
@@ -221,7 +223,9 @@ const themedDocs = [
     place: {
       name: 'Night Market',
       price: 1,
-      ids: [{ service: 'overtureGers', id: '08f2a5b6c7d8e9f0a1b2c3d4e5f60718' }],
+      gersId: '08f2a5b6c7d8e9f0a1b2c3d4e5f6071a',
+      latE6: 51507351,
+      lonE6: -127758,
       urls: [{ url: 'https://example.com/night-market', service: 'officialSite' }],
     },
     visitedOn: '2026-09-05',

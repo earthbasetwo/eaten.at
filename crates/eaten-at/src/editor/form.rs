@@ -1,10 +1,8 @@
 //! The posted form, as strings, and the actions a JS-free form needs.
 
-use eaten_at_atproto::lexicon::{
-    Document, ExternalId, ExternalUrl, KnownIdService, KnownService, KnownValue, Meal, Visit,
-};
+use eaten_at_atproto::lexicon::{Document, ExternalUrl, KnownService, KnownValue, Meal, Visit};
 
-use super::{MAX_IDS, MAX_LINKS};
+use super::MAX_LINKS;
 use crate::model::{body_of, Body};
 
 /// Everything the editor form carries, exactly as posted or prefilled.
@@ -17,12 +15,17 @@ pub struct EditorForm {
     pub place_address: String,
     /// The price band select: blank, or `1` to `4`.
     pub place_price: String,
+    /// The Overture GERS id, as typed or as picked (plan 06).
+    pub gers_id: String,
+    /// The place's coordinates in microdegrees, hidden fields filled by a
+    /// pick (plan 06) or carried from the record; blank when unknown.
+    pub lat_e6: String,
+    pub lon_e6: String,
     /// The visit date, `YYYY-MM-DD`, as the date input posts it.
     pub visited_on: String,
     pub meal: Choice<Meal>,
     /// The rating radio: blank for unrated, or `1` to `4`.
     pub rating: String,
-    pub ids: Vec<IdField>,
     pub links: Vec<LinkField>,
     /// Comma-separated, as typed.
     pub tags: String,
@@ -35,13 +38,6 @@ pub struct EditorForm {
     /// The post's text, as typed. Blank means the default, the place's
     /// name.
     pub post_text: String,
-}
-
-/// One external id row.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct IdField {
-    pub service: Choice<KnownIdService>,
-    pub id: String,
 }
 
 /// One external link row.
@@ -134,45 +130,22 @@ impl LinkField {
     }
 }
 
-impl IdField {
-    /// A row prefilled from a record.
-    pub fn from_external_id(id: &ExternalId) -> Self {
-        Self {
-            service: Choice::from_record(Some(id.service.as_str())),
-            id: id.id.clone(),
-        }
-    }
-
-    /// The `service` value this row would write.
-    pub fn service_value(&self) -> Option<String> {
-        self.service.record_value()
-    }
-
-    /// Whether the row is empty and can be skipped.
-    pub fn is_blank(&self) -> bool {
-        self.id.trim().is_empty() && self.service_value().is_none()
-    }
-}
-
 /// The repeated rows the form has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowKind {
     Link,
-    Id,
 }
 
 impl RowKind {
     fn name(self) -> &'static str {
         match self {
             Self::Link => "link",
-            Self::Id => "id",
         }
     }
 
     fn from_name(name: &str) -> Option<Self> {
         match name {
             "link" => Some(Self::Link),
-            "id" => Some(Self::Id),
             _ => None,
         }
     }
@@ -181,7 +154,6 @@ impl RowKind {
     pub fn cap(self) -> usize {
         match self {
             Self::Link => MAX_LINKS,
-            Self::Id => MAX_IDS,
         }
     }
 }
@@ -225,8 +197,7 @@ impl Action {
 }
 
 impl EditorForm {
-    /// An empty form for a new write-up dated today, with one row of
-    /// each kind.
+    /// An empty form for a new write-up dated today, with one link row.
     pub fn blank(publication: &str) -> Self {
         let mut form = Self {
             publication: publication.to_owned(),
@@ -261,18 +232,23 @@ impl EditorForm {
                 .price
                 .map(|p| p.value().to_string())
                 .unwrap_or_default(),
+            gers_id: visit.place.gers_id.clone().unwrap_or_default(),
+            lat_e6: visit
+                .place
+                .lat_e6
+                .map(|v| v.value().to_string())
+                .unwrap_or_default(),
+            lon_e6: visit
+                .place
+                .lon_e6
+                .map(|v| v.value().to_string())
+                .unwrap_or_default(),
             visited_on: visit.visited_on.as_string(),
             meal: Choice::from_record(visit.meal.as_deref()),
             rating: visit
                 .rating
                 .map(|r| r.value().to_string())
                 .unwrap_or_default(),
-            ids: visit
-                .place
-                .ids
-                .iter()
-                .map(IdField::from_external_id)
-                .collect(),
             links: visit
                 .place
                 .urls
@@ -291,7 +267,7 @@ impl EditorForm {
     }
 
     /// Read the posted fields. Repeated rows are addressed by index in
-    /// the field name (`link_url_2`, `id_value_0`), so order on the wire
+    /// the field name (`link_url_2`, `link_label_0`), so order on the wire
     /// does not matter. Returns the form and the action, if a button
     /// named one.
     pub fn from_pairs<I>(pairs: I) -> (Self, Option<Action>)
@@ -308,6 +284,9 @@ impl EditorForm {
                 "place_name" => form.place_name = value,
                 "place_address" => form.place_address = value,
                 "place_price" => form.place_price = value,
+                "gers_id" => form.gers_id = value,
+                "lat_e6" => form.lat_e6 = value,
+                "lon_e6" => form.lon_e6 = value,
                 "visited_on" => form.visited_on = value,
                 "meal" => form.meal = Choice::from_value(&value),
                 "rating" => form.rating = value,
@@ -327,11 +306,6 @@ impl EditorForm {
                                     Choice::from_value(&value);
                             }
                             "link_label" => row(&mut form.links, index, MAX_LINKS).label = value,
-                            "id_service" => {
-                                row(&mut form.ids, index, MAX_IDS).service =
-                                    Choice::from_value(&value);
-                            }
-                            "id_value" => row(&mut form.ids, index, MAX_IDS).id = value,
                             _ => {}
                         }
                     }
@@ -348,11 +322,9 @@ impl EditorForm {
         match action {
             Action::AddRow(kind) => match kind {
                 RowKind::Link => push_within(&mut self.links, kind.cap()),
-                RowKind::Id => push_within(&mut self.ids, kind.cap()),
             },
             Action::RemoveRow(kind, i) => match kind {
                 RowKind::Link => remove_if_present(&mut self.links, *i),
-                RowKind::Id => remove_if_present(&mut self.ids, *i),
             },
             Action::Preview | Action::Publish => {}
         }
@@ -362,9 +334,6 @@ impl EditorForm {
     fn ensure_rows(&mut self) {
         if self.links.is_empty() {
             self.links.push(LinkField::default());
-        }
-        if self.ids.is_empty() {
-            self.ids.push(IdField::default());
         }
     }
 }
@@ -405,8 +374,6 @@ mod tests {
         for action in [
             Action::AddRow(RowKind::Link),
             Action::RemoveRow(RowKind::Link, 0),
-            Action::AddRow(RowKind::Id),
-            Action::RemoveRow(RowKind::Id, 1),
             Action::Preview,
         ] {
             assert_eq!(Action::parse(&action.value()), Some(action));
@@ -419,21 +386,16 @@ mod tests {
         let mut form = EditorForm::blank("new");
         assert_eq!(form.visited_on.len(), 10, "dated today");
         assert_eq!(form.links.len(), 1);
-        assert_eq!(form.ids.len(), 1);
         form.apply(&Action::RemoveRow(RowKind::Link, 0));
         assert_eq!(form.links.len(), 1, "the last row stays");
         for _ in 0..40 {
             form.apply(&Action::AddRow(RowKind::Link));
-            form.apply(&Action::AddRow(RowKind::Id));
         }
         assert_eq!(form.links.len(), MAX_LINKS);
-        assert_eq!(form.ids.len(), MAX_IDS);
         form.apply(&Action::RemoveRow(RowKind::Link, 11));
         assert_eq!(form.links.len(), 11);
         form.apply(&Action::RemoveRow(RowKind::Link, 99));
         assert_eq!(form.links.len(), 11);
-        form.apply(&Action::RemoveRow(RowKind::Id, 0));
-        assert_eq!(form.ids.len(), MAX_IDS - 1);
     }
 
     #[test]
@@ -469,22 +431,14 @@ mod tests {
         assert_eq!(foreign.service.value(), "bc");
         assert_eq!(foreign.service_value().as_deref(), Some("bc"));
         assert_eq!(LinkField::default().service_value(), None);
-        let id = IdField::from_external_id(&ExternalId {
-            service: "googlePlace".into(),
-            id: "g1".into(),
-            extra: serde_json::Map::new(),
-        });
-        assert_eq!(id.service, Choice::Known(KnownIdService::GooglePlace));
-        assert!(!id.is_blank());
-        assert!(IdField::default().is_blank());
     }
 
     #[test]
     fn indexed_field_names() {
         assert_eq!(indexed("link_url_3"), Some(("link_url", 3)));
         assert_eq!(indexed("link_service_0"), Some(("link_service", 0)));
-        assert_eq!(indexed("id_value_12"), Some(("id_value", 12)));
-        assert_eq!(indexed("id_value_0"), Some(("id_value", 0)));
+        assert_eq!(indexed("link_label_12"), Some(("link_label", 12)));
+        assert_eq!(indexed("link_label_0"), Some(("link_label", 0)));
         assert_eq!(indexed("title"), None);
         assert_eq!(indexed("link_url_x"), None);
     }

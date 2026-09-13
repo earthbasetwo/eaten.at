@@ -17,12 +17,9 @@ expression: "serde_json::to_string_pretty(&doc).unwrap()"
     "meal": "dinner",
     "place": {
       "address": "1 Example St",
-      "ids": [
-        {
-          "id": "g1",
-          "service": "googlePlace"
-        }
-      ],
+      "gersId": "g1",
+      "latE6": 40688838,
+      "lonE6": -73979914,
       "name": "Promises",
       "price": 2,
       "urls": [
