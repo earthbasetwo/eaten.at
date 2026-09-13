@@ -6,8 +6,9 @@ use eaten_at_web::components::{tag_links, visit_card, visit_links, Link};
 use eaten_at_web::markdown;
 use maud::{html, Markup, PreEscaped};
 
-use super::form::{Action, Choice, EditorForm, RowKind, PUBLICATION_NEW};
+use super::form::{Action, Choice, EditorForm, PlaceMode, RowKind, PUBLICATION_NEW};
 use super::{default_post_text, DocumentDraft, FieldErrors};
+use crate::places::Hit;
 use crate::publish::MAX_POST_GRAPHEMES;
 
 /// What the editor can offer about Bluesky for this document.
@@ -29,6 +30,30 @@ pub struct PublicationOption {
     pub name: String,
 }
 
+/// What the choosing state shows under the search box.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum SearchState {
+    /// Nothing searched yet.
+    #[default]
+    Idle,
+    /// There was no point to search near: the browser gave none and
+    /// the author has no visit with coordinates.
+    NoPoint,
+    /// What the search found, possibly nothing.
+    Results(Vec<Hit>),
+    /// Why the search did not run, in the author's words.
+    Failed(String),
+}
+
+/// Where the search point came from, for the status line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Located {
+    #[default]
+    Unknown,
+    Browser,
+    LastVisit,
+}
+
 /// Everything the page needs.
 #[derive(Debug)]
 pub struct EditorPage<'a> {
@@ -39,8 +64,8 @@ pub struct EditorPage<'a> {
     pub action_path: &'a str,
     /// Set when editing an existing document.
     pub editing: bool,
-    /// The write-up's title, shown as the heading while editing. A new
-    /// write-up has no heading until a place is chosen (plan 06).
+    /// The heading: the write-up's title while editing, the place's name
+    /// for a new one once there is a place.
     pub heading: Option<&'a str>,
     /// A rendered preview to show above the form.
     pub preview: Option<Markup>,
@@ -48,27 +73,27 @@ pub struct EditorPage<'a> {
     pub publish_error: Option<&'a str>,
     /// Whether the document can be, or has been, posted to Bluesky.
     pub crosspost: CrosspostState,
+    /// Whether the site has a place search at all.
+    pub search_enabled: bool,
+    pub search: SearchState,
+    pub located: Located,
 }
 
-/// The `<main>` content of the editor page.
+/// The `<main>` content of the editor page: the choosing state until a
+/// place is picked or entered by hand, then the writing state.
 pub fn page(page: &EditorPage<'_>) -> Markup {
+    if page.form.place_mode == PlaceMode::Choosing {
+        return choosing(page);
+    }
     let form = page.form;
     let errors = page.errors;
     html! {
         div.page-head {
             @if let Some(heading) = page.heading {
-                p.kicker { "Edit" }
+                p.kicker { @if page.editing { "Edit" } @else { "Write" } }
                 h1 { (heading) }
             }
-            @if !errors.is_empty() {
-                p.form-error role="alert" {
-                    @if errors.len() == 1 { "One thing to fix below." }
-                    @else { (errors.len()) " things to fix below." }
-                }
-            }
-            @if let Some(message) = page.publish_error {
-                p.form-error role="alert" { (message) }
-            }
+            (alerts(page))
         }
         @if let Some(preview) = &page.preview {
             section.preview aria-label="Preview" {
@@ -82,6 +107,7 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                 div.editor-pane.editor-visit {
                     fieldset.editor-group {
                         legend.kicker { "Place" }
+                        (place_source(form))
                         (field("place_name", "Name", errors, &html! {
                             input #place_name name="place_name" type="text" value=(form.place_name) required
                                 aria-describedby=[described(errors, "place_name")];
@@ -100,14 +126,15 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                                 }
                             }
                         }))
-                        (field("gers_id", "Overture GERS id (optional)", errors, &html! {
-                            input #gers_id name="gers_id" type="text" value=(form.gers_id)
-                                spellcheck="false" autocomplete="off"
-                                aria-describedby=[described(errors, "gers_id")];
-                        }))
-                        p.meta.field-hint { "The id says which place this is, so write-ups about the same place can be matched. Searching for the place fills it in." }
+                        @if let Some(message) = errors.get("gers_id") {
+                            p.field-error id="gers_id-error" { (message) }
+                        }
+                        input type="hidden" name="place_mode" value=(form.place_mode.value());
+                        input type="hidden" name="gers_id" value=(form.gers_id);
                         input type="hidden" name="lat_e6" value=(form.lat_e6);
                         input type="hidden" name="lon_e6" value=(form.lon_e6);
+                        input type="hidden" name="near_lat" value=(form.near_lat);
+                        input type="hidden" name="near_lon" value=(form.near_lon);
                     }
                     fieldset.editor-group {
                         legend.kicker { "Visit" }
@@ -148,6 +175,156 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                 }
             }
         }
+    }
+}
+
+/// The form-error summary and the publish error, in the page head.
+fn alerts(page: &EditorPage<'_>) -> Markup {
+    let errors = page.errors;
+    html! {
+        @if !errors.is_empty() {
+            p.form-error role="alert" {
+                @if errors.len() == 1 { "One thing to fix below." }
+                @else { (errors.len()) " things to fix below." }
+            }
+        }
+        @if let Some(message) = page.publish_error {
+            p.form-error role="alert" { (message) }
+        }
+    }
+}
+
+/// Where the place came from, with the way back to choosing.
+fn place_source(form: &EditorForm) -> Markup {
+    html! {
+        p.meta.place-source {
+            @match form.place_mode {
+                PlaceMode::Picked => { span { "Matched to an Overture Maps listing." } }
+                PlaceMode::Manual => { span { "Entered by hand, not matched to a listing." } }
+                PlaceMode::Choosing => {}
+            }
+            button.link-button type="submit" name="action" value=(Action::ChangePlace.value()) {
+                @if form.place_mode == PlaceMode::Picked { "Change place" } @else { "Search for it" }
+            }
+        }
+    }
+}
+
+/// The choosing state: a search box over a point the browser supplies,
+/// the results as cards, and the way out by hand. Everything else the
+/// form holds rides along as hidden fields so changing the place on an
+/// edit loses nothing.
+fn choosing(page: &EditorPage<'_>) -> Markup {
+    let form = page.form;
+    let query = form.place_query.trim();
+    html! {
+        div.page-head {
+            p.kicker { @if page.editing { "Edit" } @else { "Write" } }
+            h1 { "Where did you eat?" }
+            (alerts(page))
+        }
+        form.editor.editor-choosing method="post" action=(page.action_path) novalidate
+            data-locate[page.search_enabled] {
+            (carried(form))
+            input type="hidden" name="place_mode" value=(PlaceMode::Choosing.value());
+            @if page.search_enabled {
+                div.field.search-field {
+                    label.kicker for="place_query" { "Name of the place" }
+                    div.lookup-row {
+                        input #place_query name="place_query" type="search" value=(form.place_query)
+                            autocomplete="off" autofocus;
+                        button type="submit" name="action" value=(Action::Search.value()) { "Search" }
+                    }
+                }
+                input type="hidden" name="near_lat" value=(form.near_lat);
+                input type="hidden" name="near_lon" value=(form.near_lon);
+                p.meta.locate-status {
+                    @match page.located {
+                        Located::Browser => "Searching near you."
+                        Located::LastVisit => "Searching near your last visit."
+                        Located::Unknown => ""
+                    }
+                }
+                @match &page.search {
+                    SearchState::Idle => {}
+                    SearchState::NoPoint => {
+                        p.notice { "Turn on location to search for the place, or enter it by hand." }
+                    }
+                    SearchState::Failed(message) => { p.form-error role="alert" { (message) } }
+                    SearchState::Results(hits) => {
+                        @if hits.is_empty() {
+                            p.empty { "Nothing nearby called “" (query) "”." }
+                        } @else {
+                            (results(hits))
+                        }
+                    }
+                }
+                p.meta.field-hint.manual-entry {
+                    "Not listed? "
+                    button.link-button type="submit" name="action" value=(Action::Manual.value()) { "Enter it by hand" }
+                }
+                p.meta.attribution {
+                    "Places from " a href="https://overturemaps.org/" rel="noopener" { "Overture Maps" } "."
+                }
+            } @else {
+                p.notice { "Place search is not set up on this site." }
+                div.actions {
+                    button type="submit" name="action" value=(Action::Manual.value()) { "Enter the place by hand" }
+                }
+            }
+        }
+    }
+}
+
+/// The search results, one card each.
+fn results(hits: &[Hit]) -> Markup {
+    html! {
+        ol.results aria-label="Places found" {
+            @for (i, hit) in hits.iter().enumerate() {
+                li.result-item {
+                    div.result-body {
+                        p.result-name { (hit.name) }
+                        p.meta.result-meta {
+                            @if let Some(address) = &hit.address { (address) " · " }
+                            (format!("{:.1} mi", hit.distance_mi))
+                            @if let Some(category) = &hit.category { " · " (category) }
+                        }
+                    }
+                    button.button-secondary type="submit" name="action" value=(Action::Pick(i).value()) {
+                        "Write about this place"
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Every field the choosing state does not show, as hidden inputs.
+fn carried(form: &EditorForm) -> Markup {
+    let hidden = |name: &str, value: &str| {
+        html! { input type="hidden" name=(name) value=(value); }
+    };
+    html! {
+        (hidden("title", &form.title))
+        (hidden("body", &form.body))
+        (hidden("description", &form.description))
+        (hidden("place_name", &form.place_name))
+        (hidden("place_address", &form.place_address))
+        (hidden("place_price", &form.place_price))
+        (hidden("visited_on", &form.visited_on))
+        (hidden("meal", form.meal.value()))
+        (hidden("rating", &form.rating))
+        @for (i, link) in form.links.iter().enumerate() {
+            (hidden(&format!("link_url_{i}"), &link.url))
+            (hidden(&format!("link_service_{i}"), link.service.value()))
+            (hidden(&format!("link_label_{i}"), &link.label))
+        }
+        (hidden("tags", &form.tags))
+        (hidden("publication", &form.publication))
+        (hidden("new_publication_name", &form.new_publication_name))
+        (hidden("new_publication_url", &form.new_publication_url))
+        @if form.crosspost { (hidden("crosspost", "1")) }
+        (hidden("post_text", &form.post_text))
     }
 }
 

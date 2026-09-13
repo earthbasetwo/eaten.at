@@ -1257,7 +1257,13 @@ async fn security_headers_on_every_route_family() {
         );
         assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff", "{uri}");
         assert_eq!(headers[header::X_FRAME_OPTIONS], "DENY", "{uri}");
-        assert!(headers.contains_key("permissions-policy"), "{uri}");
+        assert!(
+            headers["permissions-policy"]
+                .to_str()
+                .unwrap()
+                .contains("geolocation=(self)"),
+            "the editor may ask for location: {uri}"
+        );
 
         let nonce = csp
             .split("'nonce-")
@@ -1395,6 +1401,7 @@ fn good_fields<'a>() -> Vec<(&'a str, &'a str)> {
         ("title", "A room with the lights off"),
         ("body", "Forty-six *minutes*.\n\nNine notes."),
         ("place_name", "Promises"),
+        ("place_mode", "picked"),
         ("place_price", "2"),
         ("visited_on", "2026-09-08"),
         ("meal", "dinner"),
@@ -1424,17 +1431,257 @@ async fn editor_requires_sign_in_and_prefills_the_publication() {
     let (status, _, body) = get_signed(&state, "/write", &cookie).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(!body.contains("enctype="), "a plain form: {body}");
+    // A new write-up starts by choosing the place (plan 06): the search
+    // box, the location island's hook, and the way out by hand.
+    assert!(body.contains("<h1>Where did you eat?</h1>"), "{body}");
+    assert!(body.contains("id=\"place_query\""), "{body}");
+    assert!(
+        body.contains("name=\"place_mode\" value=\"choosing\""),
+        "{body}"
+    );
+    assert!(body.contains("data-locate"), "{body}");
+    assert!(body.contains("value=\"manual\""), "{body}");
+    assert!(!body.contains("id=\"title\""), "the form waits: {body}");
+    // The rest of the form rides along hidden, the publication preselected.
     assert!(
         body.contains(&format!(
-            "<option value=\"at://{DID}/site.standard.publication/pub1\" selected>Ross Writes</option>"
+            "name=\"publication\" value=\"at://{DID}/site.standard.publication/pub1\""
         )),
         "the only publication is preselected: {body}"
     );
     assert!(body.contains("name=\"link_url_0\""), "{body}");
-    assert!(body.contains("value=\"preview\""), "{body}");
-    // A new write-up opens straight on the form: no kicker, no heading.
-    assert!(!body.contains("<h1"), "{body}");
     assert!(!body.contains("A new write-up"), "{body}");
+}
+
+/// Open Places results for "devocion", as the mock serves them.
+fn places_results() -> Value {
+    json!({
+        "results": [
+            {
+                "place_id": "overture:76f1250d-8e38-40b3-a021-bfe1c16b4e1c",
+                "name": "Devocion", "lat": 40.701_607, "lon": -73.986_565, "distance_mi": 0.95,
+                "category": "coffee_shop",
+                "address": {"formatted": "105 York St", "street": "105 York St", "locality": "Brooklyn", "region": "ny", "postal_code": "11201"},
+                "website": "https://www.devocion.com/"
+            },
+            {"place_id": "overture:44017831-5500-4780-a4e7-a8fac208e6fe", "name": "Devocion Flatiron", "lat": 40.739_05, "lon": -73.989_155, "distance_mi": 3.51}
+        ],
+        "meta": {"data_release": "2026-08-19.0"}
+    })
+}
+
+async fn mount_places(server: &MockServer, response: ResponseTemplate) {
+    Mock::given(method("GET"))
+        .and(path("/v1/places"))
+        .respond_with(response)
+        .mount(server)
+        .await;
+}
+
+#[tokio::test]
+async fn a_new_write_up_starts_with_a_search_and_a_pick_fills_the_place() {
+    let server = mount(&one_publication()).await;
+    mount_places(
+        &server,
+        ResponseTemplate::new(200).set_body_json(places_results()),
+    )
+    .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let pub_uri = format!("at://{DID}/site.standard.publication/pub1");
+    let mut fields = vec![
+        ("place_query", "Devocion"),
+        ("near_lat", "40.6888"),
+        ("near_lon", "-73.9799"),
+        ("body", "Great coffee."),
+        ("publication", pub_uri.as_str()),
+        ("action", "search"),
+    ];
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body.matches("class=\"result-item\"").count(), 2, "{body}");
+    assert!(body.contains("105 York St, Brooklyn, NY 11201"), "{body}");
+    assert!(body.contains("0.9 mi"), "{body}");
+    assert!(body.contains("coffee shop"), "{body}");
+    assert!(body.contains("Searching near you."), "{body}");
+    assert!(body.contains("value=\"pick:0\""), "{body}");
+    assert!(
+        body.contains("name=\"body\" value=\"Great coffee.\""),
+        "typed prose rides along: {body}"
+    );
+    assert!(body.contains("Overture Maps"), "attribution: {body}");
+
+    fields.retain(|(k, _)| *k != "action");
+    fields.push(("action", "pick:0"));
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("<h1>Devocion</h1>"), "{body}");
+    assert!(
+        body.contains("name=\"gers_id\" value=\"76f1250d-8e38-40b3-a021-bfe1c16b4e1c\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("name=\"place_mode\" value=\"picked\""),
+        "{body}"
+    );
+    assert!(body.contains("value=\"Devocion\""), "{body}");
+    assert!(
+        body.contains("value=\"105 York St, Brooklyn, NY 11201\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("name=\"lat_e6\" value=\"40701607\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("name=\"lon_e6\" value=\"-73986565\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("Matched to an Overture Maps listing."),
+        "{body}"
+    );
+    assert!(body.contains("value=\"change_place\""), "{body}");
+    assert!(
+        body.contains("value=\"https://www.devocion.com/\""),
+        "the website becomes the official-site link: {body}"
+    );
+    assert!(
+        body.contains("<option value=\"officialSite\" selected>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("Great coffee."),
+        "the prose is back in its box: {body}"
+    );
+    // One search, one request: the pick came from the cache.
+    let searches = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/v1/places")
+        .count();
+    assert_eq!(searches, 1);
+}
+
+#[tokio::test]
+async fn a_search_without_a_point_uses_the_last_visit_or_asks_for_location() {
+    let server = mount(&one_publication()).await;
+    mount_places(
+        &server,
+        ResponseTemplate::new(200).set_body_json(json!({"results": []})),
+    )
+    .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let fields = [("place_query", "Nowhere"), ("action", "search")];
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("Searching near your last visit."), "{body}");
+    assert!(body.contains("Nothing nearby called “Nowhere”."), "{body}");
+    let request = server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|r| r.url.path() == "/v1/places")
+        .expect("the search ran");
+    let query: std::collections::HashMap<_, _> = request.url.query_pairs().into_owned().collect();
+    assert_eq!(query["lat"], "40.688838", "the seed visit's coordinates");
+
+    // No visit has coordinates: nothing to search near.
+    let mut repo = one_publication();
+    for (_, doc) in &mut repo.documents {
+        if let Some(place) = doc["content"]["place"].as_object_mut() {
+            place.remove("latE6");
+            place.remove("lonE6");
+        }
+    }
+    let server = mount(&repo).await;
+    mount_places(
+        &server,
+        ResponseTemplate::new(200).set_body_json(places_results()),
+    )
+    .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("Turn on location"), "{body}");
+    assert!(!body.contains("result-item"), "{body}");
+}
+
+#[tokio::test]
+async fn a_failed_search_offers_manual_entry_and_a_place_can_be_changed() {
+    let server = mount(&one_publication()).await;
+    mount_places(
+        &server,
+        ResponseTemplate::new(402).set_body_json(json!({
+            "error": {"code": "quota_exhausted", "message": "Monthly quota exhausted."}
+        })),
+    )
+    .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let (status, body) = post_editor(
+        &state,
+        "/write",
+        &cookie,
+        &[
+            ("place_query", "Katz"),
+            ("near_lat", "40.72"),
+            ("near_lon", "-73.98"),
+            ("action", "search"),
+        ],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("isn't answering right now"), "{body}");
+    assert!(
+        !body.contains("quota"),
+        "no upstream detail on the page: {body}"
+    );
+    assert!(body.contains("value=\"manual\""), "{body}");
+
+    // By hand: the form, no listing behind it.
+    let (status, body) = post_editor(
+        &state,
+        "/write",
+        &cookie,
+        &[("body", "A cart."), ("action", "manual")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("id=\"place_name\""), "{body}");
+    assert!(
+        body.contains("name=\"place_mode\" value=\"manual\""),
+        "{body}"
+    );
+    assert!(body.contains("Entered by hand"), "{body}");
+    assert!(body.contains("A cart."), "{body}");
+
+    // Changing the place goes back to choosing with the name as the
+    // search and everything else carried.
+    let mut fields = good_fields();
+    fields.retain(|(k, _)| *k != "action");
+    fields.push(("action", "change_place"));
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("<h1>Where did you eat?</h1>"), "{body}");
+    assert!(
+        body.contains("id=\"place_query\" name=\"place_query\" type=\"search\" value=\"Promises\""),
+        "{body}"
+    );
+    assert!(!body.contains("value=\"g1\""), "the id is dropped: {body}");
+    assert!(
+        body.contains("name=\"visited_on\" value=\"2026-09-08\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("name=\"tags\" value=\"#notes, Short\""),
+        "{body}"
+    );
 }
 
 #[tokio::test]
@@ -1553,6 +1800,7 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
         ("title", "Foreign Post"),
         ("body", "A write-up of *Foreign Place*."),
         ("place_name", "Foreign Place"),
+        ("place_mode", "picked"),
         ("visited_on", "2026-09-06"),
         ("link_url_0", "https://x.example/a"),
         ("link_service_0", "bc"),
@@ -1802,6 +2050,7 @@ async fn editing_replaces_the_record_and_deleting_removes_it() {
         ("title", "Third Post, revisited"),
         ("body", "New words."),
         ("place_name", "Third Place"),
+        ("place_mode", "picked"),
         ("visited_on", "2026-09-06"),
         ("link_url_0", "https://example.com/official"),
         ("link_service_0", "officialSite"),
@@ -1905,15 +2154,19 @@ async fn the_editor_carries_one_nonced_script_and_nothing_else_changes() {
         "<script nonce=\"{nonce}\">{}</script>",
         eaten_at_web::assets::EDITOR_SCRIPT
     );
-    assert_eq!(body.matches("<script").count(), 1, "{body}");
-    assert!(
-        body.contains(&script),
-        "the island is inlined under the page's nonce"
+    let locate = format!(
+        "<script nonce=\"{nonce}\">{}</script>",
+        eaten_at_web::assets::LOCATE_SCRIPT
     );
-    let without = body.replace(&script, "");
+    assert_eq!(body.matches("<script").count(), 2, "{body}");
+    assert!(
+        body.contains(&script) && body.contains(&locate),
+        "both islands are inlined under the page's nonce"
+    );
+    let without = body.replace(&script, "").replace(&locate, "");
     assert!(!without.contains("<script"));
     assert!(
-        without.contains("<form class=\"editor\""),
+        without.contains("<form class=\"editor editor-choosing\""),
         "the form stands on its own"
     );
     assert!(
@@ -2698,7 +2951,18 @@ async fn crosspost_toggle_defaults_from_preferences() {
     mount_writes(&server).await;
     let state = state_for(&server, dns_for_handle());
     let cookie = posting_author_session(&state, &server).await;
+    // The choosing state carries the default hidden; the form shows it
+    // ticked once there is a place.
     let (status, _, page) = get_signed(&state, "/write", &cookie).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(page.contains("name=\"crosspost\" value=\"1\""), "{page}");
+    let (status, page) = post_editor(
+        &state,
+        "/write",
+        &cookie,
+        &[("crosspost", "1"), ("action", "manual")],
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert!(
         page.contains("name=\"crosspost\" type=\"checkbox\" value=\"1\" checked"),
@@ -2710,7 +2974,7 @@ async fn crosspost_toggle_defaults_from_preferences() {
     mount_writes(&server).await;
     let state = state_for(&server, dns_for_handle());
     let cookie = posting_author_session(&state, &server).await;
-    let (_, _, page) = get_signed(&state, "/write", &cookie).await;
+    let (_, page) = post_editor(&state, "/write", &cookie, &[("action", "manual")]).await;
     assert!(
         page.contains("name=\"crosspost\" type=\"checkbox\" value=\"1\">"),
         "{page}"
@@ -2779,7 +3043,7 @@ async fn without_permission_publish_hands_over_to_the_crosspost_page_which_asks(
     let state = state_for(&server, dns_for_handle());
     // The sign-in grant only.
     let cookie = author_session(&state, &server).await;
-    let (_, _, editor) = get_signed(&state, "/write", &cookie).await;
+    let (_, editor) = post_editor(&state, "/write", &cookie, &[("action", "manual")]).await;
     assert!(editor.contains("ask you to allow posting"), "{editor}");
 
     let (status, body) = post_editor(

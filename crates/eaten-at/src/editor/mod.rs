@@ -17,7 +17,9 @@ pub mod form;
 pub mod view;
 
 pub use draft::{default_post_text, validate, Context, DocumentDraft, FieldErrors, Target};
-pub use form::{Action, Choice, EditorForm, LinkField, RowKind, ServiceChoice, PUBLICATION_NEW};
+pub use form::{
+    Action, Choice, EditorForm, LinkField, PlaceMode, RowKind, ServiceChoice, PUBLICATION_NEW,
+};
 
 /// Most external links on one place (lexicon `maxLength`).
 pub const MAX_LINKS: usize = 12;

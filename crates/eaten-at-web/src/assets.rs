@@ -15,8 +15,14 @@ const CSS_SOURCE: &str = include_str!("../static/app.css");
 /// A convenience on top of a form that works without it (plan §6.3).
 pub const EDITOR_SCRIPT: &str = include_str!("../static/editor.js");
 
+/// The location island: fills the editor's search point from the
+/// browser's geolocation (plan 06). The one script a function needs
+/// rather than a nicety; without it the search still runs near the
+/// author's last visit.
+pub const LOCATE_SCRIPT: &str = include_str!("../static/locate.js");
+
 /// Every inline script the site ships, all counted against the budget.
-pub const INLINE_SCRIPTS: &[&str] = &[EDITOR_SCRIPT];
+pub const INLINE_SCRIPTS: &[&str] = &[EDITOR_SCRIPT, LOCATE_SCRIPT];
 
 /// Hard cap on all inline JavaScript combined, in bytes (plan §6.3).
 pub const JS_BUDGET_BYTES: usize = 5 * 1024;

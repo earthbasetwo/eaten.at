@@ -126,15 +126,41 @@ async function main() {
   const rkey = discovered.documents[0].split('/').pop()
   await check({ name: 'landing-signed-in', path: '/', expect: '.account a[href="/write"]' })
   await check({ name: 'settings', path: '/settings' })
-  await check({ name: 'write', path: '/write' })
+  // The editor starts by choosing a place (plan 06). Headless Chrome
+  // grants no location, so the point is typed into the hidden fields the
+  // island would fill.
+  const point = { 'input[name="near_lat"]': '40.6888', 'input[name="near_lon"]': '-73.9799' }
+  const search = (q) => ({ fill: { '#place_query': q, ...point }, click: 'button[name="action"][value="search"]' })
+  await check({ name: 'write', path: '/write', expect: '#place_query' })
+  await check({ name: 'write-search', path: '/write', steps: [search('Noodle')], expect: '.result-item' })
+  await check({ name: 'write-search-empty', path: '/write', steps: [search('nothing here')], expect: '.empty' })
+  await check({ name: 'write-search-unavailable', path: '/write', steps: [search('quota')], expect: '.form-error' })
+  await check({
+    name: 'write-pick',
+    path: '/write',
+    steps: [search('Noodle'), { click: 'button[name="action"][value="pick:0"]' }],
+    expect: 'input[name="place_mode"][value="picked"]',
+  })
+  await check({
+    name: 'write-manual',
+    path: '/write',
+    steps: [{ click: 'button[name="action"][value="manual"]' }],
+    expect: 'input[name="place_mode"][value="manual"]',
+  })
   await check({
     name: 'write-errors',
     path: '/write',
-    submit: 'form.editor button[name="action"][value="publish"]',
+    steps: [{ click: 'button[name="action"][value="manual"]' }, { click: 'form.editor button[name="action"][value="publish"]' }],
     status: 422,
     expect: '.field-error',
   })
   await check({ name: 'edit', path: `/write/${rkey}` })
+  await check({
+    name: 'edit-change-place',
+    path: `/write/${rkey}`,
+    steps: [{ click: 'button[name="action"][value="change_place"]' }],
+    expect: '#place_query[value]',
+  })
   await check({
     name: 'edit-preview',
     path: `/write/${rkey}`,
@@ -222,15 +248,25 @@ class Browser {
     await this.session.send('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'local_storage' })
 
     let status = await this.navigate(`${BASE}${page.path}`, problems)
-    if (page.submit) {
-      const found = await this.evaluate(`!!document.querySelector(${JSON.stringify(page.submit)})`)
-      if (!found) {
-        problems.push(`no element matches ${page.submit}`)
-      } else {
-        status = await this.navigate(null, problems, () =>
-          this.evaluate(`document.querySelector(${JSON.stringify(page.submit)}).click()`),
+    // A page may be reached through the form: each step fills fields,
+    // then clicks a button that submits, and the last response is the
+    // page under test. `submit` is the one-click shorthand.
+    const steps = page.steps ?? (page.submit ? [{ click: page.submit }] : [])
+    for (const step of steps) {
+      for (const [selector, value] of Object.entries(step.fill ?? {})) {
+        const set = await this.evaluate(
+          `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; el.value = ${JSON.stringify(value)}; return true })()`,
         )
+        if (!set) problems.push(`no element matches ${selector}`)
       }
+      const found = await this.evaluate(`!!document.querySelector(${JSON.stringify(step.click)})`)
+      if (!found) {
+        problems.push(`no element matches ${step.click}`)
+        break
+      }
+      status = await this.navigate(null, problems, () =>
+        this.evaluate(`document.querySelector(${JSON.stringify(step.click)}).click()`),
+      )
     }
 
     const expected = page.status ?? 200

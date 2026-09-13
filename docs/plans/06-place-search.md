@@ -169,6 +169,17 @@ geolocation is denied.
 - Quota and rate-limit responses degrade to a notice, never a 500.
 - `just check` and `just visual-check` (with the stub) pass.
 
+## As built (2026-09-13)
+
+Two departures from the flow above, both for one code path instead of
+two. Picking is a `POST` action (`pick:N`) that re-reads the cached
+search, not a `GET` link carrying the hit's fields, so the new and the
+edit paths share everything; a refresh after a pick re-posts, as a
+preview already does. And the choosing state is the editor form itself
+with every other field carried hidden, so "Change place" on an edit
+loses nothing. The interim visible GERS id field from plan 05 became a
+hidden one.
+
 ## Decisions
 
 Settled 2026-09-13:

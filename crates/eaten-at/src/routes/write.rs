@@ -16,19 +16,21 @@ use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::at_eaten::Preferences;
 use eaten_at_atproto::lexicon::Publication;
 use eaten_at_atproto::repo::Record;
-use eaten_at_web::assets::EDITOR_SCRIPT;
+use eaten_at_web::assets::{EDITOR_SCRIPT, LOCATE_SCRIPT};
 use eaten_at_web::layout::{self, urlencoding, Page, Width};
 use serde::Deserialize;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::auth::{PostPermission, RequireUser};
 use crate::editor::view::{
-    self, CrosspostPage, CrosspostState, DeletePage, DeletePost, EditorPage, PublicationOption,
+    self, CrosspostPage, CrosspostState, DeletePage, DeletePost, EditorPage, Located,
+    PublicationOption, SearchState,
 };
 use crate::editor::{self, Action, Context, EditorForm, FieldErrors, PUBLICATION_NEW};
 use crate::error::AppError;
 use crate::model::VisitDocument;
 use crate::paths;
+use crate::places::Point;
 use crate::publish::{self, PublishError, MAX_POST_GRAPHEMES};
 use crate::read::PublicationChoice;
 use crate::security::Nonce;
@@ -136,9 +138,12 @@ struct Outcome<'a> {
     errors: FieldErrors,
     preview: Option<maud::Markup>,
     publish_error: Option<&'a str>,
+    search: SearchState,
+    located: Located,
 }
 
 fn render(
+    state: &AppState,
     nonce: &str,
     status: StatusCode,
     author: &Author,
@@ -154,21 +159,29 @@ fn render(
             None if author.posting.create => CrosspostState::Ready,
             None => CrosspostState::NeedsPermission,
         };
+    // The write-up's title while editing; the place's name for a new one
+    // once there is a place.
+    let heading = editing
+        .map(|e| e.visit_doc.document().title.as_str())
+        .or_else(|| Some(form.place_name.trim()).filter(|name| !name.is_empty()));
     let page = layout::render(&Page {
         title: &[if editing.is_some() { "Edit" } else { "Write" }],
         width: Width::Wide,
         nonce: Some(nonce.to_owned()),
-        scripts: vec![EDITOR_SCRIPT],
+        scripts: vec![EDITOR_SCRIPT, LOCATE_SCRIPT],
         main: view::page(&EditorPage {
             form,
             errors: &outcome.errors,
             publications: &options,
             action_path: &action_path,
             editing: editing.is_some(),
-            heading: editing.map(|e| e.visit_doc.document().title.as_str()),
+            heading,
             preview: outcome.preview.clone(),
             publish_error: outcome.publish_error,
             crosspost,
+            search_enabled: state.places_enabled(),
+            search: outcome.search.clone(),
+            located: outcome.located,
         }),
         ..Page::default()
     });
@@ -187,6 +200,7 @@ pub async fn new_form(
     form.crosspost = author.preferences.crosspost_default();
     let outcome = Outcome::default();
     Ok(render(
+        &state,
         nonce,
         StatusCode::OK,
         &author,
@@ -209,6 +223,7 @@ pub async fn edit_form(
     let form = EditorForm::from_document(editing.visit_doc.document(), &editing.visit_doc.visit);
     let outcome = Outcome::default();
     Ok(render(
+        &state,
         nonce,
         StatusCode::OK,
         &author,
@@ -253,16 +268,22 @@ async fn submit(
         form.map_err(|e| AppError::BadRequest(format!("could not read the form: {e}")))?;
     let (mut form, action) = EditorForm::from_pairs(pairs);
     let action = action.unwrap_or(Action::Preview);
-    if !matches!(action, Action::Preview | Action::Publish) {
-        form.apply(&action);
-        return Ok(render(
-            nonce,
-            StatusCode::OK,
-            author,
-            editing,
-            &form,
-            &Outcome::default(),
-        ));
+    match action {
+        Action::Search => return Ok(search(state, nonce, author, editing, form).await),
+        Action::Pick(index) => return Ok(pick(state, nonce, author, editing, form, index).await),
+        Action::Preview | Action::Publish => {}
+        _ => {
+            form.apply(&action);
+            return Ok(render(
+                state,
+                nonce,
+                StatusCode::OK,
+                author,
+                editing,
+                &form,
+                &Outcome::default(),
+            ));
+        }
     }
     let uris = author.uris();
     let context = Context {
@@ -273,6 +294,7 @@ async fn submit(
         Ok(draft) => draft,
         Err(errors) => {
             return Ok(render(
+                state,
                 nonce,
                 StatusCode::UNPROCESSABLE_ENTITY,
                 author,
@@ -287,6 +309,7 @@ async fn submit(
     };
     if action == Action::Preview {
         return Ok(render(
+            state,
             nonce,
             StatusCode::OK,
             author,
@@ -318,6 +341,7 @@ async fn submit(
         Err(PublishError::Repo(err)) => {
             tracing::warn!(error = %err, "publish refused");
             Ok(render(
+                state,
                 nonce,
                 StatusCode::BAD_GATEWAY,
                 author,
@@ -330,6 +354,103 @@ async fn submit(
             ))
         }
     }
+}
+
+/// The point to search near: the browser's, carried in the form, else
+/// the author's most recent visit with coordinates.
+async fn locate(state: &AppState, author: &Author, form: &EditorForm) -> (Option<Point>, Located) {
+    if let Some(point) = Point::parse(&form.near_lat, &form.near_lon) {
+        return (Some(point), Located::Browser);
+    }
+    match last_visit_point(state, &author.identity).await {
+        Some(point) => (Some(point), Located::LastVisit),
+        None => (None, Located::Unknown),
+    }
+}
+
+/// The coordinates of the newest visit that has them, from the repo's
+/// first page of documents.
+async fn last_visit_point(state: &AppState, identity: &Identity) -> Option<Point> {
+    let page = state.documents(identity, None).await.ok()?;
+    page.records
+        .into_iter()
+        .filter_map(VisitDocument::from_record)
+        .find_map(|doc| {
+            let place = &doc.visit.place;
+            Some(Point::from_e6(place.lat_e6?, place.lon_e6?))
+        })
+}
+
+/// `action=search`: show what Open Places finds near the point.
+async fn search(
+    state: &AppState,
+    nonce: &str,
+    author: &Author,
+    editing: Option<&Editing>,
+    form: EditorForm,
+) -> Response {
+    let (point, located) = locate(state, author, &form).await;
+    let search = match point {
+        None => SearchState::NoPoint,
+        Some(point) => match state.search_places(&form.place_query, point).await {
+            Ok(hits) => SearchState::Results(hits),
+            Err(err) => SearchState::Failed(err.to_string()),
+        },
+    };
+    render(
+        state,
+        nonce,
+        StatusCode::OK,
+        author,
+        editing,
+        &form,
+        &Outcome {
+            search,
+            located,
+            ..Outcome::default()
+        },
+    )
+}
+
+/// `action=pick:N`: take the Nth result of the same search (a cache hit)
+/// as the place and move on to writing.
+async fn pick(
+    state: &AppState,
+    nonce: &str,
+    author: &Author,
+    editing: Option<&Editing>,
+    mut form: EditorForm,
+    index: usize,
+) -> Response {
+    let (point, located) = locate(state, author, &form).await;
+    let hit = match point {
+        Some(point) => state
+            .search_places(&form.place_query, point)
+            .await
+            .ok()
+            .and_then(|hits| hits.get(index).cloned()),
+        None => None,
+    };
+    let outcome = match hit {
+        Some(hit) => {
+            form.pick(&hit);
+            Outcome::default()
+        }
+        None => Outcome {
+            search: SearchState::Failed("That result is gone. Search again.".to_owned()),
+            located,
+            ..Outcome::default()
+        },
+    };
+    render(
+        state,
+        nonce,
+        StatusCode::OK,
+        author,
+        editing,
+        &form,
+        &outcome,
+    )
 }
 
 /// The document is published; now the Bluesky side (plan §5.7). With
