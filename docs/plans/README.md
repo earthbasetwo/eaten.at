@@ -17,6 +17,15 @@ open, with a recommendation.
 | 06 | [Place search with Open Places](06-place-search.md) | 3, 5, 6 | large | 05 |
 | 07 | [Photos](07-photos.md) | 10 | large | 04 (recommended) |
 
+## Status
+
+All seven were implemented on 2026-09-13, one commit each on `main`
+(`bb495c1` through `e0b7826`), with the decisions they settled recorded
+as D29–D39 in `docs/decisions.md`. Each plan file ends with what was
+settled and, where the build departed from the plan, an "As built" note.
+Not yet done: publishing the changed lexicons (`just lexicons-publish`),
+which `just lexicons-check` will keep pointing out.
+
 ## Order
 
 Plans 01–04 all touch the editor (`crates/eaten-at/src/editor/`)
