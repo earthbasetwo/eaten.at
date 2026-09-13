@@ -53,6 +53,9 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | D34 | Place search | Settled 2026-09-13: the editor finds places through the Open Places API (Overture data), server-side with a key, results cached for an hour. A place not found can be entered by hand and carries no `gersId`. |
 | D35 | Location | Settled 2026-09-13: the search point comes from the browser's geolocation through a small script island (D3 amended: the one function that needs script), falling back to the author's most recent visit's coordinates, and failing that to manual entry. No geocoder. |
 | D36 | Open Places ids | Verified 2026-09-13 against release 2026-08-19: every `place_id` is `overture:` followed by a UUID, the Overture GERS id. The suffix is what `gersId` stores. |
+| D37 | Photos | Settled 2026-09-13: photos live in the visit as `at.eaten.visit.photos`, at most 24, each a blob ≤ 1 MB with optional alt text and aspect ratio. They are managed on their own page after publish, where every action writes the record at once; a JavaScript-free editor form cannot carry files across its own re-renders. |
+| D38 | Cover from photos | Settled 2026-09-13: `coverImage` is derived, the first photo, so unfurls, the feed, the Bluesky card, and Standard readers get a thumbnail. Removed with the last photo. |
+| D39 | Re-encode every upload | Settled 2026-09-13: a photo is decoded (EXIF orientation applied), fitted to 2048 px, and written as a fresh JPEG under the cap. No metadata block survives, so a phone's position never reaches a public repository. |
 
 ## Stack choices
 

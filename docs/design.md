@@ -195,8 +195,10 @@ Raised surface, 1px border, 12px radius, card padding, the card shadow.
 On hover or focus-within the border darkens to `border-strong`. Nothing
 lifts or moves.
 
-**Listing card** (`.listing-item`). Cards in a column, 16px apart. A
-kicker date, the title in the display
+**Listing card** (`.listing-item`). Cards in a column, 16px apart. The
+first photo as a small square thumbnail at the left (`.listing-thumb`,
+`--thumb-small`, 10px radius) when there is one; right, a kicker date,
+the title in the display
 serif at card size, the place name as a mono meta line with the rating
 marks beside it (`.listing-place`; the name is left out when it is the
 title, which it is by default), and the excerpt in the sans at small
@@ -212,6 +214,11 @@ state: the place's name in the display serif at card size, then the
 address, distance, and category in the mono voice, and a secondary
 "Write about this place" pill at the right. Things a reader picks
 between are cards.
+
+**Photo grid** (`section.photos`, `.photo-grid`). Between the visit card
+and the prose: the visit's photos as square 400px thumbnails in an
+auto-filling grid (8.5rem columns, 8px gaps, 10px radius, a hairline),
+each a link to its full rendition. Nothing for a visit without photos.
 
 **Visit card** (`.visit-card`). A card between the page title and the
 prose: the place name (`.place-name`) in the display serif. Under the name, in the mono voice, the visit date, the
@@ -308,6 +315,7 @@ one sentence saying what the site is.
 | Status page | site | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
 | Editor `/write`, choosing | site | page head: "Write" kicker, h1 "Where did you eat?" | the search box with one primary "Search", a status line for where the search looks, the results as place cards, "Not listed? Enter it by hand", and the Overture attribution |
 | Editor `/write`, writing | site | page head: "Write" kicker and the place's name (new), or "Edit" kicker and the write-up's title; a form-error summary when needed | optional preview (the document as readers see it, on a raised panel under a "Preview" kicker); then the form: write-up pane left, visit pane right (Place, Visit, Links, Details, Bluesky groups), stacked under 56rem |
+| Photos `/write/{rkey}/photos` | site | page head: "Photos" kicker, h1 "Photos of {place}", lede ("Published. Add photos now, or skip" after a first publish) | the photos as rows on raised cards (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "Skip for now" / "Done" / "← Back to the write-up" |
 | Delete `/write/{rkey}/delete` | site | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
 | Crosspost `/write/{rkey}/crosspost` | site | page head: "Bluesky" kicker, h1 "Post “title” to Bluesky" (or "… is on Bluesky"), lede | the post text field and one primary "Post to Bluesky"; or, before permission, one primary "Allow posting and continue"; secondary "← Skip for now" either way; posted: the thread link and a secondary way back |
 | Settings `/settings` | site | page head: "Settings" kicker, h1 "Your publications", lede | chooser cards: name, current address in the metadata voice, a small form of two radio choices and one primary "Save" |
@@ -339,8 +347,9 @@ panes need the room.
   "Unrated" and the four steps, each labelled with its marks and its
   word.
 - **Actions:** one primary button, "Publish" (or "Save changes").
-  "Preview" and "Delete" are secondary pills. A document's own author
-  sees an "edit" link among the footer's muted links.
+  "Preview", "Photos", and "Delete" are secondary pills. A document's
+  own author sees "edit" and "photos" links among the footer's muted
+  links.
 - **Bluesky group:** the visit pane ends with a `.choice` box "Also
   post to Bluesky", the post text with the place name as its
   placeholder, and a hint. Once posted, the group is one line linking the

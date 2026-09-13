@@ -1,4 +1,5 @@
-//! `/img/{did}/{doc_rkey}` — the cover-art proxy.
+//! `/img/{did}/{doc_rkey}` — the document-image proxy — and
+//! `/img/{did}/{doc_rkey}/{cid}`, one of its photos.
 
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
@@ -7,7 +8,7 @@ use serde::Deserialize;
 
 use super::resolve_repo;
 use crate::error::AppError;
-use crate::img::Size;
+use crate::img::{PhotoSize, Rendition, Size};
 use crate::model::VisitDocument;
 use crate::state::AppState;
 
@@ -41,11 +42,42 @@ pub async fn cover(
         state.cover_rendition(&identity, &visit_doc, size).await
     };
 
+    jpeg_response(rendition, "cover.jpg")
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PhotoQuery {
+    size: Option<String>,
+}
+
+/// One of a visit's photos, by the CID the document lists. Any other CID
+/// is not found: this is not a way to read arbitrary blobs.
+pub async fn photo(
+    State(state): State<AppState>,
+    Path((did, rkey, cid)): Path<(String, String, String)>,
+    Query(query): Query<PhotoQuery>,
+) -> Result<Response<Body>, AppError> {
+    let (_, identity) = resolve_repo(&state, &did).await?;
+    let record = state
+        .document(&identity, &rkey)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("document {rkey} not found")))?;
+    let visit_doc = VisitDocument::from_record(record)
+        .ok_or_else(|| AppError::NotFound(format!("document {rkey} is not a visit")))?;
+    let size = PhotoSize::from_query(query.size.as_deref());
+    let rendition = state
+        .photo_rendition(&identity, &visit_doc, &cid, size)
+        .await
+        .ok_or_else(|| AppError::NotFound(format!("photo {cid} not found")))?;
+    jpeg_response(rendition, "photo.jpg")
+}
+
+fn jpeg_response(rendition: Rendition, filename: &'static str) -> Result<Response<Body>, AppError> {
     let response = Response::builder()
         .header(header::CONTENT_TYPE, HeaderValue::from_static("image/jpeg"))
         .header(
             header::CONTENT_DISPOSITION,
-            HeaderValue::from_static("inline; filename=\"cover.jpg\""),
+            format!("inline; filename=\"{filename}\""),
         )
         .header(
             header::X_CONTENT_TYPE_OPTIONS,

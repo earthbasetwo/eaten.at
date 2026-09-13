@@ -92,6 +92,41 @@ pub fn visit_links(links: &[Link]) -> Markup {
     }
 }
 
+/// One photo of a visit, ready to show.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhotoView {
+    /// The square thumbnail.
+    pub thumb_src: String,
+    /// The full rendition the thumbnail links to.
+    pub full_src: String,
+    /// Alt text as the author wrote it; empty stays empty.
+    pub alt: String,
+}
+
+/// Side of the square thumbnails the grid shows.
+pub const THUMB_SIDE: u32 = 400;
+
+/// The photos of a visit, a grid of square thumbnails each linking to
+/// its full rendition. Nothing is rendered for none.
+pub fn photo_grid(photos: &[PhotoView]) -> Markup {
+    html! {
+        @if !photos.is_empty() {
+            section.photos aria-label="Photos" {
+                ul.photo-grid {
+                    @for photo in photos {
+                        li {
+                            a href=(photo.full_src) {
+                                img src=(photo.thumb_src) alt=(photo.alt)
+                                    width=(THUMB_SIDE) height=(THUMB_SIDE) loading="lazy";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// One row of a publication's document list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ListingItem {
@@ -102,6 +137,8 @@ pub struct ListingItem {
     pub rating: Option<RatingView>,
     pub published: String,
     pub excerpt: String,
+    /// The first photo's thumbnail, if the visit has one.
+    pub thumb_src: Option<String>,
 }
 
 /// A list of write-ups.
@@ -111,6 +148,9 @@ pub fn listing(items: &[ListingItem]) -> Markup {
             @for item in items {
                 li.listing-item {
                     article {
+                        @if let Some(src) = &item.thumb_src {
+                            img.listing-thumb src=(src) alt="" width="96" height="96" loading="lazy";
+                        }
                         div.listing-body {
                             p.kicker { time datetime=(item.published) { (human_date(&item.published)) } }
                             h2.listing-title { a href=(item.href) { (item.title) } }
@@ -346,8 +386,15 @@ mod tests {
             }),
             published: "2026-09-07T12:00:00.000Z".into(),
             excerpt: String::new(),
+            thumb_src: Some("/img/did/rk/bafy?size=thumb".into()),
         }])
         .into_string();
+        assert!(
+            out.contains(
+                "<img class=\"listing-thumb\" src=\"/img/did/rk/bafy?size=thumb\" alt=\"\""
+            ),
+            "{out}"
+        );
         assert!(
             out.contains("<p class=\"listing-place\"><span class=\"listing-place-name\">Sample Place</span> <span class=\"rating\" aria-label=\"Rated Can’t Miss\"><span class=\"rating-marks\" aria-hidden=\"true\">++++</span></span></p>"),
             "{out}"
@@ -365,8 +412,10 @@ mod tests {
             }),
             published: "2026-09-07T12:00:00.000Z".into(),
             excerpt: String::new(),
+            thumb_src: None,
         };
         let out = listing(std::slice::from_ref(&item)).into_string();
+        assert!(!out.contains("listing-thumb"), "{out}");
         assert!(
             out.contains(
                 "<p class=\"listing-place\"><span class=\"rating\" aria-label=\"Rated Solid\">"
@@ -380,6 +429,27 @@ mod tests {
         }])
         .into_string();
         assert!(!out.contains("listing-place"), "{out}");
+    }
+
+    #[test]
+    fn photo_grid_links_thumbnails_to_full_renditions() {
+        assert_eq!(photo_grid(&[]).into_string(), "");
+        let out = photo_grid(&[PhotoView {
+            thumb_src: "/img/d/r/c?size=thumb".into(),
+            full_src: "/img/d/r/c?size=full".into(),
+            alt: "The <room>".into(),
+        }])
+        .into_string();
+        assert!(
+            out.starts_with(
+                "<section class=\"photos\" aria-label=\"Photos\"><ul class=\"photo-grid\">"
+            ),
+            "{out}"
+        );
+        assert!(
+            out.contains("<a href=\"/img/d/r/c?size=full\"><img src=\"/img/d/r/c?size=thumb\" alt=\"The &lt;room&gt;\" width=\"400\" height=\"400\" loading=\"lazy\"></a>"),
+            "{out}"
+        );
     }
 
     #[test]

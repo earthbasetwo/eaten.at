@@ -65,8 +65,8 @@ the network). It creates two accounts, seeds records, and writes
 - **`alice.test`**, an author with two publications:
   - **Field Notes**, with no theme, so it renders in the site's own
     palette. It has three write-ups whose `content` is an
-    `at.eaten.visit` (one with a description, one with a Bluesky post
-    reference so the comment section renders, one unrated) and one plain
+    `at.eaten.visit` (one with a description, two photos, and a Bluesky
+    post reference so the comment section renders; one unrated) and one plain
     document that is not a visit, to prove the filtering. An `at.eaten.preferences` record makes it the default,
     so `/@alice.test` opens it.
   - **After Hours**, with a dark author theme whose text colour fails
@@ -101,7 +101,8 @@ and tag pages signed out (asserting Field Notes carries no theme and After
 Hours does),
 and the landing, editor (choosing a place, search results, an empty
 search, search unavailable, after a pick, by hand, with validation errors,
-editing, changing the place, previewing), delete, crosspost, and settings
+editing, changing the place, previewing), photos (with photos, empty, and
+as the handover after a first publish), delete, crosspost, and settings
 pages signed in. Headless Chrome grants no location, so the check types the
 point into the hidden fields the island would fill. A page view fails when
 it:

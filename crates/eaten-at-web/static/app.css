@@ -175,6 +175,7 @@
     --title-gap:        clamp(1.5rem,   1.217rem + 1.159vw, 2rem);     /* 24 → 32 */
     --card-pad:         clamp(1rem,     0.859rem + 0.58vw,  1.25rem);  /* 16 → 20 */
     --card-gap:         clamp(0.75rem,  0.609rem + 0.58vw,  1rem);     /* 12 → 16 */
+    --thumb-small:      clamp(4.5rem,   3.652rem + 3.478vw, 6rem);     /* 72 → 96 */
     --footer-gap:       clamp(2rem,     1.717rem + 1.159vw, 2.5rem);   /* 32 → 40 */
     --footer-pad:       clamp(1rem,     0.717rem + 1.159vw, 1.5rem);   /* 16 → 24 */
     --section-gap:      var(--space-xl);                               /* 40 */
@@ -391,6 +392,11 @@
      page (date, title, place and rating, excerpt). */
   .listing { display: flex; flex-direction: column; gap: var(--space-m); }
   .listing-item article { display: flex; gap: var(--card-gap); align-items: flex-start; padding: var(--card-pad); }
+  .listing-thumb {
+    flex: none; inline-size: var(--thumb-small); block-size: var(--thumb-small);
+    object-fit: cover; border-radius: var(--radius-nested);
+    background: var(--color-sunken);
+  }
   .listing-body { min-inline-size: 0; flex: 1; }
   .listing-body .kicker { margin-block-end: var(--space-xs); }
   .listing-title { font-size: var(--text-card); line-height: 1.1; }
@@ -549,6 +555,24 @@
   .result-meta { margin-block-start: var(--space-xs); }
   .place-source { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-s); align-items: baseline; }
   .attribution { margin-block-start: var(--space-l); }
+  /* The photos page: each photo a row with its thumbnail, alt text, and
+     the move and remove actions, then the file input. */
+  .photos-form { max-inline-size: var(--column); }
+  .photos-form > * + * { margin-block-start: var(--space-l); }
+  .photo-manage { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-m); }
+  .photo-row {
+    display: flex; gap: var(--card-gap); align-items: flex-start; padding: var(--card-pad);
+    background: var(--color-raised); border: 1px solid var(--color-border); border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+  }
+  .photo-row-image { flex: none; display: block; border-radius: var(--radius-nested); }
+  .photo-row-image img {
+    display: block; inline-size: var(--thumb-small); block-size: var(--thumb-small);
+    object-fit: cover; border-radius: var(--radius-nested); background: var(--color-sunken);
+  }
+  .photo-row-body { min-inline-size: 0; flex: 1; }
+  .photo-row-body > * + * { margin-block-start: var(--space-s); }
+  .photo-row-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-m); }
   .hosting-form { margin-block-start: var(--space-m); max-inline-size: 34rem; }
   .hosting-form > * + * { margin-block-start: var(--space-m); }
   .choice {
@@ -584,6 +608,19 @@
   .document > .kicker { margin-block-end: var(--space-s); }
   .doc-title { margin-block-end: var(--title-gap); text-wrap: balance; }
 
+  /* Photos: a grid of square thumbnails between the visit card and the
+     prose, each a link to its full rendition. */
+  .photos { margin-block-start: var(--space-l); }
+  .photo-grid {
+    list-style: none; padding: 0; margin: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: var(--space-s);
+  }
+  .photo-grid a { display: block; border-radius: var(--radius-nested); }
+  .photo-grid img {
+    display: block; inline-size: 100%; block-size: auto; aspect-ratio: 1;
+    object-fit: cover; border-radius: var(--radius-nested);
+    background: var(--color-sunken); border: 1px solid var(--color-border);
+  }
   /* Visit card: the place's name, then the date, meal, and
      price in the metadata voice, the address, and the rating, on a raised
      card. */

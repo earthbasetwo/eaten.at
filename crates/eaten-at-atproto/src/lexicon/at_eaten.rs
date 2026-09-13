@@ -10,13 +10,17 @@ use std::fmt;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use super::common::{lenient_option, Datetime};
+use super::common::{lenient_option, BlobRef, Datetime};
 use crate::at_uri::AtUri;
 
 /// NSID of the visit object placed in `document.content`.
 pub const VISIT_NSID: &str = "at.eaten.visit";
 /// NSID of the place object embedded in a visit.
 pub const PLACE_NSID: &str = "at.eaten.place";
+/// Most photos on one visit (lexicon `maxLength`).
+pub const MAX_PHOTOS: usize = 24;
+/// Largest photo blob, in bytes (lexicon `maxSize`).
+pub const MAX_PHOTO_BYTES: usize = 1_000_000;
 
 /// A closed set of strings from a lexicon's `knownValues`, matched
 /// exactly and case-sensitively; anything else is another client's
@@ -119,8 +123,55 @@ pub struct Visit {
     /// Open union. Kept raw until the app's model interprets it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body: Option<Value>,
+    /// Photos in the author's order. A malformed entry from another
+    /// client is dropped, not the visit.
+    #[serde(
+        default,
+        deserialize_with = "lenient_photos",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub photos: Vec<Photo>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, Value>,
+}
+
+/// `at.eaten.visit#photo`: one photo of the visit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Photo {
+    pub image: BlobRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alt: Option<String>,
+    #[serde(
+        rename = "aspectRatio",
+        default,
+        deserialize_with = "lenient_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub aspect_ratio: Option<AspectRatio>,
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
+}
+
+/// `at.eaten.visit#aspectRatio`: an image's proportions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AspectRatio {
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Each photo decoded on its own so one bad entry drops that entry.
+fn lenient_photos<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<Photo>, D::Error> {
+    let raw = Vec::<Value>::deserialize(deserializer)?;
+    Ok(raw
+        .into_iter()
+        .filter_map(|value| match serde_json::from_value::<Photo>(value) {
+            Ok(photo) => Some(photo),
+            Err(err) => {
+                tracing::debug!(%err, "ignoring malformed photo");
+                None
+            }
+        })
+        .collect())
 }
 
 impl Visit {
@@ -523,6 +574,10 @@ mod tests {
             "meal": "dinner",
             "rating": 3,
             "body": {"$type": "at.markpub.markdown", "text": {"markdown": "Good."}},
+            "photos": [
+                {"image": {"$type": "blob", "ref": {"$link": "bafyone"}, "mimeType": "image/jpeg", "size": 5},
+                 "alt": "The room", "aspectRatio": {"width": 4, "height": 3}}
+            ],
             "future": true
         })
     }
@@ -546,7 +601,34 @@ mod tests {
         assert_eq!(visit.visited_on.as_string(), "2026-09-12");
         assert_eq!(visit.known_meal(), Some(Meal::Dinner));
         assert_eq!(visit.rating, Some(Rating::StronglyRecommended));
+        assert_eq!(visit.photos.len(), 1);
+        assert_eq!(visit.photos[0].image.cid(), "bafyone");
+        assert_eq!(visit.photos[0].alt.as_deref(), Some("The room"));
         assert_eq!(serde_json::to_value(&visit).unwrap(), json);
+    }
+
+    #[test]
+    fn a_malformed_photo_is_dropped_not_the_visit() {
+        let mut json = visit_json();
+        json["photos"] = serde_json::json!([
+            {"alt": "no image"},
+            "nonsense",
+            {"image": {"$type": "blob", "ref": {"$link": "bafytwo"}, "mimeType": "image/png", "size": 9},
+             "aspectRatio": {"width": "wide"}}
+        ]);
+        let visit: Visit = serde_json::from_value(json).unwrap();
+        assert_eq!(visit.photos.len(), 1);
+        assert_eq!(visit.photos[0].image.cid(), "bafytwo");
+        assert_eq!(
+            visit.photos[0].aspect_ratio, None,
+            "a bad ratio reads as absent"
+        );
+        let none: Visit = serde_json::from_value(serde_json::json!({
+            "place": {"name": "P"}, "visitedOn": "2026-09-12"
+        }))
+        .unwrap();
+        assert!(none.photos.is_empty());
+        assert!(serde_json::to_value(&none).unwrap().get("photos").is_none());
     }
 
     #[test]

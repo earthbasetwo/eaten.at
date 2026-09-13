@@ -5,7 +5,10 @@
     "main": {
       "type": "object",
       "description": "A visit to a place to eat, as the content of a site.standard.document. Placed in the document's content open union; a document whose content carries this $type is an eaten.at write-up. The document's textContent SHOULD hold a plaintext rendering (place, date, verdict, prose) for readers that do not know this type.",
-      "required": ["place", "visitedOn"],
+      "required": [
+        "place",
+        "visitedOn"
+      ],
       "properties": {
         "place": {
           "type": "ref",
@@ -21,7 +24,13 @@
         "meal": {
           "type": "string",
           "description": "Which meal it was. Consumers dispatch on an exact match against knownValues. Values outside knownValues belong to the authoring client's own vocabulary and MUST be preserved on rewrite and shown as written.",
-          "knownValues": ["breakfast", "brunch", "lunch", "dinner", "lateNight"],
+          "knownValues": [
+            "breakfast",
+            "brunch",
+            "lunch",
+            "dinner",
+            "lateNight"
+          ],
           "maxLength": 640
         },
         "rating": {
@@ -35,6 +44,60 @@
           "refs": [],
           "closed": false,
           "description": "The prose, as an open union keyed by $type. eaten.at writes at.markpub.markdown. Readers that know no member fall back to the document's textContent."
+        },
+        "photos": {
+          "type": "array",
+          "description": "Photos of the visit, in the author's order. The first is the document's coverImage too, so readers that do not know this type still get a thumbnail.",
+          "maxLength": 24,
+          "items": {
+            "type": "ref",
+            "ref": "#photo"
+          }
+        }
+      }
+    },
+    "photo": {
+      "type": "object",
+      "description": "One photo of the visit.",
+      "required": [
+        "image"
+      ],
+      "properties": {
+        "image": {
+          "type": "blob",
+          "accept": [
+            "image/*"
+          ],
+          "maxSize": 1000000,
+          "description": "The photo, re-encoded by the authoring client and stripped of metadata."
+        },
+        "alt": {
+          "type": "string",
+          "maxLength": 2000,
+          "maxGraphemes": 1000,
+          "description": "Alt text, for people who do not see the image."
+        },
+        "aspectRatio": {
+          "type": "ref",
+          "ref": "#aspectRatio",
+          "description": "The image's proportions, so a page can reserve its space before it loads."
+        }
+      }
+    },
+    "aspectRatio": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     }

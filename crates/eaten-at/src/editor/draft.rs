@@ -332,6 +332,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         meal,
         rating,
         body: None,
+        photos: Vec::new(),
         extra: serde_json::Map::new(),
     };
     if let Some(original) = ctx.original {
@@ -359,9 +360,11 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
 /// Fields our form does not know about live in the `extra` maps. Carry
 /// them over from the original for the visit, its place, and every link
 /// that is still present, matched by URL. A `$type` the original put on
-/// its place stays too.
+/// its place stays too, and so do the photos, which have their own page
+/// (plan 07).
 fn preserve_unknown_fields(visit: &mut Visit, original: &Visit) {
     visit.extra.clone_from(&original.extra);
+    visit.photos.clone_from(&original.photos);
     visit.place.extra.clone_from(&original.place.extra);
     visit.place.type_ = original
         .place
@@ -701,6 +704,7 @@ mod tests {
             "visitedOn": "2026-09-01",
             "meal": "tea",
             "body": {"$type": "at.markpub.markdown", "text": {"$type": "at.markpub.text", "markdown": "Loud."}},
+            "photos": [{"image": {"$type": "blob", "ref": {"$link": "bafyp"}, "mimeType": "image/jpeg", "size": 3}, "alt": "Loud room"}],
             "edition": "2021 remaster"
         }))
         .unwrap();
