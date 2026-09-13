@@ -14,15 +14,6 @@ expression: "serde_json::to_string_pretty(&doc).unwrap()"
         "markdown": "Forty-six *minutes*.\n\nNine notes."
       }
     },
-    "dishes": [
-      {
-        "name": "Soup",
-        "note": "hot"
-      },
-      {
-        "name": "Bread"
-      }
-    ],
     "meal": "dinner",
     "place": {
       "address": "1 Example St",
@@ -51,6 +42,6 @@ expression: "serde_json::to_string_pretty(&doc).unwrap()"
     "notes",
     "Short"
   ],
-  "textContent": "Promises · 2026-09-08 · Strongly Recommended\n\nForty-six minutes.\n\nNine notes.\n\nDishes: Soup, Bread",
+  "textContent": "Promises · 2026-09-08 · Strongly Recommended\n\nForty-six minutes.\n\nNine notes.",
   "title": "A room with the lights off"
 }

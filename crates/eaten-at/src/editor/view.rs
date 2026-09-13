@@ -130,10 +130,6 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                         (rating_choice(form, errors))
                     }
                     fieldset.editor-group {
-                        legend.kicker { "Dishes" }
-                        (dishes(form, errors))
-                    }
-                    fieldset.editor-group {
                         legend.kicker { "Links" }
                         (links(form, errors))
                     }
@@ -392,28 +388,6 @@ fn links(form: &EditorForm, errors: &FieldErrors) -> Markup {
                 }
             }
             (row_add(RowKind::Link, form.links.len(), "+ Add a link"))
-        }
-    }
-}
-
-fn dishes(form: &EditorForm, errors: &FieldErrors) -> Markup {
-    html! {
-        div.rows aria-label="Dishes" {
-            @if let Some(message) = errors.get("dishes") { p.field-error { (message) } }
-            @for (i, dish) in form.dishes.iter().enumerate() {
-                div.row.row-dish {
-                    (field(&format!("dish_name_{i}"), "Dish", errors, &html! {
-                        input id=(format!("dish_name_{i}")) name=(format!("dish_name_{i}")) type="text" value=(dish.name)
-                            aria-describedby=[described(errors, &format!("dish_name_{i}"))];
-                    }))
-                    (field(&format!("dish_note_{i}"), "Note (optional)", errors, &html! {
-                        input id=(format!("dish_note_{i}")) name=(format!("dish_note_{i}")) type="text" value=(dish.note)
-                            aria-describedby=[described(errors, &format!("dish_note_{i}"))];
-                    }))
-                    (row_remove(RowKind::Dish, i, form.dishes.len()))
-                }
-            }
-            (row_add(RowKind::Dish, form.dishes.len(), "+ Add a dish"))
         }
     }
 }

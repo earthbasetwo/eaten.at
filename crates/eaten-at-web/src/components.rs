@@ -21,13 +21,6 @@ pub struct RatingView {
     pub marks: String,
 }
 
-/// One dish on the visit card.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DishView {
-    pub name: String,
-    pub note: Option<String>,
-}
-
 /// Everything known about the visit a write-up describes.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VisitCard {
@@ -40,7 +33,6 @@ pub struct VisitCard {
     /// Which meal, in words.
     pub meal: Option<String>,
     pub rating: Option<RatingView>,
-    pub dishes: Vec<DishView>,
     /// URL of the cover image to show, if any.
     pub cover_src: Option<String>,
     /// Links out, in the author's order. Rendered by
@@ -49,8 +41,8 @@ pub struct VisitCard {
 }
 
 /// The visit card shown above a write-up: cover beside the place's name,
-/// a metadata line of date, meal, and price, the address, the rating,
-/// and the dishes.
+/// a metadata line of date, meal, and price, the address, and the
+/// rating.
 pub fn visit_card(card: &VisitCard) -> Markup {
     html! {
         aside.visit-card aria-label="Visit" {
@@ -71,16 +63,6 @@ pub fn visit_card(card: &VisitCard) -> Markup {
                 }
                 @if let Some(rating) = &card.rating {
                     (rating_marks(rating))
-                }
-                @if !card.dishes.is_empty() {
-                    ul.dishes aria-label="Dishes" {
-                        @for dish in &card.dishes {
-                            li {
-                                span.dish-name { (dish.name) }
-                                @if let Some(note) = &dish.note { " " span.dish-note { (note) } }
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -314,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn card_shows_place_meta_rating_and_dishes() {
+    fn card_shows_place_meta_and_rating() {
         let out = visit_card(&VisitCard {
             place_name: "Sample Place".into(),
             address: Some("1 Example St".into()),
@@ -325,16 +307,6 @@ mod tests {
                 word: "Recommended".into(),
                 marks: "++".into(),
             }),
-            dishes: vec![
-                DishView {
-                    name: "Soup".into(),
-                    note: Some("hot".into()),
-                },
-                DishView {
-                    name: "Bread".into(),
-                    note: None,
-                },
-            ],
             cover_src: Some("/img/did/rk".into()),
             links: vec![link("Elsewhere", "https://example.com/x")],
         })
@@ -359,10 +331,6 @@ mod tests {
             out.contains("<p class=\"rating\"><span class=\"rating-marks\" aria-hidden=\"true\">++</span> <span class=\"rating-word\">Recommended</span></p>"),
             "{out}"
         );
-        assert!(
-            out.contains("<ul class=\"dishes\" aria-label=\"Dishes\"><li><span class=\"dish-name\">Soup</span> <span class=\"dish-note\">hot</span></li><li><span class=\"dish-name\">Bread</span></li></ul>"),
-            "{out}"
-        );
         // Links are the footer's business, not the card's.
         assert!(!out.contains("example.com"), "{out}");
         let bare = visit_card(&VisitCard {
@@ -373,7 +341,6 @@ mod tests {
         .into_string();
         assert!(!bare.contains("<img"), "{bare}");
         assert!(!bare.contains("rating"), "{bare}");
-        assert!(!bare.contains("dishes"), "{bare}");
         assert!(!bare.contains("place-address"), "{bare}");
     }
 

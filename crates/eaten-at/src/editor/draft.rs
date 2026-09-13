@@ -7,13 +7,12 @@ use std::fmt;
 
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::lexicon::{
-    Dish, ExternalId, ExternalUrl, Place, PriceBand, Rating, Visit, VisitDate, PLACE_NSID,
-    VISIT_NSID,
+    ExternalId, ExternalUrl, Place, PriceBand, Rating, Visit, VisitDate, PLACE_NSID, VISIT_NSID,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::form::{EditorForm, PUBLICATION_NEW};
-use super::{MAX_BODY_BYTES, MAX_DISHES, MAX_IDS, MAX_LINKS, MAX_TAGS, MAX_UPLOAD_IMAGE_BYTES};
+use super::{MAX_BODY_BYTES, MAX_IDS, MAX_LINKS, MAX_TAGS, MAX_UPLOAD_IMAGE_BYTES};
 use crate::img;
 use crate::publish::MAX_POST_GRAPHEMES;
 use crate::tags;
@@ -23,8 +22,6 @@ const MAX_TITLE_GRAPHEMES: usize = 500;
 const MAX_DESCRIPTION_GRAPHEMES: usize = 3000;
 const MAX_PLACE_NAME_GRAPHEMES: usize = 200;
 const MAX_ADDRESS_GRAPHEMES: usize = 300;
-const MAX_DISH_NAME_GRAPHEMES: usize = 200;
-const MAX_DISH_NOTE_GRAPHEMES: usize = 1000;
 const MAX_ID_BYTES: usize = 512;
 const MAX_SERVICE_BYTES: usize = 640;
 const MAX_LABEL_GRAPHEMES: usize = 64;
@@ -223,39 +220,6 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         text
     });
 
-    let mut dishes = Vec::new();
-    for (i, dish) in form.dishes.iter().enumerate() {
-        if dish.is_blank() {
-            continue;
-        }
-        let name = dish.name.trim();
-        let note = dish.note.trim();
-        if name.is_empty() {
-            errors.add(format!("dish_name_{i}"), "Name the dish.");
-            continue;
-        }
-        if graphemes(name) > MAX_DISH_NAME_GRAPHEMES {
-            errors.add(
-                format!("dish_name_{i}"),
-                format!("Keep the dish's name under {MAX_DISH_NAME_GRAPHEMES} characters."),
-            );
-        }
-        if graphemes(note) > MAX_DISH_NOTE_GRAPHEMES {
-            errors.add(
-                format!("dish_note_{i}"),
-                format!("Keep the note under {MAX_DISH_NOTE_GRAPHEMES} characters."),
-            );
-        }
-        dishes.push(Dish {
-            name: name.to_owned(),
-            note: (!note.is_empty()).then(|| note.to_owned()),
-            extra: serde_json::Map::new(),
-        });
-    }
-    if dishes.len() > MAX_DISHES {
-        errors.add("dishes", format!("At most {MAX_DISHES} dishes."));
-    }
-
     let mut ids = Vec::new();
     for (i, row) in form.ids.iter().enumerate() {
         if row.is_blank() {
@@ -412,7 +376,6 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         },
         visited_on,
         meal,
-        dishes,
         rating,
         body: None,
         extra: serde_json::Map::new(),
@@ -434,9 +397,9 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
 }
 
 /// Fields our form does not know about live in the `extra` maps. Carry
-/// them over from the original for the visit, its place, and every dish,
-/// id, and link that is still present, matched by name, by service and
-/// id, and by URL. A `$type` the original put on its place stays too.
+/// them over from the original for the visit, its place, and every id
+/// and link that is still present, matched by service and id, and by
+/// URL. A `$type` the original put on its place stays too.
 fn preserve_unknown_fields(visit: &mut Visit, original: &Visit) {
     visit.extra.clone_from(&original.extra);
     visit.place.extra.clone_from(&original.place.extra);
@@ -445,11 +408,6 @@ fn preserve_unknown_fields(visit: &mut Visit, original: &Visit) {
         .type_
         .clone()
         .filter(|t| t == PLACE_NSID || !t.is_empty());
-    for dish in &mut visit.dishes {
-        if let Some(known) = original.dishes.iter().find(|d| d.name == dish.name) {
-            dish.extra = known.extra.clone();
-        }
-    }
     for id in &mut visit.place.ids {
         if let Some(known) = original
             .place
@@ -513,7 +471,7 @@ pub fn parse_tags(raw: &str) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::form::{Choice, DishField, IdField, LinkField, Upload};
+    use crate::editor::form::{Choice, IdField, LinkField, Upload};
     use eaten_at_atproto::lexicon::{KnownIdService, KnownService, Meal};
 
     fn publication() -> AtUri {
@@ -533,17 +491,6 @@ mod tests {
             meal: Choice::Known(Meal::Dinner),
             meal_other: String::new(),
             rating: "3".into(),
-            dishes: vec![
-                DishField {
-                    name: "Soup".into(),
-                    note: "hot".into(),
-                },
-                DishField {
-                    name: "Bread".into(),
-                    note: String::new(),
-                },
-                DishField::default(),
-            ],
             ids: vec![
                 IdField {
                     service: Choice::Known(KnownIdService::GooglePlace),
@@ -624,9 +571,6 @@ mod tests {
         assert_eq!(visit.meal.as_deref(), Some("dinner"));
         assert_eq!(visit.rating, Some(Rating::StronglyRecommended));
         assert_eq!(visit.body, None);
-        assert_eq!(visit.dishes.len(), 2, "blank rows are skipped");
-        assert_eq!(visit.dishes[0].note.as_deref(), Some("hot"));
-        assert_eq!(visit.dishes[1].note, None);
         assert_eq!(visit.place.ids.len(), 1);
         assert_eq!(visit.place.ids[0].service, "googlePlace");
         assert_eq!(visit.place.urls.len(), 2, "blank rows are skipped");
@@ -647,8 +591,6 @@ mod tests {
         form.place_price = "9".into();
         form.visited_on = "12/09/2026".into();
         form.rating = "0".into();
-        form.dishes[1].name = String::new();
-        form.dishes[1].note = "orphan note".into();
         form.ids[0].id = String::new();
         form.ids[1].id = "no-service".into();
         form.links[0].url = "http://insecure.example/page".into();
@@ -668,7 +610,6 @@ mod tests {
             ("place_price", "Choose a price band from the list."),
             ("visited_on", "Use a date like 2026-09-12."),
             ("rating", "Choose a rating from the scale."),
-            ("dish_name_1", "Name the dish."),
             ("id_value_0", "Enter the id."),
             ("id_service_1", "Choose what kind of id this is."),
             ("link_url_0", "Links must be https."),
@@ -740,7 +681,6 @@ mod tests {
             },
             "visitedOn": "2026-09-01",
             "meal": "tea",
-            "dishes": [{"name": "Scone", "spicy": false}],
             "body": {"$type": "at.markpub.markdown", "text": {"$type": "at.markpub.text", "markdown": "Loud."}},
             "edition": "2021 remaster"
         }))

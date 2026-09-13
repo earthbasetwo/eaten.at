@@ -4,10 +4,10 @@ use std::fmt;
 
 use axum::extract::Multipart;
 use eaten_at_atproto::lexicon::{
-    Dish, Document, ExternalId, ExternalUrl, KnownIdService, KnownService, KnownValue, Meal, Visit,
+    Document, ExternalId, ExternalUrl, KnownIdService, KnownService, KnownValue, Meal, Visit,
 };
 
-use super::{MAX_DISHES, MAX_IDS, MAX_LINKS};
+use super::{MAX_IDS, MAX_LINKS};
 use crate::model::{body_of, Body};
 
 /// Everything the editor form carries, exactly as posted or prefilled.
@@ -27,7 +27,6 @@ pub struct EditorForm {
     pub meal_other: String,
     /// The rating radio: blank for unrated, or `1` to `4`.
     pub rating: String,
-    pub dishes: Vec<DishField>,
     pub ids: Vec<IdField>,
     pub links: Vec<LinkField>,
     /// Comma-separated, as typed.
@@ -44,13 +43,6 @@ pub struct EditorForm {
     /// The post's text, as typed. Blank means the default, the place's
     /// name.
     pub post_text: String,
-}
-
-/// One dish row.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct DishField {
-    pub name: String,
-    pub note: String,
 }
 
 /// One external id row.
@@ -186,21 +178,6 @@ impl IdField {
     }
 }
 
-impl DishField {
-    /// A row prefilled from a record.
-    pub fn from_dish(dish: &Dish) -> Self {
-        Self {
-            name: dish.name.clone(),
-            note: dish.note.clone().unwrap_or_default(),
-        }
-    }
-
-    /// Whether the row is empty and can be skipped.
-    pub fn is_blank(&self) -> bool {
-        self.name.trim().is_empty() && self.note.trim().is_empty()
-    }
-}
-
 /// A file from the form.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Upload {
@@ -223,7 +200,6 @@ impl fmt::Debug for Upload {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowKind {
     Link,
-    Dish,
     Id,
 }
 
@@ -231,7 +207,6 @@ impl RowKind {
     fn name(self) -> &'static str {
         match self {
             Self::Link => "link",
-            Self::Dish => "dish",
             Self::Id => "id",
         }
     }
@@ -239,7 +214,6 @@ impl RowKind {
     fn from_name(name: &str) -> Option<Self> {
         match name {
             "link" => Some(Self::Link),
-            "dish" => Some(Self::Dish),
             "id" => Some(Self::Id),
             _ => None,
         }
@@ -249,7 +223,6 @@ impl RowKind {
     pub fn cap(self) -> usize {
         match self {
             Self::Link => MAX_LINKS,
-            Self::Dish => MAX_DISHES,
             Self::Id => MAX_IDS,
         }
     }
@@ -339,7 +312,6 @@ impl EditorForm {
                 .rating
                 .map(|r| r.value().to_string())
                 .unwrap_or_default(),
-            dishes: visit.dishes.iter().map(DishField::from_dish).collect(),
             ids: visit
                 .place
                 .ids
@@ -365,7 +337,7 @@ impl EditorForm {
     }
 
     /// Read a multipart body. Repeated rows are addressed by index in the
-    /// field name (`link_url_2`, `dish_name_0`), so order on the wire
+    /// field name (`link_url_2`, `id_value_0`), so order on the wire
     /// does not matter. Returns the form and the action, if a button
     /// named one.
     pub async fn from_multipart(
@@ -431,8 +403,6 @@ impl EditorForm {
                                 row(&mut form.links, index, MAX_LINKS).service_other = value;
                             }
                             "link_label" => row(&mut form.links, index, MAX_LINKS).label = value,
-                            "dish_name" => row(&mut form.dishes, index, MAX_DISHES).name = value,
-                            "dish_note" => row(&mut form.dishes, index, MAX_DISHES).note = value,
                             "id_service" => {
                                 row(&mut form.ids, index, MAX_IDS).service =
                                     Choice::from_value(&value);
@@ -457,12 +427,10 @@ impl EditorForm {
         match action {
             Action::AddRow(kind) => match kind {
                 RowKind::Link => push_within(&mut self.links, kind.cap()),
-                RowKind::Dish => push_within(&mut self.dishes, kind.cap()),
                 RowKind::Id => push_within(&mut self.ids, kind.cap()),
             },
             Action::RemoveRow(kind, i) => match kind {
                 RowKind::Link => remove_if_present(&mut self.links, *i),
-                RowKind::Dish => remove_if_present(&mut self.dishes, *i),
                 RowKind::Id => remove_if_present(&mut self.ids, *i),
             },
             Action::Preview | Action::Publish => {}
@@ -473,9 +441,6 @@ impl EditorForm {
     fn ensure_rows(&mut self) {
         if self.links.is_empty() {
             self.links.push(LinkField::default());
-        }
-        if self.dishes.is_empty() {
-            self.dishes.push(DishField::default());
         }
         if self.ids.is_empty() {
             self.ids.push(IdField::default());
@@ -519,8 +484,6 @@ mod tests {
         for action in [
             Action::AddRow(RowKind::Link),
             Action::RemoveRow(RowKind::Link, 0),
-            Action::AddRow(RowKind::Dish),
-            Action::RemoveRow(RowKind::Dish, 3),
             Action::AddRow(RowKind::Id),
             Action::RemoveRow(RowKind::Id, 1),
             Action::Preview,
@@ -535,24 +498,21 @@ mod tests {
         let mut form = EditorForm::blank("new");
         assert_eq!(form.visited_on.len(), 10, "dated today");
         assert_eq!(form.links.len(), 1);
-        assert_eq!(form.dishes.len(), 1);
         assert_eq!(form.ids.len(), 1);
         form.apply(&Action::RemoveRow(RowKind::Link, 0));
         assert_eq!(form.links.len(), 1, "the last row stays");
         for _ in 0..40 {
             form.apply(&Action::AddRow(RowKind::Link));
-            form.apply(&Action::AddRow(RowKind::Dish));
             form.apply(&Action::AddRow(RowKind::Id));
         }
         assert_eq!(form.links.len(), MAX_LINKS);
-        assert_eq!(form.dishes.len(), MAX_DISHES);
         assert_eq!(form.ids.len(), MAX_IDS);
         form.apply(&Action::RemoveRow(RowKind::Link, 11));
         assert_eq!(form.links.len(), 11);
         form.apply(&Action::RemoveRow(RowKind::Link, 99));
         assert_eq!(form.links.len(), 11);
-        form.apply(&Action::RemoveRow(RowKind::Dish, 0));
-        assert_eq!(form.dishes.len(), MAX_DISHES - 1);
+        form.apply(&Action::RemoveRow(RowKind::Id, 0));
+        assert_eq!(form.ids.len(), MAX_IDS - 1);
     }
 
     #[test]
@@ -591,7 +551,6 @@ mod tests {
         assert_eq!(id.service, Choice::Known(KnownIdService::GooglePlace));
         assert!(!id.is_blank());
         assert!(IdField::default().is_blank());
-        assert!(DishField::default().is_blank());
     }
 
     #[test]
@@ -601,7 +560,7 @@ mod tests {
             indexed("link_service_other_0"),
             Some(("link_service_other", 0))
         );
-        assert_eq!(indexed("dish_note_12"), Some(("dish_note", 12)));
+        assert_eq!(indexed("id_value_12"), Some(("id_value", 12)));
         assert_eq!(indexed("id_value_0"), Some(("id_value", 0)));
         assert_eq!(indexed("title"), None);
         assert_eq!(indexed("link_url_x"), None);

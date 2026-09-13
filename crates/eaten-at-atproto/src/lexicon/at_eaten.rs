@@ -1,7 +1,7 @@
 //! Our own lexicons: `at.eaten.*`.
 //!
 //! A write-up is a `site.standard.document` whose `content` is an
-//! [`Visit`]. The place, the date, the dishes, and the rating are typed;
+//! [`Visit`]. The place, the date, the meal, and the rating are typed;
 //! the prose sits inside the visit as an open-union `body`. Strings are
 //! stored as written; the app validates at the point of use.
 
@@ -135,8 +135,6 @@ pub struct Visit {
     /// Which meal; a [`Meal`] value or another client's word.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub meal: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub dishes: Vec<Dish>,
     /// Out-of-range values from other clients read as unrated.
     #[serde(
         default,
@@ -230,16 +228,6 @@ impl ExternalUrl {
     pub fn known_service(&self) -> Option<KnownService> {
         self.service.as_deref().and_then(KnownService::from_value)
     }
-}
-
-/// `at.eaten.visit#dish`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Dish {
-    pub name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub note: Option<String>,
-    #[serde(flatten)]
-    pub extra: serde_json::Map<String, Value>,
 }
 
 /// The house rating scale: four steps, stored as the integers 1 to 4.
@@ -501,10 +489,6 @@ mod tests {
             },
             "visitedOn": "2026-09-12",
             "meal": "dinner",
-            "dishes": [
-                {"name": "Soup", "note": "hot"},
-                {"name": "Bread", "spicy": false}
-            ],
             "rating": 3,
             "body": {"$type": "at.markpub.markdown", "text": {"markdown": "Good."}},
             "future": true
@@ -529,7 +513,6 @@ mod tests {
         );
         assert_eq!(visit.visited_on.as_string(), "2026-09-12");
         assert_eq!(visit.known_meal(), Some(Meal::Dinner));
-        assert_eq!(visit.dishes.len(), 2);
         assert_eq!(visit.rating, Some(Rating::StronglyRecommended));
         assert_eq!(serde_json::to_value(&visit).unwrap(), json);
     }
@@ -613,7 +596,6 @@ mod tests {
             "place": {"name": "P"}, "visitedOn": "2026-09-12"
         }))
         .unwrap();
-        assert!(v.dishes.is_empty());
         assert_eq!(v.rating, None);
         assert_eq!(v.body, None);
     }
