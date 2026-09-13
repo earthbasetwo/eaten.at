@@ -53,6 +53,15 @@ lexicons-check-dev:
     set -a; . ./.env.dev; set +a
     cargo run -q -p eaten-at --bin publish-lexicons -- --pds "$EATEN_AT_DEV_PDS" --dry-run
 
+# Render every page, signed out and signed in, at desktop and phone widths in
+# headless Chrome against the local network; fail on errors, CSP violations,
+# missing fonts, or horizontal scrolling. Screenshots go to target/visual-check/.
+visual-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; . ./.env.dev; set +a
+    node scripts/visual-check.mjs
+
 # Publish to the local network and verify via the overridden _lexicon TXT
 lexicons-publish-dev:
     #!/usr/bin/env bash
