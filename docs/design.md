@@ -312,9 +312,9 @@ panes need the room.
 - **Hints** are the sans at small size in `ink-muted`.
 - **Problems** are a `.field-error` line in the accent directly under the
   control, and the control's border takes the accent too.
-- **Repeated fields** (ids, links) are rows separated by hairlines, each
-  ending in a "Remove" link button. Adding a row is a "+ Add an id" or
-  "+ Add a link" link button.
+- **Repeated fields** (links) are rows separated by hairlines, each
+  ending in a "Remove" link button. Adding a row is a "+ Add a link"
+  link button.
 - **Choices.** The date is a plain date input. The price band, the meal,
   and each link's kind ("Official site" or "Other") are selects. A
   select never offers free text; where a record carries a value from

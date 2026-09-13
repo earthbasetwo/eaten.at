@@ -4,18 +4,20 @@
   "defs": {
     "main": {
       "type": "object",
-      "description": "A place to eat, as an author names it. An object, not a record: it is embedded in an at.eaten.visit. Two places are the same place when they share any (service, id) pair in ids; names and addresses are for people.",
-      "required": ["name"],
+      "description": "A place to eat, as an author names it. An object, not a record: it is embedded in an at.eaten.visit. Two places are the same place when they share a gersId; names and addresses are for people.",
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "type": "string",
-          "description": "The place's name, as the author gives it.",
+          "description": "The place's name, normally as Overture has it, editable by the author.",
           "maxLength": 2000,
           "maxGraphemes": 200
         },
         "address": {
           "type": "string",
-          "description": "A one-line street address, for display and for a map link.",
+          "description": "A one-line street address, normally as Overture has it, for display and for a map link.",
           "maxLength": 3000,
           "maxGraphemes": 300
         },
@@ -25,47 +27,51 @@
           "maximum": 4,
           "description": "Price band, 1 (cheapest) to 4, conventionally shown as that many currency signs."
         },
-        "ids": {
-          "type": "array",
-          "description": "Identifiers for the place in external systems, for matching the same place across write-ups.",
-          "maxLength": 8,
-          "items": { "type": "ref", "ref": "#externalId" }
+        "gersId": {
+          "type": "string",
+          "description": "The place's Overture Maps GERS id, exactly as Overture issues it. Two places with the same gersId are the same place.",
+          "maxLength": 128
+        },
+        "latE6": {
+          "type": "integer",
+          "minimum": -90000000,
+          "maximum": 90000000,
+          "description": "Latitude in microdegrees (degrees × 1 000 000), as Overture gives it."
+        },
+        "lonE6": {
+          "type": "integer",
+          "minimum": -180000000,
+          "maximum": 180000000,
+          "description": "Longitude in microdegrees (degrees × 1 000 000), as Overture gives it."
         },
         "urls": {
           "type": "array",
           "description": "Places to read more, in the author's preferred order.",
           "maxLength": 12,
-          "items": { "type": "ref", "ref": "#externalUrl" }
-        }
-      }
-    },
-    "externalId": {
-      "type": "object",
-      "description": "The place's identifier in one external system. Match is exact on both service and id.",
-      "required": ["service", "id"],
-      "properties": {
-        "service": {
-          "type": "string",
-          "description": "The system the id belongs to. googlePlace is a Google Maps place id; applePlace an Apple Maps place id; overtureGers an Overture Maps GERS id. Values outside knownValues belong to the authoring client's own vocabulary and MUST be preserved on rewrite.",
-          "knownValues": ["googlePlace", "applePlace", "overtureGers"],
-          "maxLength": 640
-        },
-        "id": {
-          "type": "string",
-          "description": "The identifier, exactly as the system issues it.",
-          "maxLength": 512
+          "items": {
+            "type": "ref",
+            "ref": "#externalUrl"
+          }
         }
       }
     },
     "externalUrl": {
       "type": "object",
-      "required": ["url"],
+      "required": [
+        "url"
+      ],
       "properties": {
-        "url": { "type": "string", "format": "uri", "maxLength": 2048 },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048
+        },
         "service": {
           "type": "string",
           "description": "What this URL is. officialSite is the place's own website; any other link carries no service and is labelled by its label or its host. Consumers dispatch on an exact match against knownValues. Values outside knownValues belong to the authoring client's own vocabulary and MUST be preserved on rewrite and rendered as a plain link.",
-          "knownValues": ["officialSite"],
+          "knownValues": [
+            "officialSite"
+          ],
           "maxLength": 640
         },
         "label": {

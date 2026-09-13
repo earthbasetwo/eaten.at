@@ -135,7 +135,7 @@ mod tests {
     fn visit(body: Option<Value>) -> Value {
         let mut v = serde_json::json!({
             "$type": "at.eaten.visit",
-            "place": {"name": "Sample Place", "ids": [{"service": "googlePlace", "id": "g1"}]},
+            "place": {"name": "Sample Place", "gersId": "g1"},
             "visitedOn": "2026-09-06",
             "rating": 2
         });

@@ -13,7 +13,7 @@
 
 The shape of the whole design: we did not define a document record. A
 write-up **is** a `site.standard.document`, so its publication, hosting,
-theme, canonical URL, cover, tags, labels, and Bluesky comment thread are
+theme, canonical URL, tags, labels, and Bluesky comment thread are
 all the Standard record's own. What eaten.at adds is the document's
 **`content`**: one `at.eaten.visit` object in that open union, and its
 `$type` is what marks a document as ours (D23). A document with any other
@@ -81,30 +81,17 @@ Required: `name`.
 
 | Field | Type | Constraints | Description |
 | --- | --- | --- | --- |
-| `name` | string | ≤ 2000 bytes, ≤ 200 graphemes | The place's name, as the author gives it. |
-| `address` | string | ≤ 3000 bytes, ≤ 300 graphemes | A one-line street address, for display and a map link. |
+| `name` | string | ≤ 2000 bytes, ≤ 200 graphemes | The place's name, normally as Overture has it, editable by the author. |
+| `address` | string | ≤ 3000 bytes, ≤ 300 graphemes | A one-line street address, normally as Overture has it, for display and a map link. |
 | `price` | integer | 1–4 | Price band, 1 (cheapest) to 4, shown as that many currency signs. |
-| `ids` | array of [`#externalId`](#externalid) | ≤ 8 items | Identifiers in external systems, for matching the same place across write-ups (D11). |
+| `gersId` | string | ≤ 128 bytes | The place's Overture Maps GERS id, exactly as Overture issues it (D33). |
+| `latE6`, `lonE6` | integer | ±90 000 000, ±180 000 000 | The place's position in microdegrees (degrees × 1 000 000), as Overture gives it. Lexicons have no float type; microdegrees are exact. |
 | `urls` | array of [`#externalUrl`](#externalurl) | ≤ 12 items | Places to read more, in the author's preferred order. |
 
-Two places are the same place when they share any `(service, id)` pair
-in `ids`. Names and addresses are for people and are never used for
-identity. ids and urls are separate lists because ids are opaque strings
-for matching and urls are human links that are not canonical.
-
-#### `#externalId`
-
-Required: `service`, `id`.
-
-| Field | Type | Constraints | Description |
-| --- | --- | --- | --- |
-| `service` | string | `knownValues`, ≤ 640 bytes | The system the id belongs to. Match is exact. |
-| `id` | string | ≤ 512 bytes | The identifier, exactly as the system issues it. |
-
-`service` known values: `googlePlace` (a Google Maps place id),
-`applePlace` (an Apple Maps place id), `overtureGers` (an Overture Maps
-GERS id). The app makes a map link from the first two; a GERS id has no
-public page and is for matching only.
+Two places are the same place when they share a `gersId`; a place
+without one matches nothing. Names and addresses are for people and are
+never used for identity. The app links a map at the coordinates when
+both are present; an out-of-range coordinate reads as absent.
 
 #### `#externalUrl`
 

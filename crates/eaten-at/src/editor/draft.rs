@@ -6,12 +6,12 @@ use std::collections::BTreeMap;
 
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::lexicon::{
-    ExternalId, ExternalUrl, Place, PriceBand, Rating, Visit, VisitDate, PLACE_NSID, VISIT_NSID,
+    ExternalUrl, LatE6, LonE6, Place, PriceBand, Rating, Visit, VisitDate, PLACE_NSID, VISIT_NSID,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::form::{EditorForm, PUBLICATION_NEW};
-use super::{MAX_BODY_BYTES, MAX_IDS, MAX_LINKS, MAX_TAGS};
+use super::{MAX_BODY_BYTES, MAX_LINKS, MAX_TAGS};
 use crate::publish::MAX_POST_GRAPHEMES;
 use crate::tags;
 
@@ -20,7 +20,7 @@ const MAX_TITLE_GRAPHEMES: usize = 500;
 const MAX_DESCRIPTION_GRAPHEMES: usize = 3000;
 const MAX_PLACE_NAME_GRAPHEMES: usize = 200;
 const MAX_ADDRESS_GRAPHEMES: usize = 300;
-const MAX_ID_BYTES: usize = 512;
+const MAX_GERS_ID_BYTES: usize = 128;
 const MAX_SERVICE_BYTES: usize = 640;
 const MAX_LABEL_GRAPHEMES: usize = 64;
 const MAX_TAG_GRAPHEMES: usize = 128;
@@ -198,34 +198,34 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         text
     });
 
-    let mut ids = Vec::new();
-    for (i, row) in form.ids.iter().enumerate() {
-        if row.is_blank() {
-            continue;
-        }
-        let id = row.id.trim();
-        let service = row.service_value();
-        match (service, id.is_empty()) {
-            (None, _) => errors.add(format!("id_service_{i}"), "Choose what kind of id this is."),
-            (Some(_), true) => errors.add(format!("id_value_{i}"), "Enter the id."),
-            (Some(service), false) => {
-                if service.len() > MAX_SERVICE_BYTES {
-                    errors.add(format!("id_service_{i}"), "That's too long for a service.");
-                }
-                if id.len() > MAX_ID_BYTES {
-                    errors.add(format!("id_value_{i}"), "That id is too long.");
-                }
-                ids.push(ExternalId {
-                    service,
-                    id: id.to_owned(),
-                    extra: serde_json::Map::new(),
-                });
+    let gers_id = form.gers_id.trim();
+    if gers_id.len() > MAX_GERS_ID_BYTES {
+        errors.add("gers_id", "That id is too long.");
+    } else if gers_id.chars().any(char::is_whitespace) {
+        errors.add("gers_id", "An id has no spaces in it.");
+    }
+    // Each half on its own: the lexicon has two independent fields, and
+    // a foreign record with one of them must round-trip.
+    let lat_e6 = match form.lat_e6.trim() {
+        "" => None,
+        raw => {
+            let lat = raw.parse::<i32>().ok().and_then(LatE6::new);
+            if lat.is_none() {
+                errors.add("gers_id", "The place's position could not be read.");
             }
+            lat
         }
-    }
-    if ids.len() > MAX_IDS {
-        errors.add("ids", format!("At most {MAX_IDS} ids."));
-    }
+    };
+    let lon_e6 = match form.lon_e6.trim() {
+        "" => None,
+        raw => {
+            let lon = raw.parse::<i32>().ok().and_then(LonE6::new);
+            if lon.is_none() {
+                errors.add("gers_id", "The place's position could not be read.");
+            }
+            lon
+        }
+    };
 
     let mut urls = Vec::new();
     for (i, link) in form.links.iter().enumerate() {
@@ -320,7 +320,9 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
             name: place_name.to_owned(),
             address: (!address.is_empty()).then(|| address.to_owned()),
             price,
-            ids,
+            gers_id: (!gers_id.is_empty()).then(|| gers_id.to_owned()),
+            lat_e6,
+            lon_e6,
             urls,
             extra: serde_json::Map::new(),
         },
@@ -353,9 +355,9 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
 }
 
 /// Fields our form does not know about live in the `extra` maps. Carry
-/// them over from the original for the visit, its place, and every id
-/// and link that is still present, matched by service and id, and by
-/// URL. A `$type` the original put on its place stays too.
+/// them over from the original for the visit, its place, and every link
+/// that is still present, matched by URL. A `$type` the original put on
+/// its place stays too.
 fn preserve_unknown_fields(visit: &mut Visit, original: &Visit) {
     visit.extra.clone_from(&original.extra);
     visit.place.extra.clone_from(&original.place.extra);
@@ -364,16 +366,6 @@ fn preserve_unknown_fields(visit: &mut Visit, original: &Visit) {
         .type_
         .clone()
         .filter(|t| t == PLACE_NSID || !t.is_empty());
-    for id in &mut visit.place.ids {
-        if let Some(known) = original
-            .place
-            .ids
-            .iter()
-            .find(|k| k.service == id.service && k.id == id.id)
-        {
-            id.extra = known.extra.clone();
-        }
-    }
     for link in &mut visit.place.urls {
         if let Some(known) = original.place.urls.iter().find(|u| u.url == link.url) {
             link.extra = known.extra.clone();
@@ -427,8 +419,8 @@ pub fn parse_tags(raw: &str) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::form::{Choice, IdField, LinkField};
-    use eaten_at_atproto::lexicon::{KnownIdService, KnownService, Meal};
+    use crate::editor::form::{Choice, LinkField};
+    use eaten_at_atproto::lexicon::{KnownService, Meal};
 
     fn publication() -> AtUri {
         AtUri::parse("at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1")
@@ -443,16 +435,12 @@ mod tests {
             place_name: "Promises".into(),
             place_address: " 1 Example St ".into(),
             place_price: "2".into(),
+            gers_id: " 08f2a5b6c7d8e9f0a1b2c3d4e5f60718 ".into(),
+            lat_e6: "40688838".into(),
+            lon_e6: "-73979914".into(),
             visited_on: "2026-09-08".into(),
             meal: Choice::Known(Meal::Dinner),
             rating: "3".into(),
-            ids: vec![
-                IdField {
-                    service: Choice::Known(KnownIdService::GooglePlace),
-                    id: "g1".into(),
-                },
-                IdField::default(),
-            ],
             links: vec![
                 LinkField {
                     url: "https://example.com/official".into(),
@@ -522,8 +510,11 @@ mod tests {
         assert_eq!(visit.meal.as_deref(), Some("dinner"));
         assert_eq!(visit.rating, Some(Rating::StronglyRecommended));
         assert_eq!(visit.body, None);
-        assert_eq!(visit.place.ids.len(), 1);
-        assert_eq!(visit.place.ids[0].service, "googlePlace");
+        assert_eq!(
+            visit.place.gers_id.as_deref(),
+            Some("08f2a5b6c7d8e9f0a1b2c3d4e5f60718")
+        );
+        assert_eq!(visit.place.coordinates(), Some((40.688_838, -73.979_914)));
         assert_eq!(visit.place.urls.len(), 2, "blank rows are skipped");
         assert_eq!(visit.place.urls[0].service.as_deref(), Some("officialSite"));
         assert_eq!(visit.place.urls[1].service.as_deref(), Some("shop"));
@@ -541,8 +532,7 @@ mod tests {
         form.place_price = "9".into();
         form.visited_on = "12/09/2026".into();
         form.rating = "0".into();
-        form.ids[0].id = String::new();
-        form.ids[1].id = "no-service".into();
+        form.gers_id = "two words".into();
         form.links[0].url = "http://insecure.example/page".into();
         form.links[1].label = "x".repeat(65);
         form.tags = "a, ".to_owned() + &"y".repeat(129);
@@ -554,8 +544,7 @@ mod tests {
             ("place_price", "Choose a price band from the list."),
             ("visited_on", "Use a date like 2026-09-12."),
             ("rating", "Choose a rating from the scale."),
-            ("id_value_0", "Enter the id."),
-            ("id_service_1", "Choose what kind of id this is."),
+            ("gers_id", "An id has no spaces in it."),
             ("link_url_0", "Links must be https."),
             ("link_label_1", "Keep the label under 64 characters."),
             ("publication", "Choose a publication."),
@@ -576,6 +565,32 @@ mod tests {
             errors.get("visited_on"),
             Some("Give the date of the visit.")
         );
+    }
+
+    #[test]
+    fn coordinates_are_checked_one_half_at_a_time() {
+        let pubs = [publication()];
+        let mut form = good_form();
+        form.gers_id = String::new();
+        form.lat_e6 = String::new();
+        form.lon_e6 = String::new();
+        let draft = validate(&form, &ctx(&pubs)).unwrap();
+        assert_eq!(draft.visit.place.gers_id, None);
+        assert_eq!(draft.visit.place.coordinates(), None);
+        // One half alone is kept (a foreign record may have it) but is
+        // not a position.
+        form.lat_e6 = "40688838".into();
+        let draft = validate(&form, &ctx(&pubs)).unwrap();
+        assert_eq!(draft.visit.place.lat_e6.map(LatE6::value), Some(40_688_838));
+        assert_eq!(draft.visit.place.coordinates(), None);
+        form.lon_e6 = "180000001".into();
+        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        assert_eq!(
+            errors.get("gers_id"),
+            Some("The place's position could not be read.")
+        );
+        form.lon_e6 = "x".into();
+        assert!(validate(&form, &ctx(&pubs)).is_err());
     }
 
     #[test]
@@ -656,6 +671,8 @@ mod tests {
                 "$type": "at.eaten.place",
                 "name": "Sample Place",
                 "ids": [{"service": "yelp", "id": "sample", "verified": true}],
+                "gersId": "sample-gers",
+                "latE6": 1,
                 "urls": [
                     {"url": "https://example.com/loveless", "service": "bc", "label": "Elsewhere", "rank": 1},
                     {"url": "https://example.com/review", "note": "long read"}
@@ -678,7 +695,9 @@ mod tests {
         .unwrap();
         let form = EditorForm::from_document(&doc, &original);
         assert_eq!(form.meal, Choice::Foreign("tea".into()));
-        assert_eq!(form.ids[0].service, Choice::Foreign("yelp".into()));
+        assert_eq!(form.gers_id, "sample-gers");
+        assert_eq!(form.lat_e6, "1");
+        assert_eq!(form.lon_e6, "", "half a position is carried as typed");
         assert_eq!(form.links[0].service, Choice::Foreign("bc".into()));
         assert_eq!(form.links[1].service, Choice::None);
         assert_eq!(form.rating, "");

@@ -20,7 +20,7 @@ something.
 | D8 | Publication hosting | User's choice: a subdomain on `eaten.at`, or bring your own domain. |
 | D9 | Indexing | No content index. Read-through from PDSes with a TTL cache. |
 | D10 | Routing | Publication-scoped. `/at/<did>/` is the default publication (or a chooser); `/at/<did>/<rkey>/` a specific one. Users may have many. |
-| D11 | Subject identity | Settled 2026-09-13: a place is matched across write-ups by external ids as `knownValues` (`googlePlace`, `applePlace`, `overtureGers`) in `at.eaten.place.ids`. Two places sharing a `(service, id)` pair are the same place; names and addresses are for people. Unknown services are preserved. |
+| D11 | Subject identity | Superseded by D33 on 2026-09-13. Was: a place is matched across write-ups by external ids as `knownValues` in `at.eaten.place.ids`. |
 | D12 | Body | `at.markpub.markdown` in the `content` union. `text.markdown` only: no facets, lenses, or rendering rules. |
 | D13 | Internal crates | Two workspace crates, `eaten-at-web` and `eaten-at-atproto`. Local path deps, not published. |
 | D14 | OAuth scopes | Granular scopes requested directly. No custom permission set. |
@@ -49,6 +49,7 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | D30 | Link types | Settled 2026-09-13: one known link service, `officialSite`. Everything else is a plain link with no `service`, labelled by its label or host. `menu` and `reservations` were dropped. |
 | D31 | Foreign vocabulary | Settled 2026-09-13: the editor never offers a free-text "Other" for a `knownValues` field. A value another client wrote is shown as its own selected option and preserved on rewrite, but not authored here. |
 | D32 | Cover image | Settled 2026-09-13: a write-up has no authored cover. `coverImage` is never written and is carried over like `links`; the image proxy shows a foreign one, else a generated placeholder. Photos replace it (plan 07). |
+| D33 | Place identity | Settled 2026-09-13: a place's identity is its Overture Maps GERS id in `at.eaten.place.gersId`; no other id services. `latE6` and `lonE6` carry its position in integer microdegrees, and the only map link is OpenStreetMap at that point. Supersedes D11. |
 
 ## Stack choices
 

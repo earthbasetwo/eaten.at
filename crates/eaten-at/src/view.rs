@@ -52,8 +52,8 @@ pub fn meal_label(value: &str) -> String {
     Meal::from_value(value).map_or_else(|| value.to_owned(), |m| m.display_name().to_owned())
 }
 
-/// Links out for a place: the author's URLs, then a map page for each
-/// known id that has one. Only http(s) URLs are linked.
+/// Links out for a place: the author's URLs, then a map at the place's
+/// coordinates when it has them. Only http(s) URLs are linked.
 pub fn place_links(place: &Place) -> Vec<Link> {
     let mut links: Vec<Link> = place
         .urls
@@ -64,17 +64,21 @@ pub fn place_links(place: &Place) -> Vec<Link> {
             href: u.url.clone(),
         })
         .collect();
-    for id in &place.ids {
-        if let Some(service) = id.known_service() {
-            if let Some(href) = service.url_for(&id.id) {
-                let label = service.display_name().to_owned();
-                if !links.iter().any(|l| l.label == label) {
-                    links.push(Link { label, href });
-                }
-            }
+    if let Some((lat, lon)) = place.coordinates() {
+        let label = "Map".to_owned();
+        if !links.iter().any(|l| l.label == label) {
+            links.push(Link {
+                label,
+                href: map_url(lat, lon),
+            });
         }
     }
     links
+}
+
+/// OpenStreetMap at a point: vendor-neutral and exact (D33).
+pub fn map_url(lat: f64, lon: f64) -> String {
+    format!("https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=18/{lat}/{lon}")
 }
 
 /// Label a link from its declared service when known, else the
@@ -328,14 +332,12 @@ mod tests {
     }
 
     #[test]
-    fn place_links_label_urls_and_add_map_pages_for_known_ids() {
+    fn place_links_label_urls_and_add_a_map_at_the_coordinates() {
         let place: Place = serde_json::from_value(serde_json::json!({
             "name": "P",
-            "ids": [
-                {"service": "googlePlace", "id": "g1"},
-                {"service": "overtureGers", "id": "o1"},
-                {"service": "yelp", "id": "y1"}
-            ],
+            "gersId": "o1",
+            "latE6": 40_688_838,
+            "lonE6": -73_979_914,
             "urls": [
                 {"url": "https://example.com/menu.pdf", "service": "menu"},
                 {"url": "https://www.other.example/x", "service": "bc"},
@@ -361,11 +363,14 @@ mod tests {
                 ),
                 ("Book".to_owned(), "https://example.com/book".to_owned()),
                 (
-                    "Google Maps".to_owned(),
-                    "https://www.google.com/maps/place/?q=place_id:g1".to_owned()
+                    "Map".to_owned(),
+                    "https://www.openstreetmap.org/?mlat=40.688838&mlon=-73.979914#map=18/40.688838/-73.979914".to_owned()
                 ),
             ]
         );
+        let unplaced: Place =
+            serde_json::from_value(serde_json::json!({"name": "P", "gersId": "o1"})).unwrap();
+        assert!(place_links(&unplaced).is_empty(), "no coordinates, no map");
     }
 
     #[test]

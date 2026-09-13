@@ -637,7 +637,9 @@ mod tests {
                     "name": "Promises",
                     "address": "1 Example St",
                     "price": 2,
-                    "ids": [{"service": "googlePlace", "id": "g1"}],
+                    "gersId": "g1",
+                    "latE6": 40_688_838,
+                    "lonE6": -73_979_914,
                     "urls": [{"url": "https://x.example/a", "service": "bc"}]
                 },
                 "visitedOn": "2026-09-08",
