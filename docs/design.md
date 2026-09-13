@@ -184,7 +184,9 @@ italic display-serif lede; the tag chips. A hairline closes it.
 kicker, the h1, and an optional lede (`.lede`, `ink-muted` sans at 15px)
 or note (`.meta`). The document page's kicker is its date; the tag page's
 is "Tag"; a status page's is "Error 404"; the chooser's is
-"Publications".
+"Publications". The one exception is the editor for a new write-up,
+which has no heading until a place is chosen; editing an existing one
+opens with an "Edit" kicker and the write-up's title.
 
 **Card** (`.listing-item article`, `.chooser-item`, `.visit-card`).
 Raised surface, 1px border, 12px radius, card padding, the card shadow.
@@ -296,7 +298,7 @@ one sentence saying what the site is.
 | Signing in | site | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
 | Sign-in failed | site | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
 | Status page | site | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
-| Editor `/write` | site | page head: "Write" or "Edit" kicker, h1; a form-error summary when needed | optional preview (the document as readers see it, on a raised panel under a "Preview" kicker); then the form: write-up pane left, visit pane right (Place, Visit, Links, Details, Bluesky groups), stacked under 56rem |
+| Editor `/write` | site | page head: no kicker or h1 for a new write-up; "Edit" kicker and the write-up's title when editing; a form-error summary when needed | optional preview (the document as readers see it, on a raised panel under a "Preview" kicker); then the form: write-up pane left, visit pane right (Place, Visit, Links, Details, Bluesky groups), stacked under 56rem |
 | Delete `/write/{rkey}/delete` | site | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
 | Crosspost `/write/{rkey}/crosspost` | site | page head: "Bluesky" kicker, h1 "Post “title” to Bluesky" (or "… is on Bluesky"), lede | the post text field and one primary "Post to Bluesky"; or, before permission, one primary "Allow posting and continue"; secondary "← Skip for now" either way; posted: the thread link and a secondary way back |
 | Settings `/settings` | site | page head: "Settings" kicker, h1 "Your publications", lede | chooser cards: name, current address in the metadata voice, a small form of two radio choices and one primary "Save" |

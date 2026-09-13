@@ -165,6 +165,7 @@ fn render(
             publications: &options,
             action_path: &action_path,
             editing: editing.is_some(),
+            heading: editing.map(|e| e.visit_doc.document().title.as_str()),
             has_cover: editing.is_some_and(|e| e.visit_doc.document().cover_image.is_some()),
             preview: outcome.preview.clone(),
             publish_error: outcome.publish_error,

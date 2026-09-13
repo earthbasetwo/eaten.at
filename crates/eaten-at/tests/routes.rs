@@ -1434,6 +1434,9 @@ async fn editor_requires_sign_in_and_prefills_the_publication() {
     );
     assert!(body.contains("name=\"link_url_0\""), "{body}");
     assert!(body.contains("value=\"preview\""), "{body}");
+    // A new write-up opens straight on the form: no kicker, no heading.
+    assert!(!body.contains("<h1"), "{body}");
+    assert!(!body.contains("A new write-up"), "{body}");
 }
 
 #[tokio::test]
@@ -1558,6 +1561,11 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
     assert!(body.contains("value=\"Tape\""), "{body}");
     assert!(body.contains("action=\"/write/d9\""), "{body}");
     assert!(body.contains("A write-up of *Foreign Place*."), "{body}");
+    // Editing opens with the write-up's own title as the heading.
+    assert!(
+        body.contains("<p class=\"kicker\">Edit</p><h1>Foreign Post</h1>"),
+        "{body}"
+    );
 
     let fields = [
         ("title", "Foreign Post"),

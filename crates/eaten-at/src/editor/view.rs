@@ -43,6 +43,9 @@ pub struct EditorPage<'a> {
     pub action_path: &'a str,
     /// Set when editing an existing document.
     pub editing: bool,
+    /// The write-up's title, shown as the heading while editing. A new
+    /// write-up has no heading until a place is chosen (plan 06).
+    pub heading: Option<&'a str>,
     /// Whether the document already has a cover that a blank file field
     /// keeps.
     pub has_cover: bool,
@@ -60,8 +63,10 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
     let errors = page.errors;
     html! {
         div.page-head {
-            p.kicker { @if page.editing { "Edit" } @else { "Write" } }
-            h1 { @if page.editing { "Edit this write-up" } @else { "A new write-up" } }
+            @if let Some(heading) = page.heading {
+                p.kicker { "Edit" }
+                h1 { (heading) }
+            }
             @if !errors.is_empty() {
                 p.form-error role="alert" {
                     @if errors.len() == 1 { "One thing to fix below." }
