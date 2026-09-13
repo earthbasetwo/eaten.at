@@ -23,8 +23,6 @@ pub struct EditorForm {
     /// The visit date, `YYYY-MM-DD`, as the date input posts it.
     pub visited_on: String,
     pub meal: Choice<Meal>,
-    /// The free-text meal when [`Choice::Other`] is chosen.
-    pub meal_other: String,
     /// The rating radio: blank for unrated, or `1` to `4`.
     pub rating: String,
     pub ids: Vec<IdField>,
@@ -49,8 +47,6 @@ pub struct EditorForm {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct IdField {
     pub service: Choice<KnownIdService>,
-    /// The free-text service when [`Choice::Other`] is chosen.
-    pub service_other: String,
     pub id: String,
 }
 
@@ -59,117 +55,103 @@ pub struct IdField {
 pub struct LinkField {
     pub url: String,
     pub service: Choice<KnownService>,
-    /// The free-text service when [`Choice::Other`] is chosen.
-    pub service_other: String,
     pub label: String,
 }
 
-/// A select over a lexicon's `knownValues`. `Unset` (never chosen) is
-/// distinct from `None` (chosen: no value) so a suggestion can fill the
-/// first but never override the second.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A select over a lexicon's `knownValues`. `None` is the blank option
+/// (no value written). A value outside the list is another client's
+/// vocabulary: the editor never offers one, but one already on a record
+/// is preserved as [`Choice::Foreign`] so it survives an edit (D31).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Choice<K: KnownValue> {
-    Unset,
     None,
     Known(K),
-    Other,
+    Foreign(String),
 }
 
 impl<K: KnownValue> Default for Choice<K> {
     fn default() -> Self {
-        Self::Unset
+        Self::None
     }
 }
 
 /// The link service select, for callers that name the type.
 pub type ServiceChoice = Choice<KnownService>;
 
-/// The select value that stands for "no value".
-pub const SERVICE_NONE: &str = "none";
-/// The select value that reveals the free-text field.
-pub const SERVICE_OTHER: &str = "other";
 /// The publication select value that reveals the new-publication fields.
 pub const PUBLICATION_NEW: &str = "new";
 
 impl<K: KnownValue> Choice<K> {
+    /// The choice a posted `<select>` value stands for.
     pub fn from_value(value: &str) -> Self {
         match value.trim() {
-            "" => Self::Unset,
-            SERVICE_NONE => Self::None,
-            SERVICE_OTHER => Self::Other,
-            known => K::from_value(known).map_or(Self::Other, Self::Known),
+            "" => Self::None,
+            value => {
+                K::from_value(value).map_or_else(|| Self::Foreign(value.to_owned()), Self::Known)
+            }
         }
     }
 
-    /// A choice prefilled from a record's optional value: absent is
-    /// `None`, a known value is `Known`, anything else is `Other` with
-    /// the text returned beside it so it survives a round trip.
-    pub fn from_record(value: Option<&str>) -> (Self, String) {
+    /// The choice for a record's optional value.
+    pub fn from_record(value: Option<&str>) -> Self {
         match value {
-            None => (Self::None, String::new()),
-            Some(value) => match K::from_value(value) {
-                Some(known) => (Self::Known(known), String::new()),
-                None => (Self::Other, value.to_owned()),
-            },
+            None => Self::None,
+            Some(value) => Self::from_value(value),
         }
     }
 
     /// The `<option>` value.
-    pub fn value(self) -> &'static str {
+    pub fn value(&self) -> &str {
         match self {
-            Self::Unset => "",
-            Self::None => SERVICE_NONE,
+            Self::None => "",
             Self::Known(known) => known.as_str(),
-            Self::Other => SERVICE_OTHER,
+            Self::Foreign(value) => value,
         }
     }
 
-    /// The record value this choice writes, given the free-text field
-    /// that goes with `Other`.
-    pub fn record_value(self, other: &str) -> Option<String> {
+    /// The record value this choice writes.
+    pub fn record_value(&self) -> Option<String> {
         match self {
-            Self::Unset | Self::None => None,
+            Self::None => None,
             Self::Known(known) => Some(known.as_str().to_owned()),
-            Self::Other => {
-                let other = other.trim();
-                (!other.is_empty()).then(|| other.to_owned())
-            }
+            Self::Foreign(value) => Some(value.clone()),
         }
+    }
+
+    /// Whether this is a value the editor did not offer.
+    pub fn is_foreign(&self) -> bool {
+        matches!(self, Self::Foreign(_))
     }
 }
 
 impl LinkField {
     /// A row prefilled from a record.
     pub fn from_external_url(link: &ExternalUrl) -> Self {
-        let (service, service_other) = Choice::from_record(link.service.as_deref());
         Self {
             url: link.url.clone(),
-            service,
-            service_other,
+            service: Choice::from_record(link.service.as_deref()),
             label: link.label.clone().unwrap_or_default(),
         }
     }
 
     /// The `service` value this row would write.
     pub fn service_value(&self) -> Option<String> {
-        self.service.record_value(&self.service_other)
+        self.service.record_value()
     }
 }
 
 impl IdField {
     /// A row prefilled from a record.
     pub fn from_external_id(id: &ExternalId) -> Self {
-        let (service, service_other) = Choice::from_record(Some(id.service.as_str()));
         Self {
-            service,
-            service_other,
+            service: Choice::from_record(Some(id.service.as_str())),
             id: id.id.clone(),
         }
     }
 
     /// The `service` value this row would write.
     pub fn service_value(&self) -> Option<String> {
-        self.service.record_value(&self.service_other)
+        self.service.record_value()
     }
 
     /// Whether the row is empty and can be skipped.
@@ -290,10 +272,6 @@ impl EditorForm {
             Body::Markdown(text) | Body::Plain(text) => text.to_owned(),
             Body::Empty => String::new(),
         };
-        let (meal, meal_other) = match visit.meal.as_deref() {
-            None => (Choice::Unset, String::new()),
-            some => Choice::from_record(some),
-        };
         // A title that is only the place's name is the default, not a
         // choice: the field shows blank and the placeholder stands in.
         let title = if doc.title.trim() == visit.place.name.trim() {
@@ -313,8 +291,7 @@ impl EditorForm {
                 .map(|p| p.value().to_string())
                 .unwrap_or_default(),
             visited_on: visit.visited_on.as_string(),
-            meal,
-            meal_other,
+            meal: Choice::from_record(visit.meal.as_deref()),
             rating: visit
                 .rating
                 .map(|r| r.value().to_string())
@@ -389,7 +366,6 @@ impl EditorForm {
                 "place_price" => form.place_price = value,
                 "visited_on" => form.visited_on = value,
                 "meal" => form.meal = Choice::from_value(&value),
-                "meal_other" => form.meal_other = value,
                 "rating" => form.rating = value,
                 "tags" => form.tags = value,
                 "publication" => form.publication = value,
@@ -406,16 +382,10 @@ impl EditorForm {
                                 row(&mut form.links, index, MAX_LINKS).service =
                                     Choice::from_value(&value);
                             }
-                            "link_service_other" => {
-                                row(&mut form.links, index, MAX_LINKS).service_other = value;
-                            }
                             "link_label" => row(&mut form.links, index, MAX_LINKS).label = value,
                             "id_service" => {
                                 row(&mut form.ids, index, MAX_IDS).service =
                                     Choice::from_value(&value);
-                            }
-                            "id_service_other" => {
-                                row(&mut form.ids, index, MAX_IDS).service_other = value;
                             }
                             "id_value" => row(&mut form.ids, index, MAX_IDS).id = value,
                             _ => {}
@@ -524,17 +494,25 @@ mod tests {
 
     #[test]
     fn choice_values() {
-        assert_eq!(ServiceChoice::from_value(""), Choice::Unset);
-        assert_eq!(ServiceChoice::from_value("none"), Choice::None);
-        assert_eq!(ServiceChoice::from_value("other"), Choice::Other);
+        assert_eq!(ServiceChoice::from_value(""), Choice::None);
+        assert_eq!(ServiceChoice::from_value("  "), Choice::None);
         assert_eq!(
             ServiceChoice::from_value("officialSite"),
             Choice::Known(KnownService::OfficialSite)
         );
-        assert_eq!(ServiceChoice::from_value("OfficialSite"), Choice::Other);
+        // Case matters: a near miss is another client's word, kept as is.
+        assert_eq!(
+            ServiceChoice::from_value("OfficialSite"),
+            Choice::Foreign("OfficialSite".into())
+        );
         assert_eq!(
             Choice::<Meal>::from_value("lateNight"),
             Choice::Known(Meal::LateNight)
+        );
+        assert_eq!(Choice::<Meal>::from_record(None), Choice::None);
+        assert_eq!(
+            Choice::<Meal>::from_record(Some("tea")),
+            Choice::Foreign("tea".into())
         );
         let foreign = LinkField::from_external_url(&ExternalUrl {
             url: "https://x.test".into(),
@@ -542,14 +520,11 @@ mod tests {
             label: None,
             extra: serde_json::Map::new(),
         });
-        assert_eq!(foreign.service, Choice::Other);
-        assert_eq!(foreign.service_other, "bc");
+        assert_eq!(foreign.service, Choice::Foreign("bc".into()));
+        assert!(foreign.service.is_foreign());
+        assert_eq!(foreign.service.value(), "bc");
         assert_eq!(foreign.service_value().as_deref(), Some("bc"));
-        let blank_other = LinkField {
-            service: Choice::Other,
-            ..LinkField::default()
-        };
-        assert_eq!(blank_other.service_value(), None);
+        assert_eq!(LinkField::default().service_value(), None);
         let id = IdField::from_external_id(&ExternalId {
             service: "googlePlace".into(),
             id: "g1".into(),
@@ -563,10 +538,7 @@ mod tests {
     #[test]
     fn indexed_field_names() {
         assert_eq!(indexed("link_url_3"), Some(("link_url", 3)));
-        assert_eq!(
-            indexed("link_service_other_0"),
-            Some(("link_service_other", 0))
-        );
+        assert_eq!(indexed("link_service_0"), Some(("link_service", 0)));
         assert_eq!(indexed("id_value_12"), Some(("id_value", 12)));
         assert_eq!(indexed("id_value_0"), Some(("id_value", 0)));
         assert_eq!(indexed("title"), None);

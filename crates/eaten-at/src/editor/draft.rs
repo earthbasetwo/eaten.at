@@ -186,9 +186,9 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         }
     };
 
-    let meal = form.meal.record_value(&form.meal_other);
+    let meal = form.meal.record_value();
     if meal.as_ref().is_some_and(|m| m.len() > MAX_SERVICE_BYTES) {
-        errors.add("meal_other", "That's too long for a meal.");
+        errors.add("meal", "That's too long for a meal.");
     }
 
     let rating = match form.rating.trim() {
@@ -230,10 +230,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
             (Some(_), true) => errors.add(format!("id_value_{i}"), "Enter the id."),
             (Some(service), false) => {
                 if service.len() > MAX_SERVICE_BYTES {
-                    errors.add(
-                        format!("id_service_other_{i}"),
-                        "That's too long for a service.",
-                    );
+                    errors.add(format!("id_service_{i}"), "That's too long for a service.");
                 }
                 if id.len() > MAX_ID_BYTES {
                     errors.add(format!("id_value_{i}"), "That id is too long.");
@@ -271,7 +268,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
                     .is_some_and(|s| s.len() > MAX_SERVICE_BYTES)
                 {
                     errors.add(
-                        format!("link_service_other_{i}"),
+                        format!("link_service_{i}"),
                         "That's too long for a service.",
                     );
                 }
@@ -494,12 +491,10 @@ mod tests {
             place_price: "2".into(),
             visited_on: "2026-09-08".into(),
             meal: Choice::Known(Meal::Dinner),
-            meal_other: String::new(),
             rating: "3".into(),
             ids: vec![
                 IdField {
                     service: Choice::Known(KnownIdService::GooglePlace),
-                    service_other: String::new(),
                     id: "g1".into(),
                 },
                 IdField::default(),
@@ -508,13 +503,11 @@ mod tests {
                 LinkField {
                     url: "https://example.com/official".into(),
                     service: Choice::Known(KnownService::OfficialSite),
-                    service_other: String::new(),
                     label: String::new(),
                 },
                 LinkField {
                     url: "https://example.com/buy".into(),
-                    service: Choice::Other,
-                    service_other: "shop".into(),
+                    service: Choice::Foreign("shop".into()),
                     label: "Buy the LP".into(),
                 },
                 LinkField::default(),
@@ -738,12 +731,9 @@ mod tests {
         }))
         .unwrap();
         let form = EditorForm::from_document(&doc, &original);
-        assert_eq!(form.meal, Choice::Other);
-        assert_eq!(form.meal_other, "tea");
-        assert_eq!(form.ids[0].service, Choice::Other);
-        assert_eq!(form.ids[0].service_other, "yelp");
-        assert_eq!(form.links[0].service, Choice::Other);
-        assert_eq!(form.links[0].service_other, "bc");
+        assert_eq!(form.meal, Choice::Foreign("tea".into()));
+        assert_eq!(form.ids[0].service, Choice::Foreign("yelp".into()));
+        assert_eq!(form.links[0].service, Choice::Foreign("bc".into()));
         assert_eq!(form.links[1].service, Choice::None);
         assert_eq!(form.rating, "");
         assert_eq!(form.place_price, "");

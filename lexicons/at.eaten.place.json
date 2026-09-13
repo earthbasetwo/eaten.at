@@ -64,8 +64,8 @@
         "url": { "type": "string", "format": "uri", "maxLength": 2048 },
         "service": {
           "type": "string",
-          "description": "What this URL is. Consumers dispatch service-specific rendering on an exact match against knownValues. Values outside knownValues belong to the authoring client's own vocabulary and MUST be preserved on rewrite and rendered as a plain link.",
-          "knownValues": ["officialSite", "menu", "reservations"],
+          "description": "What this URL is. officialSite is the place's own website; any other link carries no service and is labelled by its label or its host. Consumers dispatch on an exact match against knownValues. Values outside knownValues belong to the authoring client's own vocabulary and MUST be preserved on rewrite and rendered as a plain link.",
+          "knownValues": ["officialSite"],
           "maxLength": 640
         },
         "label": {

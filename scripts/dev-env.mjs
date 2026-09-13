@@ -167,8 +167,10 @@ as the excerpt.
 - The visit card above this prose: the place's name beside a generated
   placeholder cover, then the date, the meal, the price band, the address,
   and the rating as plus signs.
-- Links in the footer: two labelled from their known service, one by the
-  label the author gave it, and a map link made from the Google place id.
+- Links in the footer: one labelled from its known service, one by its
+  host (its \`menu\` service is another client's word, kept but not ours),
+  one by the label the author gave it, and a map link made from the
+  Google place id.
 - A comment section, because the record names a Bluesky post. The local
   network has no AppView, so it stays empty here.`,
   },

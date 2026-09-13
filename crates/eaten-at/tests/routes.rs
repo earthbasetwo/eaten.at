@@ -1403,7 +1403,6 @@ fn good_fields<'a>() -> Vec<(&'a str, &'a str)> {
         ("id_value_0", "g1"),
         ("link_url_0", "https://example.com/official"),
         ("link_service_0", "officialSite"),
-        ("link_service_other_0", ""),
         ("link_label_0", ""),
         ("tags", "#notes, Short"),
         (
@@ -1555,9 +1554,16 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
     assert!(body.contains("value=\"Foreign Post\""), "{body}");
     assert!(body.contains("value=\"Foreign Place\""), "{body}");
     assert!(body.contains("value=\"2026-09-06\""), "{body}");
-    assert!(body.contains("<option value=\"other\" selected>"), "{body}");
-    assert!(body.contains("value=\"bc\""), "{body}");
-    assert!(body.contains("value=\"tea\""), "{body}");
+    // Foreign values are shown as their own selected option, as written.
+    assert!(
+        body.contains("<option value=\"bc\" selected>bc</option>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<option value=\"tea\" selected>tea</option>"),
+        "{body}"
+    );
+    assert!(!body.contains("_other"), "no free-text field: {body}");
     assert!(
         body.contains("value=\"2\" checked"),
         "the rating is preselected: {body}"
@@ -1577,8 +1583,7 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
         ("place_name", "Foreign Place"),
         ("visited_on", "2026-09-06"),
         ("link_url_0", "https://x.example/a"),
-        ("link_service_0", "other"),
-        ("link_service_other_0", "bc"),
+        ("link_service_0", "bc"),
         ("tags", "Tape"),
         (
             "publication",

@@ -3,14 +3,12 @@
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
-use eaten_at_atproto::lexicon::{KnownIdService, KnownService, KnownValue, Meal, Rating};
+use eaten_at_atproto::lexicon::{KnownValue, Rating};
 use eaten_at_web::components::{tag_links, visit_card, visit_links, Link};
 use eaten_at_web::markdown;
 use maud::{html, Markup, PreEscaped};
 
-use super::form::{
-    Action, Choice, EditorForm, RowKind, PUBLICATION_NEW, SERVICE_NONE, SERVICE_OTHER,
-};
+use super::form::{Action, Choice, EditorForm, RowKind, PUBLICATION_NEW};
 use super::{default_post_text, DocumentDraft, FieldErrors};
 use crate::publish::MAX_POST_GRAPHEMES;
 
@@ -379,13 +377,11 @@ fn links(form: &EditorForm, errors: &FieldErrors) -> Markup {
                             placeholder="https://" spellcheck="false"
                             aria-describedby=[described(errors, &format!("link_url_{i}"))];
                     }))
-                    (KnownSelect::<KnownService> {
+                    (KnownSelect {
                         name: format!("link_service_{i}"),
-                        other_name: format!("link_service_other_{i}"),
                         label: "What it is",
-                        choice: link.service,
-                        other: &link.service_other,
-                        blank: Blank::None("No service"),
+                        choice: &link.service,
+                        none_label: "Other",
                     }.render(errors))
                     (field(&format!("link_label_{i}"), "Label (optional)", errors, &html! {
                         input id=(format!("link_label_{i}")) name=(format!("link_label_{i}")) type="text" value=(link.label)
@@ -405,13 +401,11 @@ fn ids(form: &EditorForm, errors: &FieldErrors) -> Markup {
             @if let Some(message) = errors.get("ids") { p.field-error { (message) } }
             @for (i, id) in form.ids.iter().enumerate() {
                 div.row.row-id {
-                    (KnownSelect::<KnownIdService> {
+                    (KnownSelect {
                         name: format!("id_service_{i}"),
-                        other_name: format!("id_service_other_{i}"),
                         label: "Id from",
-                        choice: id.service,
-                        other: &id.service_other,
-                        blank: Blank::Prompt,
+                        choice: &id.service,
+                        none_label: "Choose…",
                     }.render(errors))
                     (field(&format!("id_value_{i}"), "Id", errors, &html! {
                         input id=(format!("id_value_{i}")) name=(format!("id_value_{i}")) type="text" value=(id.id)
@@ -426,85 +420,50 @@ fn ids(form: &EditorForm, errors: &FieldErrors) -> Markup {
     }
 }
 
-/// What the blank option of a known-values select means.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Blank {
-    /// Nothing chosen yet; the row is incomplete without a choice.
-    Prompt,
-    /// A real choice of "none", offered last under this label, with a
-    /// separate prompt first.
-    None(&'static str),
-}
-
-/// A select over a lexicon's known values with an "Other" that reveals a
-/// text field, so a value from another client's vocabulary survives a
-/// round trip.
+/// A select over a lexicon's known values: a blank option, the known
+/// values, and, only while editing a record that carries one, the
+/// foreign value as written, so it survives the round trip (D31).
 struct KnownSelect<'a, K: KnownValue> {
     name: String,
-    other_name: String,
     label: &'a str,
-    choice: Choice<K>,
-    other: &'a str,
-    blank: Blank,
+    choice: &'a Choice<K>,
+    /// What the blank option is called.
+    none_label: &'static str,
 }
 
 impl<K: KnownValue + PartialEq> KnownSelect<'_, K> {
     fn render(&self, errors: &FieldErrors) -> Markup {
         let name = self.name.as_str();
-        let other_name = self.other_name.as_str();
-        let choice = self.choice;
         html! {
             div.field.field-invalid[errors.get(name).is_some()] {
                 label.kicker for=(name) { (self.label) }
                 select id=(name) name=(name) aria-describedby=[described(errors, name)] {
-                    @match self.blank {
-                        Blank::Prompt => {
-                            option value="" selected[choice == Choice::Unset || choice == Choice::None] { "Choose…" }
-                        }
-                        Blank::None(_) => {
-                            option value="" selected[choice == Choice::Unset] { "Choose…" }
-                        }
-                    }
+                    option value="" selected[*self.choice == Choice::None] { (self.none_label) }
                     @for value in K::ALL {
-                        option value=(value.as_str()) selected[choice == Choice::Known(*value)] {
+                        option value=(value.as_str()) selected[*self.choice == Choice::Known(*value)] {
                             (value.display_name())
                         }
                     }
-                    option value=(SERVICE_OTHER) selected[choice == Choice::Other] { "Other" }
-                    @if let Blank::None(label) = self.blank {
-                        option value=(SERVICE_NONE) selected[choice == Choice::None] { (label) }
+                    @if let Choice::Foreign(value) = self.choice {
+                        option value=(value) selected { (value) }
                     }
                 }
                 @if let Some(message) = errors.get(name) {
                     p.field-error id=(format!("{name}-error")) { (message) }
                 }
             }
-            (field(other_name, "Other", errors, &html! {
-                input id=(other_name) name=(other_name) type="text" value=(self.other)
-                    placeholder="as the other client names it"
-                    aria-describedby=[described(errors, other_name)];
-            }))
         }
     }
 }
 
 fn meal_select(form: &EditorForm, errors: &FieldErrors) -> Markup {
-    html! {
-        div.field {
-            label.kicker for="meal" { "Meal (optional)" }
-            select #meal name="meal" {
-                option value="" selected[form.meal == Choice::Unset || form.meal == Choice::None] { "Not said" }
-                @for meal in Meal::ALL {
-                    option value=(meal.as_str()) selected[form.meal == Choice::Known(*meal)] { (meal.display_name()) }
-                }
-                option value=(SERVICE_OTHER) selected[form.meal == Choice::Other] { "Other" }
-            }
-        }
-        (field("meal_other", "Other meal", errors, &html! {
-            input #meal_other name="meal_other" type="text" value=(form.meal_other)
-                aria-describedby=[described(errors, "meal_other")];
-        }))
+    KnownSelect {
+        name: "meal".to_owned(),
+        label: "Meal (optional)",
+        choice: &form.meal,
+        none_label: "Not said",
     }
+    .render(errors)
 }
 
 /// The rating as a radio group: unrated, then the four steps, each
