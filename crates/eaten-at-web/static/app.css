@@ -574,8 +574,8 @@
   .doc-title { margin-block-end: var(--title-gap); text-wrap: balance; }
 
   /* Visit card: cover beside the place's name, then the date, meal, and
-     price in the metadata voice, the address, the rating, and the dishes,
-     on a raised card. */
+     price in the metadata voice, the address, and the rating, on a raised
+     card. */
   .visit-card {
     display: flex; gap: var(--card-gap); align-items: flex-start;
     padding: var(--card-pad);
@@ -603,10 +603,6 @@
   }
   .rating-marks { letter-spacing: 0.08em; }
   .listing-place .rating { font-size: var(--text-mono); }
-  .dishes { list-style: none; padding: 0; margin: 0; font-size: var(--text-small); color: var(--color-ink-secondary); }
-  .dishes li + li { margin-block-start: 0.15em; }
-  .dish-name { font-weight: 500; color: var(--color-ink); }
-  .dish-note { color: var(--color-ink-muted); }
 
   /* Prose: the one place text runs long, so it is set larger than the
      interface and its links keep a faint underline at rest; color alone

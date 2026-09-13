@@ -110,9 +110,8 @@ const { uri: postUri, cid: postCid } = await createRecord(alice.agent, 'app.bsky
 
 // Plain text for `textContent`: what a reader that does not know
 // at.eaten.visit sees. Markdown syntax stripped, one paragraph per line,
-// with the place, date, and verdict first and the dishes last, the way
-// the app writes it. Good enough for a seed; the app derives its own
-// excerpts.
+// with the place, date, and verdict first, the way the app writes it.
+// Good enough for a seed; the app derives its own excerpts.
 const RATING_WORDS = { 1: 'Solid', 2: 'Recommended', 3: 'Strongly Recommended', 4: 'Can’t Miss' }
 const plain = (md) =>
   md
@@ -127,7 +126,6 @@ const textContent = (d) =>
   [
     [d.place.name, d.visitedOn, d.rating && RATING_WORDS[d.rating]].filter(Boolean).join(' · '),
     plain(d.markdown),
-    d.dishes.length ? `Dishes: ${d.dishes.map((x) => x.name).join(', ')}` : '',
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -142,7 +140,7 @@ const docs = [
     path: '/2026/09/noodle-house',
     publishedAt: '2026-09-07T12:00:00.000Z',
     tags: ['noodles', 'one long sit'],
-    description: 'What a write-up with a place, a rating, dishes, an excerpt, tags, and a comment thread looks like.',
+    description: 'What a write-up with a place, a rating, an excerpt, tags, and a comment thread looks like.',
     place: {
       name: 'Noodle House',
       address: '12 Example Lane',
@@ -156,10 +154,6 @@ const docs = [
     },
     visitedOn: '2026-09-06',
     meal: 'dinner',
-    dishes: [
-      { name: 'Hand-pulled noodles', note: 'the reason to come' },
-      { name: 'Cucumber salad' },
-    ],
     rating: 3,
     bskyPostRef: { uri: postUri, cid: postCid },
     markdown: `# A first write-up
@@ -172,7 +166,7 @@ as the excerpt.
 
 - The visit card above this prose: the place's name beside a generated
   placeholder cover, then the date, the meal, the price band, the address,
-  the rating as plus signs, and the dishes.
+  and the rating as plus signs.
 - Links in the footer: two labelled from their known service, one by the
   label the author gave it, and a map link made from the Google place id.
 - A comment section, because the record names a Bluesky post. The local
@@ -191,7 +185,6 @@ as the excerpt.
     },
     visitedOn: '2026-08-14',
     meal: 'brunch',
-    dishes: [{ name: 'Flat white' }],
     rating: 4,
     markdown: `This one has no description, so the listing derives its excerpt from the
 first paragraph of the body, cut at a sentence boundary.
@@ -207,7 +200,6 @@ And a second paragraph that the excerpt never reaches.`,
     tags: ['long read'],
     place: { name: 'The Old Mill', address: '1 Mill Road' },
     visitedOn: '2026-07-27',
-    dishes: [],
     markdown: `The oldest of the three, unrated and with no links out at all: the footer
 shows only the tags, the feed, and the author.
 
@@ -233,7 +225,6 @@ const themedDocs = [
     },
     visitedOn: '2026-09-05',
     meal: 'lateNight',
-    dishes: [{ name: 'Skewers', note: 'charred just right' }],
     rating: 2,
     markdown: `This publication declares a dark theme whose text colour fails contrast
 on purpose, so the page shows the clamped colours, not the author's.
@@ -250,7 +241,6 @@ Everything else, the type, the spacing, the shapes, stays the site's.`,
     tags: ['late', 'short'],
     place: { name: 'The Diner' },
     visitedOn: '2026-08-20',
-    dishes: [],
     rating: 1,
     markdown: `A second entry, so the listing has more than one card.`,
   },
@@ -273,7 +263,6 @@ for (const d of [...docs, ...themedDocs].sort((a, b) => a.publishedAt.localeComp
       place: d.place,
       visitedOn: d.visitedOn,
       ...(d.meal ? { meal: d.meal } : {}),
-      ...(d.dishes.length ? { dishes: d.dishes } : {}),
       ...(d.rating ? { rating: d.rating } : {}),
       body: {
         $type: 'at.markpub.markdown',

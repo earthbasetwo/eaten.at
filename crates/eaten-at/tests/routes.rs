@@ -55,7 +55,6 @@ fn visit_doc(pub_rkey: &str, title: &str, place: &str, tags: &[&str]) -> Value {
             },
             "visitedOn": "2026-09-06",
             "meal": "dinner",
-            "dishes": [{"name": "Soup", "note": "hot"}],
             "rating": 2,
             "body": {"$type": "at.markpub.markdown", "text": {"$type": "at.markpub.text",
                      "markdown": format!("# Heading\n\nA write-up of *{place}*.\n\nMore text here.")}}
@@ -504,7 +503,6 @@ async fn document_page_renders_card_body_tags_and_canonical() {
         body.contains("<span class=\"rating-marks\" aria-hidden=\"true\">++</span> <span class=\"rating-word\">Recommended</span>"),
         "{body}"
     );
-    assert!(body.contains("class=\"dish-name\">Soup<"), "{body}");
     assert!(body.contains("<h2>Heading</h2>"), "{body}");
     assert!(body.contains("<em>Third Place</em>"), "{body}");
     assert!(
@@ -1401,8 +1399,6 @@ fn good_fields<'a>() -> Vec<(&'a str, &'a str)> {
         ("visited_on", "2026-09-08"),
         ("meal", "dinner"),
         ("rating", "3"),
-        ("dish_name_0", "Soup"),
-        ("dish_note_0", "hot"),
         ("id_service_0", "googlePlace"),
         ("id_value_0", "g1"),
         ("link_url_0", "https://example.com/official"),
@@ -1497,7 +1493,6 @@ async fn editor_reports_problems_beside_fields_and_previews_a_good_draft() {
         body.contains("<span class=\"rating-marks\" aria-hidden=\"true\">+++</span> <span class=\"rating-word\">Strongly Recommended</span>"),
         "{body}"
     );
-    assert!(body.contains("class=\"dish-name\">Soup<"), "{body}");
     assert!(body.contains(">Official site</a>"), "{body}");
     assert!(
         body.contains(">notes</a>") && body.contains(">Short</a>"),
@@ -1748,7 +1743,7 @@ async fn first_publish_creates_the_publication_and_preferences_then_the_document
     );
     assert_eq!(
         doc["textContent"],
-        "Promises · 2026-09-08 · Strongly Recommended\n\nForty-six minutes.\n\nNine notes.\n\nDishes: Soup"
+        "Promises · 2026-09-08 · Strongly Recommended\n\nForty-six minutes.\n\nNine notes."
     );
     assert_eq!(doc["content"]["place"]["name"], "Promises");
     assert_eq!(doc["content"]["place"]["price"], 2);
@@ -1760,7 +1755,6 @@ async fn first_publish_creates_the_publication_and_preferences_then_the_document
     assert_eq!(doc["content"]["visitedOn"], "2026-09-08");
     assert_eq!(doc["content"]["meal"], "dinner");
     assert_eq!(doc["content"]["rating"], 3);
-    assert_eq!(doc["content"]["dishes"][0]["note"], "hot");
     assert!(doc.get("links").is_none(), "{doc}");
     assert_eq!(doc["tags"], json!(["notes", "Short"]));
     assert!(doc.get("description").is_none());

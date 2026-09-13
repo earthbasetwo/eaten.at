@@ -205,8 +205,8 @@ pub fn content(draft: &DocumentDraft) -> Value {
 }
 
 /// The plaintext a reader that does not know `at.eaten.visit` sees: a
-/// line naming the place, the date, and the verdict; the prose without
-/// markup; then the dishes.
+/// line naming the place, the date, and the verdict, then the prose
+/// without markup.
 pub fn text_content(visit: &Visit, markdown: &str) -> String {
     let mut header = format!("{} · {}", visit.place.name.trim(), visit.visited_on);
     if let Some(rating) = visit.rating {
@@ -217,15 +217,6 @@ pub fn text_content(visit: &Visit, markdown: &str) -> String {
     let prose = markdown::to_plaintext(markdown);
     if !prose.trim().is_empty() {
         parts.push(prose.trim().to_owned());
-    }
-    let dishes: Vec<&str> = visit
-        .dishes
-        .iter()
-        .map(|d| d.name.trim())
-        .filter(|n| !n.is_empty())
-        .collect();
-    if !dishes.is_empty() {
-        parts.push(format!("Dishes: {}", dishes.join(", ")));
     }
     parts.join("\n\n")
 }
@@ -670,7 +661,6 @@ mod tests {
                 },
                 "visitedOn": "2026-09-08",
                 "meal": "dinner",
-                "dishes": [{"name": "Soup", "note": "hot"}, {"name": "Bread"}],
                 "rating": 3
             }))
             .unwrap(),
@@ -791,7 +781,7 @@ mod tests {
         assert_eq!(doc["content"]["body"]["$type"], "at.markpub.markdown");
         assert_eq!(
             doc["textContent"],
-            "Promises · 2026-09-08 · Strongly Recommended\n\nForty-six minutes.\n\nNine notes.\n\nDishes: Soup, Bread"
+            "Promises · 2026-09-08 · Strongly Recommended\n\nForty-six minutes.\n\nNine notes."
         );
     }
 
@@ -799,7 +789,6 @@ mod tests {
     fn text_content_reads_on_its_own() {
         let mut d = draft();
         d.visit.rating = None;
-        d.visit.dishes.clear();
         d.markdown = "  ".into();
         assert_eq!(text_content(&d.visit, &d.markdown), "Promises · 2026-09-08");
         d.markdown = "# Head\n\nSome *words*.".into();

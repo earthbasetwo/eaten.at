@@ -7,7 +7,7 @@ use eaten_at_atproto::lexicon::{
 };
 use eaten_at_atproto::repo::Record;
 use eaten_at_web::components::{
-    CommentView, CommentsView, DishView, Link, ListingItem, PublicationView, RatingView, VisitCard,
+    CommentView, CommentsView, Link, ListingItem, PublicationView, RatingView, VisitCard,
 };
 use eaten_at_web::markdown::{excerpt, EXCERPT_TARGET};
 use eaten_at_web::meta::{Kind, PageMeta};
@@ -39,19 +39,6 @@ pub fn card_for(visit: &Visit, cover_src: Option<String>) -> VisitCard {
         visited_on: visit.visited_on.as_string(),
         meal: visit.meal.as_deref().map(meal_label),
         rating: visit.rating.map(rating_view),
-        dishes: visit
-            .dishes
-            .iter()
-            .map(|d| DishView {
-                name: d.name.clone(),
-                note: d
-                    .note
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|n| !n.is_empty())
-                    .map(str::to_owned),
-            })
-            .collect(),
         cover_src,
         links: place_links(place),
     }
@@ -390,12 +377,11 @@ mod tests {
     }
 
     #[test]
-    fn card_words_the_meal_and_rating_and_drops_blank_notes() {
+    fn card_words_the_meal_and_rating_and_drops_a_blank_address() {
         let visit: Visit = serde_json::from_value(serde_json::json!({
             "place": {"name": "P", "address": "  ", "price": 3},
             "visitedOn": "2026-09-12",
             "meal": "lateNight",
-            "dishes": [{"name": "Soup", "note": " "}, {"name": "Pie", "note": "good"}],
             "rating": 4
         }))
         .unwrap();
@@ -405,8 +391,6 @@ mod tests {
         assert_eq!(card.meal.as_deref(), Some("Late night"));
         assert_eq!(card.rating.as_ref().unwrap().marks, "++++");
         assert_eq!(card.rating.as_ref().unwrap().word, "Can’t Miss");
-        assert_eq!(card.dishes[0].note, None);
-        assert_eq!(card.dishes[1].note.as_deref(), Some("good"));
         let foreign_meal: Visit = serde_json::from_value(serde_json::json!({
             "place": {"name": "P"}, "visitedOn": "2026-09-12", "meal": "tea"
         }))

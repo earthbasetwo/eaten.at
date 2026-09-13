@@ -21,8 +21,7 @@ content is an ordinary Standard post and we leave it alone.
 
 Readers that do not know our type fall back to the document's
 `textContent`, which we write as a plaintext rendering of the visit:
-place, date, and verdict on the first line, then the prose, then the
-dishes.
+place, date, and verdict on the first line, then the prose.
 
 Across all three schemas the same rules hold. `knownValues` is a
 suggestion, not an enum: a value outside the list belongs to the authoring
@@ -36,8 +35,8 @@ reads as absent rather than sinking the document.
 *File: `lexicons/at.eaten.visit.json` · type: object (not a record); a
 `site.standard.document#content` member*
 
-A visit to a place to eat: where, when, what was eaten, the author's
-verdict, and the prose.
+A visit to a place to eat: where, when, which meal, the author's verdict,
+and the prose.
 
 #### `main`
 
@@ -48,7 +47,6 @@ Required: `place`, `visitedOn`.
 | `place` | ref [`at.eaten.place`](#ateatenplace) | | Where the author ate. |
 | `visitedOn` | string | exactly 10 bytes, `YYYY-MM-DD` | The calendar date of the visit, in the place's local calendar. A date, not an instant: no time, no offset (D27). The PDS checks the length; the app checks the format. |
 | `meal` | string | `knownValues`, ≤ 640 bytes | Which meal it was. Unknown values are preserved and shown as written. |
-| `dishes` | array of [`#dish`](#dish) | ≤ 24 items | What was eaten, in the author's order. |
 | `rating` | integer | 1–4 | The author's verdict on the house scale (D4). Absent means the author declined to rate. |
 | `body` | open union | | The prose, keyed by `$type`. We write `at.markpub.markdown` (D12). Readers that know no member fall back to the document's `textContent`. |
 
@@ -67,15 +65,6 @@ It is an integer with a range rather than a string with `knownValues`
 because the scale is ordinal and it is ours: a fifth value would have no
 rendering. The PDS validates the range; a value outside it from another
 client reads as unrated.
-
-#### `#dish`
-
-Required: `name`.
-
-| Field | Type | Constraints | Description |
-| --- | --- | --- | --- |
-| `name` | string | ≤ 2000 bytes, ≤ 200 graphemes | The dish, as the author names it. |
-| `note` | string | ≤ 10000 bytes, ≤ 1000 graphemes | A short remark on the dish. |
 
 ### `at.eaten.place`
 
@@ -156,7 +145,7 @@ reader gets a complete post:
 | `title`, `description`, `tags`, `coverImage`, `labels` | The author's own. Tags are free text and stay here, never in the visit (D26). |
 | `path`, `publishedAt`, `updatedAt` | Set on publish; the path never changes. |
 | `content` | The `at.eaten.visit`, with the markdown body inside it. |
-| `textContent` | `<place> · <date>[ · <verdict>]`, a blank line, the prose as plaintext, a blank line, `Dishes: …`. |
+| `textContent` | `<place> · <date>[ · <verdict>]`, a blank line, the prose as plaintext. |
 | `bskyPostRef` | Set when a crosspost succeeds. |
 | `links` | Not ours. Whatever another client put there is carried over untouched. |
 

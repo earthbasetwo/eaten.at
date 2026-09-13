@@ -3,10 +3,10 @@
 Write-ups on the AT Protocol, rendered one publication at a time.
 
 Authors write `site.standard.document` records into their own repositories
-whose `content` is an `at.eaten.visit`: a place, a date, the dishes, an
-optional rating, and the prose. This app renders those documents: it is a
-reader over other people's repositories, not a warehouse. There is no
-global feed and no content index.
+whose `content` is an `at.eaten.visit`: a place, a date, an optional
+rating, and the prose. This app renders those documents: it is a reader
+over other people's repositories, not a warehouse. There is no global feed
+and no content index.
 
 This repository was forked from album-report on 2026-09-12 and stripped to
 the parts that are not about albums. The decisions it inherits, and the
