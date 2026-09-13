@@ -358,7 +358,10 @@ mod tests {
         assert_eq!(
             labels,
             vec![
-                ("Menu".to_owned(), "https://example.com/menu.pdf".to_owned()),
+                (
+                    "example.com".to_owned(),
+                    "https://example.com/menu.pdf".to_owned()
+                ),
                 (
                     "other.example".to_owned(),
                     "https://www.other.example/x".to_owned()

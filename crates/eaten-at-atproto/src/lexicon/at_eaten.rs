@@ -84,8 +84,6 @@ known_values! {
     /// The `knownValues` of `at.eaten.place#externalUrl.service`.
     KnownService {
         OfficialSite => "officialSite", "Official site";
-        Menu => "menu", "Menu";
-        Reservations => "reservations", "Reservations";
     }
 }
 
@@ -482,7 +480,7 @@ mod tests {
                     {"service": "yelp", "id": "sample-place", "rank": 1}
                 ],
                 "urls": [
-                    {"url": "https://example.com/elsewhere", "service": "bc"},
+                    {"url": "https://example.com/elsewhere", "service": "menu"},
                     {"url": "https://example.com", "service": "officialSite", "label": "Home"}
                 ],
                 "neighbourhood": "Old Town"

@@ -319,9 +319,10 @@ panes need the room.
   ending in a "Remove" link button. Adding a row is a "+ Add an id" or
   "+ Add a link" link button.
 - **Choices.** The date is a plain date input. The price band, the meal,
-  and each row's service are selects; where a lexicon has `knownValues`,
-  an "Other" option reveals a text field so a value from another
-  client's vocabulary survives an edit. The rating is a radio group of
+  and each link's kind ("Official site" or "Other") are selects. A
+  select never offers free text; where a record carries a value from
+  another client's vocabulary, that value appears as its own selected
+  option so it survives the edit (D31). The rating is a radio group of
   "Unrated" and the four steps, each labelled with its marks and its
   word.
 - **Actions:** one primary button, "Publish" (or "Save changes").

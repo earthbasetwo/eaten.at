@@ -116,9 +116,10 @@ Required: `url`.
 | `service` | string | `knownValues`, ≤ 640 | What this URL is. Consumers dispatch service-specific rendering on an **exact** match against `knownValues`. |
 | `label` | string | ≤ 640 bytes, ≤ 64 graphemes | Human-readable link label. |
 
-`service` known values: `officialSite`, `menu`, `reservations`. A value
-outside the list is rendered as a plain link labelled by the author's
-label or the URL's host.
+`service` known value: `officialSite`, the place's own website. Any
+other link carries no `service` and is rendered as a plain link
+labelled by the author's label or the URL's host, as is a value outside
+the list (D30).
 
 ### `at.eaten.preferences`
 
