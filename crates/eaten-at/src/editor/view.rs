@@ -1,8 +1,6 @@
 //! The editor page: two panes where width allows, the write-up on the
 //! left and the visit on the right, every control a plain form element.
 
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine as _;
 use eaten_at_atproto::lexicon::{KnownValue, Rating};
 use eaten_at_web::components::{tag_links, visit_card, visit_links, Link};
 use eaten_at_web::markdown;
@@ -44,9 +42,6 @@ pub struct EditorPage<'a> {
     /// The write-up's title, shown as the heading while editing. A new
     /// write-up has no heading until a place is chosen (plan 06).
     pub heading: Option<&'a str>,
-    /// Whether the document already has a cover that a blank file field
-    /// keeps.
-    pub has_cover: bool,
     /// A rendered preview to show above the form.
     pub preview: Option<Markup>,
     /// Why the last publish attempt failed, when it did.
@@ -81,26 +76,9 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                 (preview)
             }
         }
-        form.editor method="post" action=(page.action_path) enctype="multipart/form-data" novalidate {
+        form.editor method="post" action=(page.action_path) novalidate {
             div.editor-panes {
-                div.editor-pane.editor-writing {
-                    (field("title", "Title (optional)", errors, &html! {
-                        input #title name="title" type="text" value=(form.title)
-                            placeholder=(form.place_name.trim())
-                            aria-describedby=[described(errors, "title")];
-                    }))
-                    p.meta.field-hint { "Left blank, the place's name is the title." }
-                    (field("body", "Write-up", errors, &html! {
-                        textarea #body.editor-body name="body" rows="24" required
-                            aria-describedby=[described(errors, "body")] { (form.body) }
-                    }))
-                    p.meta.field-hint { "Markdown. Headings, emphasis, lists, links, and quotes render; raw HTML does not." }
-                    (field("description", "Excerpt (optional)", errors, &html! {
-                        textarea #description name="description" rows="3"
-                            aria-describedby=[described(errors, "description")] { (form.description) }
-                    }))
-                    p.meta.field-hint { "Shown in listings and link previews. Left blank, the first paragraph stands in." }
-                }
+                (writing_pane(form, errors))
                 div.editor-pane.editor-visit {
                     fieldset.editor-group {
                         legend.kicker { "Place" }
@@ -146,15 +124,6 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                                 aria-describedby=[described(errors, "tags")];
                         }))
                         p.meta.field-hint { "Separate tags with commas." }
-                        (field("cover", "Cover image (optional)", errors, &html! {
-                            input #cover name="cover" type="file" accept="image/*"
-                                aria-describedby=[described(errors, "cover")];
-                        }))
-                        @if page.has_cover {
-                            p.meta.field-hint { "The current cover stays unless you choose a new file." }
-                        } @else {
-                            p.meta.field-hint { "Under 5 MB. Without one, a placeholder is generated from the place's name." }
-                        }
                         (publication(form, page.publications, errors))
                     }
                     fieldset.editor-group {
@@ -172,6 +141,30 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                     a.button-link href=(format!("{}/delete", page.action_path)) { "Delete" }
                 }
             }
+        }
+    }
+}
+
+/// The left pane: title, write-up, excerpt.
+fn writing_pane(form: &EditorForm, errors: &FieldErrors) -> Markup {
+    html! {
+        div.editor-pane.editor-writing {
+            (field("title", "Title (optional)", errors, &html! {
+                input #title name="title" type="text" value=(form.title)
+                    placeholder=(form.place_name.trim())
+                    aria-describedby=[described(errors, "title")];
+            }))
+            p.meta.field-hint { "Left blank, the place's name is the title." }
+            (field("body", "Write-up", errors, &html! {
+                textarea #body.editor-body name="body" rows="24" required
+                    aria-describedby=[described(errors, "body")] { (form.body) }
+            }))
+            p.meta.field-hint { "Markdown. Headings, emphasis, lists, links, and quotes render; raw HTML does not." }
+            (field("description", "Excerpt (optional)", errors, &html! {
+                textarea #description name="description" rows="3"
+                    aria-describedby=[described(errors, "description")] { (form.description) }
+            }))
+            p.meta.field-hint { "Shown in listings and link previews. Left blank, the first paragraph stands in." }
         }
     }
 }
@@ -200,9 +193,9 @@ fn bluesky(form: &EditorForm, errors: &FieldErrors, state: &CrosspostState) -> M
                         aria-describedby=[described(errors, "post_text")];
                 }))
                 @if *state == CrosspostState::NeedsPermission {
-                    p.meta.field-hint { "A link card with the title, excerpt, and cover goes with it. The first time, your account's server will ask you to allow posting." }
+                    p.meta.field-hint { "A link card with the title and excerpt goes with it. The first time, your account's server will ask you to allow posting." }
                 } @else {
-                    p.meta.field-hint { "A link card with the title, excerpt, and cover goes with it. Comments on Bluesky then show under the write-up." }
+                    p.meta.field-hint { "A link card with the title and excerpt goes with it. Comments on Bluesky then show under the write-up." }
                 }
             }
         }
@@ -259,7 +252,7 @@ pub fn crosspost_page(page: &CrosspostPage<'_>) -> Markup {
                         input #post_text name="post_text" type="text" value=(page.post_text)
                             maxlength=(MAX_POST_GRAPHEMES) required;
                     }))
-                    p.meta.field-hint { "A link card with the title, excerpt, and cover goes with it." }
+                    p.meta.field-hint { "A link card with the title and excerpt goes with it." }
                     div.actions {
                         button type="submit" { "Post to Bluesky" }
                         a.button-link href=(page.document_path) { "← Skip for now" }
@@ -525,13 +518,9 @@ fn publication(
 }
 
 /// The draft as readers would see it: date line, title, card, prose,
-/// links, tags. A new cover is shown inline.
+/// links, tags.
 pub fn preview(draft: &DocumentDraft) -> Markup {
-    let cover_src = draft
-        .cover
-        .as_ref()
-        .map(|c| format!("data:{};base64,{}", c.mime, STANDARD.encode(&c.bytes)));
-    let card = crate::view::card_for(&draft.visit, cover_src);
+    let card = crate::view::card_for(&draft.visit);
     let tags: Vec<Link> = draft
         .tags
         .iter()

@@ -141,7 +141,6 @@
     --color-accent-soft: #e8804f;
     --color-accent-hover: color-mix(in oklab, var(--color-accent) 92%, black);
     --shadow-card: 0 2px 8px rgb(var(--theme-fg) / 0.06);
-    --shadow-cover: 0 4px 12px rgb(var(--theme-fg) / 0.14);
 
     --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
     --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -178,8 +177,6 @@
     --card-gap:         clamp(0.75rem,  0.609rem + 0.58vw,  1rem);     /* 12 → 16 */
     --footer-gap:       clamp(2rem,     1.717rem + 1.159vw, 2.5rem);   /* 32 → 40 */
     --footer-pad:       clamp(1rem,     0.717rem + 1.159vw, 1.5rem);   /* 16 → 24 */
-    --cover-size:       clamp(5.25rem,  3.98rem + 5.22vw,   7.5rem);   /* 84 → 120 */
-    --cover-small:      clamp(4.5rem,   3.652rem + 3.478vw, 6rem);     /* 72 → 96 */
     --section-gap:      var(--space-xl);                               /* 40 */
 
     --column: 45rem;      /* 720px main column */
@@ -391,14 +388,9 @@
   }
 
   /* Listing: one card per write-up, each a small version of the document
-     page (date, title, place and rating, excerpt) beside its cover. */
+     page (date, title, place and rating, excerpt). */
   .listing { display: flex; flex-direction: column; gap: var(--space-m); }
   .listing-item article { display: flex; gap: var(--card-gap); align-items: flex-start; padding: var(--card-pad); }
-  .listing-cover {
-    flex: none; inline-size: var(--cover-small); block-size: var(--cover-small);
-    object-fit: cover; border-radius: var(--radius-nested);
-    background: var(--color-sunken);
-  }
   .listing-body { min-inline-size: 0; flex: 1; }
   .listing-body .kicker { margin-block-end: var(--space-xs); }
   .listing-title { font-size: var(--text-card); line-height: 1.1; }
@@ -573,18 +565,13 @@
   .document > .kicker { margin-block-end: var(--space-s); }
   .doc-title { margin-block-end: var(--title-gap); text-wrap: balance; }
 
-  /* Visit card: cover beside the place's name, then the date, meal, and
+  /* Visit card: the place's name, then the date, meal, and
      price in the metadata voice, the address, and the rating, on a raised
      card. */
   .visit-card {
     display: flex; gap: var(--card-gap); align-items: flex-start;
     padding: var(--card-pad);
     margin-block-end: var(--title-gap);
-  }
-  .visit-cover {
-    flex: none; inline-size: var(--cover-size); block-size: var(--cover-size);
-    object-fit: cover; border-radius: var(--radius-nested);
-    background: var(--color-sunken); box-shadow: var(--shadow-cover);
   }
   .visit-card-body { min-inline-size: 0; flex: 1; }
   .visit-card-body > * + * { margin-block-start: var(--space-xs); }

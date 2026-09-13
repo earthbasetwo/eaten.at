@@ -18,14 +18,9 @@ use crate::state::AppState;
 use crate::model::{Body, VisitDocument};
 use crate::paths;
 
-/// Build the visit card for a document from its visit.
-pub fn visit_card(did: &Did, visit_doc: &VisitDocument) -> VisitCard {
-    card_for(&visit_doc.visit, Some(paths::cover(did, visit_doc.rkey())))
-}
-
-/// The card for a visit with a given cover, shared by the document page
-/// and the editor's preview.
-pub fn card_for(visit: &Visit, cover_src: Option<String>) -> VisitCard {
+/// The card for a visit, shared by the document page and the editor's
+/// preview.
+pub fn card_for(visit: &Visit) -> VisitCard {
     let place = &visit.place;
     VisitCard {
         place_name: place.name.clone(),
@@ -39,7 +34,6 @@ pub fn card_for(visit: &Visit, cover_src: Option<String>) -> VisitCard {
         visited_on: visit.visited_on.as_string(),
         meal: visit.meal.as_deref().map(meal_label),
         rating: visit.rating.map(rating_view),
-        cover_src,
         links: place_links(place),
     }
 }
@@ -125,7 +119,6 @@ pub fn listing_item(did: &Did, pub_rkey: &str, visit_doc: &VisitDocument) -> Lis
         rating: visit_doc.visit.rating.map(rating_view),
         published: date_only(visit_doc.document().published_at.as_str()),
         excerpt: summary(visit_doc),
-        cover_src: Some(paths::cover(did, visit_doc.rkey())),
     }
 }
 
@@ -384,7 +377,7 @@ mod tests {
             "rating": 4
         }))
         .unwrap();
-        let card = card_for(&visit, None);
+        let card = card_for(&visit);
         assert_eq!(card.address, None);
         assert_eq!(card.price.as_deref(), Some("$$$"));
         assert_eq!(card.meal.as_deref(), Some("Late night"));
@@ -394,6 +387,6 @@ mod tests {
             "place": {"name": "P"}, "visitedOn": "2026-09-12", "meal": "tea"
         }))
         .unwrap();
-        assert_eq!(card_for(&foreign_meal, None).meal.as_deref(), Some("tea"));
+        assert_eq!(card_for(&foreign_meal).meal.as_deref(), Some("tea"));
     }
 }

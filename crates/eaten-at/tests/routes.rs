@@ -738,9 +738,16 @@ async fn cover_proxy_serves_blob_as_jpeg_with_safe_headers() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(jpeg_dimensions(&og), (1200, 630));
 
-    // The card and listing point at the proxy, never at the PDS.
+    // The page points unfurlers at the proxy, never at the PDS; it shows
+    // no image itself (D32).
     let (_, _, page) = get(&state, &format!("/at/{DID}/pub1/cov")).await;
-    assert!(page.contains(&format!("src=\"/img/{DID}/cov\"")), "{page}");
+    assert!(
+        page.contains(&format!(
+            "content=\"https://eaten.at/img/{DID}/cov?size=og\""
+        )),
+        "{page}"
+    );
+    assert!(!page.contains("<img"), "{page}");
     assert!(!page.contains("getBlob"), "{page}");
 }
 
@@ -1317,37 +1324,25 @@ async fn signed_in(state: &AppState) -> String {
 }
 
 /// A multipart body with text fields and, optionally, one file.
-fn multipart(fields: &[(&str, &str)], file: Option<(&str, &str, &[u8])>) -> (String, Vec<u8>) {
-    const BOUNDARY: &str = "----eaten-at-test-boundary";
-    let mut body = Vec::new();
-    for (name, value) in fields {
-        body.extend_from_slice(
-            format!("--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n")
-                .as_bytes(),
-        );
-    }
-    if let Some((name, filename, bytes)) = file {
-        body.extend_from_slice(
-            format!(
-                "--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"\r\nContent-Type: application/octet-stream\r\n\r\n"
-            )
-            .as_bytes(),
-        );
-        body.extend_from_slice(bytes);
-        body.extend_from_slice(b"\r\n");
-    }
-    body.extend_from_slice(format!("--{BOUNDARY}--\r\n").as_bytes());
-    (format!("multipart/form-data; boundary={BOUNDARY}"), body)
-}
-
+/// A URL-encoded POST of the editor form with the session cookie.
 async fn post_editor(
     state: &AppState,
     uri: &str,
     cookie: &str,
     fields: &[(&str, &str)],
-    file: Option<(&str, &str, &[u8])>,
 ) -> (StatusCode, String) {
-    let (content_type, body) = multipart(fields, file);
+    let content_type = "application/x-www-form-urlencoded";
+    let body = fields
+        .iter()
+        .map(|(k, v)| {
+            format!(
+                "{}={}",
+                eaten_at_web::layout::urlencoding(k),
+                eaten_at_web::layout::urlencoding(v)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("&");
     let response = router(state.clone())
         .oneshot(
             Request::post(uri)
@@ -1424,7 +1419,7 @@ async fn editor_requires_sign_in_and_prefills_the_publication() {
     let cookie = signed_in(&state).await;
     let (status, _, body) = get_signed(&state, "/write", &cookie).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("enctype=\"multipart/form-data\""), "{body}");
+    assert!(!body.contains("enctype="), "a plain form: {body}");
     assert!(
         body.contains(&format!(
             "<option value=\"at://{DID}/site.standard.publication/pub1\" selected>Ross Writes</option>"
@@ -1446,7 +1441,7 @@ async fn editor_rows_grow_and_shrink_without_javascript() {
     let mut fields = good_fields();
     fields.retain(|(k, _)| *k != "action");
     fields.push(("action", "add_link"));
-    let (status, body) = post_editor(&state, "/write", &cookie, &fields, None).await;
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("name=\"link_url_1\""), "{body}");
     assert!(body.contains("value=\"remove_link:1\""), "{body}");
@@ -1475,7 +1470,7 @@ async fn editor_reports_problems_beside_fields_and_previews_a_good_draft() {
     fields.push(("title", "   "));
     fields.push(("place_name", " "));
     fields.push(("visited_on", "yesterday"));
-    let (status, body) = post_editor(&state, "/write", &cookie, &fields, None).await;
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
     // A blank title is not a problem (D29); a blank place name is.
     assert!(!body.contains("id=\"title-error\""), "{body}");
@@ -1487,7 +1482,7 @@ async fn editor_reports_problems_beside_fields_and_previews_a_good_draft() {
     );
     assert!(body.contains("2 things to fix below"), "{body}");
 
-    let (status, body) = post_editor(&state, "/write", &cookie, &good_fields(), None).await;
+    let (status, body) = post_editor(&state, "/write", &cookie, &good_fields()).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("class=\"preview\""), "{body}");
     assert!(
@@ -1508,33 +1503,6 @@ async fn editor_reports_problems_beside_fields_and_previews_a_good_draft() {
         body.contains("value=\"A room with the lights off\""),
         "the form is still there: {body}"
     );
-
-    let too_big = vec![0u8; 5 * 1024 * 1024 + 1];
-    let (status, body) = post_editor(
-        &state,
-        "/write",
-        &cookie,
-        &good_fields(),
-        Some(("cover", "big.png", &too_big)),
-    )
-    .await;
-    assert_eq!(
-        status,
-        StatusCode::UNPROCESSABLE_ENTITY,
-        "{}",
-        &body[..body.len().min(400)]
-    );
-    assert!(body.contains("id=\"cover-error\""), "{body}");
-    let (status, body) = post_editor(
-        &state,
-        "/write",
-        &cookie,
-        &good_fields(),
-        Some(("cover", "x.txt", b"not an image")),
-    )
-    .await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
-    assert!(body.contains("isn't an image"), "{body}");
 }
 
 #[tokio::test]
@@ -1591,7 +1559,7 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
         ),
         ("action", "preview"),
     ];
-    let (status, body) = post_editor(&state, "/write/d9", &cookie, &fields, None).await;
+    let (status, body) = post_editor(&state, "/write/d9", &cookie, &fields).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("class=\"preview\""), "{body}");
     assert!(
@@ -1719,7 +1687,7 @@ async fn first_publish_creates_the_publication_and_preferences_then_the_document
     fields.push(("new_publication_name", "Liner Notes"));
     fields.push(("new_publication_url", "https://notes.alice.test/"));
     fields.push(("action", "publish"));
-    let (status, body) = post_editor(&state, "/write", &cookie, &fields, None).await;
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
 
     let writes = repo_writes(&server).await;
@@ -1797,7 +1765,7 @@ async fn publishing_to_an_existing_publication_writes_only_the_document() {
     fields.retain(|(k, _)| !matches!(*k, "title" | "action"));
     fields.push(("title", "Third Post"));
     fields.push(("action", "publish"));
-    let (status, body) = post_editor(&state, "/write", &cookie, &fields, None).await;
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
     let writes = repo_writes(&server).await;
     assert_eq!(writes.len(), 1, "{writes:?}");
@@ -1839,7 +1807,7 @@ async fn editing_replaces_the_record_and_deleting_removes_it() {
         ),
         ("action", "publish"),
     ];
-    let (status, body) = post_editor(&state, "/write/d3", &cookie, &fields, None).await;
+    let (status, body) = post_editor(&state, "/write/d3", &cookie, &fields).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
     let writes = repo_writes(&server).await;
     assert_eq!(writes.len(), 1);
@@ -1866,61 +1834,12 @@ async fn editing_replaces_the_record_and_deleting_removes_it() {
     let (status, _, page) = get_signed(&state, "/write/d3/delete", &cookie).await;
     assert_eq!(status, StatusCode::OK);
     assert!(page.contains("Delete “Third Post”?"), "{page}");
-    let (status, body) = post_editor(&state, "/write/d3/delete", &cookie, &[], None).await;
+    let (status, body) = post_editor(&state, "/write/d3/delete", &cookie, &[]).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
     let writes = repo_writes(&server).await;
     let (name, del) = writes.last().unwrap();
     assert_eq!(name, "com.atproto.repo.deleteRecord");
     assert_eq!(del["rkey"], "d3");
-}
-
-#[tokio::test]
-async fn a_cover_is_uploaded_and_referenced() {
-    let server = mount(&one_publication()).await;
-    mount_writes(&server).await;
-    let state = state_for(&server, dns_for_handle());
-    let cookie = author_session(&state, &server).await;
-
-    let mut png = std::io::Cursor::new(Vec::new());
-    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(4, 4, image::Rgb([200, 30, 30])))
-        .write_to(&mut png, image::ImageFormat::Png)
-        .unwrap();
-    let png = png.into_inner();
-    let (status, body) = post_editor(
-        &state,
-        "/write",
-        &cookie,
-        &good_fields(),
-        Some(("cover", "cover.png", &png)),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(
-        body.contains("src=\"data:image/png;base64,"),
-        "the preview shows the new cover: {body}"
-    );
-
-    let mut fields = good_fields();
-    fields.retain(|(k, _)| *k != "action");
-    fields.push(("action", "publish"));
-    let (status, _) = post_editor(
-        &state,
-        "/write",
-        &cookie,
-        &fields,
-        Some(("cover", "cover.png", &png)),
-    )
-    .await;
-    assert_eq!(status, StatusCode::SEE_OTHER);
-    let requests = server.received_requests().await.unwrap();
-    let upload = requests
-        .iter()
-        .find(|r| r.url.path() == "/xrpc/com.atproto.repo.uploadBlob")
-        .expect("the cover was uploaded");
-    assert_eq!(upload.headers.get("content-type").unwrap(), "image/png");
-    assert_eq!(upload.body, png);
-    let doc = repo_writes(&server).await.pop().unwrap().1;
-    assert_eq!(doc["record"]["coverImage"]["ref"]["$link"], "bafyblob");
 }
 
 #[tokio::test]
@@ -2560,7 +2479,6 @@ async fn crosspost_writes_document_then_post_then_the_reference() {
         "/write",
         &cookie,
         &publish_with_crosspost("Listen to this one"),
-        None,
     )
     .await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
@@ -2638,14 +2556,8 @@ async fn retry_after_a_failed_reference_reuses_the_post() {
     let state = state_for(&server, dns_for_handle());
     let cookie = posting_author_session(&state, &server).await;
 
-    let (status, body) = post_editor(
-        &state,
-        "/write",
-        &cookie,
-        &publish_with_crosspost("Listen"),
-        None,
-    )
-    .await;
+    let (status, body) =
+        post_editor(&state, "/write", &cookie, &publish_with_crosspost("Listen")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
     // The document is published; the page offers a retry with the text kept.
     let (status, location, _) = get_signed(
@@ -2705,14 +2617,8 @@ async fn retry_after_a_failed_post_creates_exactly_one() {
     let state = state_for(&server, dns_for_handle());
     let cookie = posting_author_session(&state, &server).await;
 
-    let (status, body) = post_editor(
-        &state,
-        "/write",
-        &cookie,
-        &publish_with_crosspost("Listen"),
-        None,
-    )
-    .await;
+    let (status, body) =
+        post_editor(&state, "/write", &cookie, &publish_with_crosspost("Listen")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
     let writes = repo_writes(&server).await;
     assert!(
@@ -2876,7 +2782,6 @@ async fn without_permission_publish_hands_over_to_the_crosspost_page_which_asks(
         "/write",
         &cookie,
         &publish_with_crosspost("Listen to this"),
-        None,
     )
     .await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");

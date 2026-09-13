@@ -1,8 +1,5 @@
 //! The posted form, as strings, and the actions a JS-free form needs.
 
-use std::fmt;
-
-use axum::extract::Multipart;
 use eaten_at_atproto::lexicon::{
     Document, ExternalId, ExternalUrl, KnownIdService, KnownService, KnownValue, Meal, Visit,
 };
@@ -33,9 +30,6 @@ pub struct EditorForm {
     pub publication: String,
     pub new_publication_name: String,
     pub new_publication_url: String,
-    /// A file chosen in this submission. `None` keeps whatever the
-    /// document already has.
-    pub cover: Option<Upload>,
     /// Whether to post to Bluesky on publish (plan §5.7).
     pub crosspost: bool,
     /// The post's text, as typed. Blank means the default, the place's
@@ -160,24 +154,6 @@ impl IdField {
     }
 }
 
-/// A file from the form.
-#[derive(Clone, PartialEq, Eq)]
-pub struct Upload {
-    pub file_name: String,
-    pub content_type: String,
-    pub bytes: Vec<u8>,
-}
-
-impl fmt::Debug for Upload {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Upload")
-            .field("file_name", &self.file_name)
-            .field("content_type", &self.content_type)
-            .field("bytes", &self.bytes.len())
-            .finish()
-    }
-}
-
 /// The repeated rows the form has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowKind {
@@ -248,11 +224,6 @@ impl Action {
     }
 }
 
-/// Why a posted body could not be read as the editor form.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-#[error("{0}")]
-pub struct FormReadError(pub String);
-
 impl EditorForm {
     /// An empty form for a new write-up dated today, with one row of
     /// each kind.
@@ -312,7 +283,6 @@ impl EditorForm {
             publication: doc.site.clone(),
             new_publication_name: String::new(),
             new_publication_url: String::new(),
-            cover: None,
             crosspost: false,
             post_text: String::new(),
         };
@@ -320,43 +290,17 @@ impl EditorForm {
         form
     }
 
-    /// Read a multipart body. Repeated rows are addressed by index in the
-    /// field name (`link_url_2`, `id_value_0`), so order on the wire
+    /// Read the posted fields. Repeated rows are addressed by index in
+    /// the field name (`link_url_2`, `id_value_0`), so order on the wire
     /// does not matter. Returns the form and the action, if a button
     /// named one.
-    pub async fn from_multipart(
-        mut multipart: Multipart,
-    ) -> Result<(Self, Option<Action>), FormReadError> {
+    pub fn from_pairs<I>(pairs: I) -> (Self, Option<Action>)
+    where
+        I: IntoIterator<Item = (String, String)>,
+    {
         let mut form = Self::default();
         let mut action = None;
-        while let Some(field) = multipart
-            .next_field()
-            .await
-            .map_err(|e| FormReadError(e.body_text()))?
-        {
-            let Some(name) = field.name().map(str::to_owned) else {
-                continue;
-            };
-            if name == "cover" {
-                let file_name = field.file_name().unwrap_or_default().to_owned();
-                let content_type = field.content_type().unwrap_or_default().to_owned();
-                let bytes = field
-                    .bytes()
-                    .await
-                    .map_err(|e| FormReadError(e.body_text()))?;
-                if !bytes.is_empty() {
-                    form.cover = Some(Upload {
-                        file_name,
-                        content_type,
-                        bytes: bytes.to_vec(),
-                    });
-                }
-                continue;
-            }
-            let value = field
-                .text()
-                .await
-                .map_err(|e| FormReadError(e.body_text()))?;
+        for (name, value) in pairs {
             match name.as_str() {
                 "title" => form.title = value,
                 "body" => form.body = value,
@@ -395,7 +339,7 @@ impl EditorForm {
             }
         }
         form.ensure_rows();
-        Ok((form, action))
+        (form, action)
     }
 
     /// Add or remove a row. Removing never empties a list: the last row

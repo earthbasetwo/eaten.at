@@ -30,7 +30,7 @@ pub async fn landing(State(state): State<AppState>, CurrentUser(user): CurrentUs
                 p.lede {
                     "Authors keep their write-ups in their own repositories. "
                     "This site reads them and sets each publication as a small journal: "
-                    "the subject, the cover, and the words."
+                    "the place, the visit, and the words."
                 }
             }
             (lookup_form("", None))

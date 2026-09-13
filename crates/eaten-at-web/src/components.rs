@@ -33,22 +33,16 @@ pub struct VisitCard {
     /// Which meal, in words.
     pub meal: Option<String>,
     pub rating: Option<RatingView>,
-    /// URL of the cover image to show, if any.
-    pub cover_src: Option<String>,
     /// Links out, in the author's order. Rendered by
     /// [`visit_links`], not by the card.
     pub links: Vec<Link>,
 }
 
-/// The visit card shown above a write-up: cover beside the place's name,
-/// a metadata line of date, meal, and price, the address, and the
-/// rating.
+/// The visit card shown above a write-up: the place's name, a metadata
+/// line of date, meal, and price, the address, and the rating.
 pub fn visit_card(card: &VisitCard) -> Markup {
     html! {
         aside.visit-card aria-label="Visit" {
-            @if let Some(src) = &card.cover_src {
-                img.visit-cover src=(src) alt="" width="120" height="120" loading="lazy";
-            }
             div.visit-card-body {
                 p.place-name { (card.place_name) }
                 p.visit-meta {
@@ -108,7 +102,6 @@ pub struct ListingItem {
     pub rating: Option<RatingView>,
     pub published: String,
     pub excerpt: String,
-    pub cover_src: Option<String>,
 }
 
 /// A list of write-ups.
@@ -118,9 +111,6 @@ pub fn listing(items: &[ListingItem]) -> Markup {
             @for item in items {
                 li.listing-item {
                     article {
-                        @if let Some(src) = &item.cover_src {
-                            img.listing-cover src=(src) alt="" width="96" height="96" loading="lazy";
-                        }
                         div.listing-body {
                             p.kicker { time datetime=(item.published) { (human_date(&item.published)) } }
                             h2.listing-title { a href=(item.href) { (item.title) } }
@@ -312,16 +302,11 @@ mod tests {
                 word: "Recommended".into(),
                 marks: "++".into(),
             }),
-            cover_src: Some("/img/did/rk".into()),
             links: vec![link("Elsewhere", "https://example.com/x")],
         })
         .into_string();
         assert!(
             out.contains("<p class=\"place-name\">Sample Place</p>"),
-            "{out}"
-        );
-        assert!(
-            out.contains("class=\"visit-cover\" src=\"/img/did/rk\" alt=\"\""),
             "{out}"
         );
         assert!(
@@ -361,7 +346,6 @@ mod tests {
             }),
             published: "2026-09-07T12:00:00.000Z".into(),
             excerpt: String::new(),
-            cover_src: None,
         }])
         .into_string();
         assert!(
@@ -381,7 +365,6 @@ mod tests {
             }),
             published: "2026-09-07T12:00:00.000Z".into(),
             excerpt: String::new(),
-            cover_src: None,
         };
         let out = listing(std::slice::from_ref(&item)).into_string();
         assert!(

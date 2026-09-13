@@ -1,7 +1,7 @@
 //! From a [`DocumentDraft`] to records in the author's repository
 //! (plan §5.4): the publication and preferences a first publish needs,
-//! the cover blob, the document itself, and the cache entries that must
-//! forget the old state afterwards.
+//! the document itself, and the cache entries that must forget the old
+//! state afterwards.
 
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
@@ -129,8 +129,6 @@ pub struct Placement<'a> {
     pub published_at: &'a Datetime,
     /// Set on edits only.
     pub updated_at: Option<&'a Datetime>,
-    /// The cover to reference; `None` removes any.
-    pub cover: Option<&'a BlobRef>,
     /// The record being replaced, whose unknown fields are kept.
     pub original: Option<&'a Document>,
 }
@@ -139,8 +137,8 @@ pub struct Placement<'a> {
 /// (plan §4.1, §5.4). Fields our editor does not know about survive from
 /// the original; `description` is present only when the author wrote
 /// one; `content` is the visit with the prose inside it, and
-/// `textContent` is its plaintext rendering. `links` is not ours and is
-/// carried over as found.
+/// `textContent` is its plaintext rendering. `links` and `coverImage`
+/// are not ours and are carried over as found (D32).
 pub fn build_document(draft: &DocumentDraft, placement: &Placement<'_>) -> Value {
     let mut doc = placement.original.map_or_else(
         || json!({}),
@@ -168,14 +166,6 @@ pub fn build_document(draft: &DocumentDraft, placement: &Placement<'_>) -> Value
         }
         None => {
             fields.remove("description");
-        }
-    }
-    match placement.cover {
-        Some(cover) => {
-            fields.insert("coverImage".into(), json!(cover));
-        }
-        None => {
-            fields.remove("coverImage");
         }
     }
     fields.insert("content".into(), content(draft));
@@ -221,8 +211,8 @@ pub fn text_content(visit: &Visit, markdown: &str) -> String {
     parts.join("\n\n")
 }
 
-/// Publish a draft: create what a first publish needs, upload the cover,
-/// write the document, and forget the cached state it changes.
+/// Publish a draft: create what a first publish needs, write the
+/// document, and forget the cached state it changes.
 pub async fn publish(
     state: &AppState,
     identity: &Identity,
@@ -270,14 +260,7 @@ pub async fn publish(
     )
     .await?;
 
-    let uploaded = match &draft.cover {
-        Some(cover) => Some(session.upload_blob(cover.bytes.clone(), cover.mime).await?),
-        None => None,
-    };
     let original = editing.map(VisitDocument::document);
-    let cover = uploaded
-        .as_ref()
-        .or_else(|| original.and_then(|d| d.cover_image.as_ref()));
 
     let path = if let Some(path) = original.and_then(|d| d.path.clone()) {
         path
@@ -293,7 +276,6 @@ pub async fn publish(
             path: &path,
             published_at: &published_at,
             updated_at: editing.map(|_| &now),
-            cover,
             original,
         },
     );
@@ -606,7 +588,6 @@ async fn forget_document(state: &AppState, did: &Did, rkey: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::Cover;
 
     #[test]
     fn slugs() {
@@ -664,7 +645,6 @@ mod tests {
                 "rating": 3
             }))
             .unwrap(),
-            cover: None,
             target: Target::Existing(
                 AtUri::parse(
                     "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1",
@@ -765,7 +745,6 @@ mod tests {
                 path: "/2026/09/a-room-with-the-lights-off",
                 published_at: &at,
                 updated_at: None,
-                cover: None,
                 original: None,
             },
         );
@@ -838,7 +817,6 @@ mod tests {
                 path: "/2026/08/old-title",
                 published_at: &published,
                 updated_at: Some(&updated),
-                cover: original.cover_image.as_ref(),
                 original: Some(&original),
             },
         );
@@ -849,7 +827,7 @@ mod tests {
         assert_eq!(doc["description"], "new excerpt");
         assert_eq!(
             doc["coverImage"]["ref"]["$link"], "bafyold",
-            "the cover is kept"
+            "a foreign cover is carried over, not ours to touch (D32)"
         );
         assert_eq!(doc["bskyPostRef"]["cid"], "bafy");
         assert_eq!(doc["labels"]["values"][0]["val"], "!warn");
@@ -866,35 +844,5 @@ mod tests {
             doc["content"]["body"]["text"]["markdown"],
             "Forty-six *minutes*.\n\nNine notes."
         );
-    }
-
-    #[test]
-    fn a_new_cover_replaces_the_old_one() {
-        let site =
-            AtUri::parse("at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1")
-                .unwrap();
-        let at = Datetime::parse("2026-09-09T15:00:00.000Z").unwrap();
-        let blob: BlobRef = serde_json::from_value(json!({
-            "$type": "blob", "ref": {"$link": "bafynew"}, "mimeType": "image/jpeg", "size": 5
-        }))
-        .unwrap();
-        let mut d = draft();
-        d.cover = Some(Cover {
-            bytes: vec![1],
-            mime: "image/jpeg",
-        });
-        let doc = build_document(
-            &d,
-            &Placement {
-                site: &site,
-                path: "/p",
-                published_at: &at,
-                updated_at: None,
-                cover: Some(&blob),
-                original: None,
-            },
-        );
-        assert_eq!(doc["coverImage"]["ref"]["$link"], "bafynew");
-        assert_eq!(doc["coverImage"]["mimeType"], "image/jpeg");
     }
 }

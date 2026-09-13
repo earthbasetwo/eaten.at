@@ -67,7 +67,7 @@ EATEN_AT_LEXICON_APP_PASSWORD=… just lexicons-publish        # write what diff
 | `/at/{did}/{pub}/{doc}` | One document, with a canonical link to its publication origin. |
 | `/at/{did}/{pub}/tagged/{tag}` | Write-ups in that publication carrying a tag. |
 | `/at/{did}/{pub}/feed.xml` | RSS. |
-| `/img/{did}/{doc}` | The cover-image proxy. `?size=og` gives a 1200×630 rendition; `?kind=icon` a publication icon. |
+| `/img/{did}/{doc}` | The document-image proxy: a `coverImage` another client set, else a generated placeholder. `?size=og` gives a 1200×630 rendition; `?kind=icon` a publication icon. |
 | `/write`, `/write/{doc}` | The editor, for signed-in authors. |
 | `/settings` | Hosted-subdomain settings for the author's publications. |
 | `/healthz` | Liveness. |

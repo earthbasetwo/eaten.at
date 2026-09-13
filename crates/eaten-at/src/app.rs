@@ -27,7 +27,7 @@ pub fn router(state: AppState) -> Router {
 }
 
 fn routes(state: AppState) -> Router {
-    // The editor accepts an image upload, so its body cap is its own.
+    // The editor accepts a long write-up, so its body cap is its own.
     let editor = Router::new()
         .route("/write", get(write::new_form).post(write::submit_new))
         .route(

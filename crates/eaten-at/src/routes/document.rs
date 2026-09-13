@@ -72,7 +72,7 @@ pub async fn document_page(
     let theme = view::theme(&publication.value);
     let card = visit_doc
         .as_ref()
-        .map(|visit_doc| view::visit_card(&did, visit_doc));
+        .map(|visit_doc| view::card_for(&visit_doc.visit));
     let thread = comment_thread(&state, &record.value).await;
     let publication_path = paths::publication(&did, &pub_rkey);
     let footer = Footer {
