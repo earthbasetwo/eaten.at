@@ -63,18 +63,40 @@ async function createRecord(agent, collection, record) {
 const publisher = await account('eaten.test')
 const alice = await account('alice.test')
 
+// Two publications: Field Notes has no theme, so it renders in the site's
+// own palette; After Hours carries an author theme, so the theme path (and
+// its contrast clamp) is exercised too. A dark ground is the harder case:
+// the raised and sunken surfaces have to move the other way.
 const { uri: publicationUri } = await createRecord(alice.agent, 'site.standard.publication', {
   $type: 'site.standard.publication',
   url: 'https://alice.eaten.test',
   name: 'Field Notes',
   description: 'Write-ups by Alice, one subject at a time.',
+})
+const { uri: themedPublicationUri } = await createRecord(alice.agent, 'site.standard.publication', {
+  $type: 'site.standard.publication',
+  url: 'https://afterhours.alice.eaten.test',
+  name: 'After Hours',
+  description: 'Late-night write-ups, in the author\'s own colours.',
   // Each colour is a union member and the PDS validates it, so $type is required.
   basicTheme: {
     $type: 'site.standard.theme.basic',
-    background: rgb(250, 248, 240),
-    foreground: rgb(200, 200, 190), // fails contrast on purpose
-    accent: rgb(0, 132, 180),
-    accentForeground: rgb(255, 255, 255),
+    background: rgb(34, 24, 31),
+    foreground: rgb(110, 96, 104), // fails contrast on purpose
+    accent: rgb(236, 128, 96),
+    accentForeground: rgb(34, 24, 31),
+  },
+})
+// With two publications, a bare handle URL would show a chooser; the
+// preference sends it to Field Notes, the page people open first.
+await alice.agent.com.atproto.repo.putRecord({
+  repo: alice.did,
+  collection: 'at.eaten.preferences',
+  rkey: 'self',
+  record: {
+    $type: 'at.eaten.preferences',
+    defaultPublication: publicationUri,
+    createdAt: new Date().toISOString(),
   },
 })
 
@@ -157,13 +179,43 @@ Tags are the author's own words. \`long read\` is one here, matched
 loosely on the tag page, so \`Long  Read\` finds it too.`,
   },
 ]
+// The themed publication's write-ups: enough for a listing, a document, and
+// a tag page in the author's colours.
+const themedDocs = [
+  {
+    site: themedPublicationUri,
+    title: 'A themed write-up',
+    path: '/2026/09/themed-subject',
+    publishedAt: '2026-09-05T22:00:00.000Z',
+    tags: ['late'],
+    description: 'The same pages as Field Notes, recoloured by the publication\'s theme.',
+    subject: 'Themed Subject',
+    urls: [{ url: 'https://example.com/themed', service: 'officialSite' }],
+    markdown: `This publication declares a dark theme whose text colour fails contrast
+on purpose, so the page shows the clamped colours, not the author's.
+
+> Cards, fields, and panels take their surfaces from the theme too.
+
+Everything else, the type, the spacing, the shapes, stays the site's.`,
+  },
+  {
+    site: themedPublicationUri,
+    title: 'Another themed write-up',
+    path: '/2026/08/second-themed-subject',
+    publishedAt: '2026-08-20T23:30:00.000Z',
+    tags: ['late', 'short'],
+    subject: 'Second Themed Subject',
+    urls: [],
+    markdown: `A second entry, so the listing has more than one card.`,
+  },
+]
 // Created oldest first so record keys (TIDs) run in publish order, as they
 // would for a real author; listings page through keys, newest first.
 const docUris = []
-for (const d of [...docs].reverse()) {
+for (const d of [...docs, ...themedDocs].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))) {
   const { uri } = await createRecord(alice.agent, 'site.standard.document', {
     $type: 'site.standard.document',
-    site: publicationUri,
+    site: d.site ?? publicationUri,
     title: d.title,
     path: d.path,
     publishedAt: d.publishedAt,
@@ -205,6 +257,7 @@ const envDev = [
   `EATEN_AT_LEXICON_APP_PASSWORD=${publisher.appPassword}`,
   `EATEN_AT_DEV_PDS=http://localhost:${PDS_PORT}`,
   `EATEN_AT_DEV_ALICE_DID=${alice.did}`,
+  `EATEN_AT_DEV_ALICE_THEMED_PUBLICATION=${themedPublicationUri.split('/').pop()}`,
   `EATEN_AT_DB=${DEV_CACHE}`,
   '',
 ].join('\n')
@@ -218,7 +271,8 @@ Local atproto network is up (in memory; Ctrl-C to stop).
 
   eaten.test  ${publisher.did}   lexicon publisher (app password in .env.dev)
   alice.test  ${alice.did}   author, password "${PASSWORD}"
-              publication ${publicationUri}
+              publication ${publicationUri}   Field Notes (site palette, the default)
+              publication ${themedPublicationUri}   After Hours (author theme)
               documents   ${docUris.join('\n              ')}
 
 Wrote .env.dev and cleared ${DEV_CACHE}. In another terminal:

@@ -16,6 +16,10 @@ path = "src/main.rs"
 name = "publish-lexicons"
 path = "src/bin/publish_lexicons.rs"
 
+[[bin]]
+name = "dev-session"
+path = "src/bin/dev_session.rs"
+
 [dependencies]
 eaten-at-atproto.workspace = true
 eaten-at-web.workspace = true

@@ -24,7 +24,10 @@ Then open `http://127.0.0.1:3000/`. Type a handle into the lookup form, or go
 straight to a repository by DID: `/at/did:plc:…/`.
 
 `just check` runs formatting, clippy with warnings denied, and the tests.
-`just run` runs the server.
+`just run` runs the server. `just visual-check` renders every page, signed
+out and signed in, in headless Chrome against the local network and fails on
+errors, CSP violations, missing fonts, or horizontal scrolling (see
+`docs/local-dev.md`).
 
 ### Configuration
 

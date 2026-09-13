@@ -58,10 +58,16 @@ This starts a PLC on `localhost:2582` and a PDS on `localhost:2583`, creates
 two accounts, seeds records, and writes `.env.dev`:
 
 - **`eaten.test`**, the lexicon publisher, with an app password.
-- **`alice.test`**, an author with a themed publication ("Field Notes"),
-  three write-ups carrying an `at.eaten.subject` (one with a description,
-  one with a Bluesky post reference so the comment section renders), and
-  one plain document without a subject, to prove the filtering.
+- **`alice.test`**, an author with two publications:
+  - **Field Notes**, with no theme, so it renders in the site's own
+    palette. It has three write-ups carrying an `at.eaten.subject` (one
+    with a description, one with a Bluesky post reference so the comment
+    section renders) and one plain document without a subject, to prove
+    the filtering. An `at.eaten.preferences` record makes it the default,
+    so `/@alice.test` opens it.
+  - **After Hours**, with a dark author theme whose text colour fails
+    contrast on purpose, and two write-ups, so the theme path and its
+    contrast clamp are exercised.
 
 Set `ATPROTO_DIR` if the checkout is somewhere other than `../atproto`.
 
@@ -74,6 +80,42 @@ just lexicons-publish-dev     # publish, then verify via _lexicon.eaten.at
 ```
 
 Then open `http://127.0.0.1:3000/@alice.test`.
+
+## Checking every page automatically
+
+With `just dev-env` running:
+
+```
+just visual-check
+```
+
+This builds the app from the working tree and starts it on port 3100
+(`VISUAL_CHECK_PORT`), so a `just run-dev` on 3000 is left alone. It then
+opens every page in headless Chrome at 1080px and 390px wide: the landing,
+lookup, sign-in, and not-found pages and both publications' front, document,
+and tag pages signed out (asserting Field Notes carries no theme and After
+Hours does),
+and the landing, editor (empty, with validation errors, editing, previewing),
+delete, crosspost, and settings pages signed in. A page view fails when it:
+
+- returns an unexpected status or ends up at an unexpected URL (a signed-in
+  page that bounces to `/login` fails),
+- logs a JavaScript error, an exception, or a CSP violation,
+- has a subresource that fails to load (`/favicon.ico` aside),
+- fails to load Instrument Serif, DM Sans, or JetBrains Mono, or
+- is wider than the viewport.
+
+Full-page screenshots of every view land in `target/visual-check/`. The
+script exits non-zero on any failure. Chrome is found in the usual install
+locations, or set `CHROME` to its executable.
+
+Signing in skips OAuth. `dev-session <did>` writes the same browser-session
+row a completed sign-in writes into `EATEN_AT_DB` and prints the cookie; it
+refuses to run unless `EATEN_AT_DEV_INSECURE=1` and the public URL is a
+loopback address. No OAuth tokens exist for such a session, so pages that
+read work and anything that writes to the repository fails as an expired
+sign-in would. The OAuth handshake itself is covered by the mock-server
+tests in `crates/eaten-at/tests/auth.rs`.
 
 To sign in, open `http://127.0.0.1:3000/login` and enter `alice.test`; the
 PDS's own page asks for the password (`dev-password`) and consent, then
@@ -100,6 +142,7 @@ for a day, handle lookups for an hour) and every page would fail with
 | `EATEN_AT_DEV_DNS_TXT` | A fixed TXT answer for `_lexicon.eaten.at`, standing in for the real DNS record. The name comes from the NSID authority, not from the publisher's handle, so it is the production name even locally. The first `=` separates name from value. |
 | `EATEN_AT_LEXICON_*` | Credentials for the publish tool. |
 | `EATEN_AT_DEV_PDS`, `EATEN_AT_DEV_ALICE_DID` | Used by the `just` recipes and handy for `curl`. |
+| `EATEN_AT_DEV_ALICE_THEMED_PUBLICATION` | The record key of the themed publication; its front page is `/at/$EATEN_AT_DEV_ALICE_DID/<key>/`. Used by `just visual-check`. |
 | `EATEN_AT_DB=.dev-cache.db` | A separate database for dev runs (cache, OAuth state, sessions), wiped by the runner on every start. |
 
 Not overridden: `EATEN_AT_BSKY_APPVIEW`. The local network has no AppView, so comment threads are read from the public one; a seeded document gets a thread by adding a `bskyPostRef` naming a real Bluesky post to its record (`putRecord` on the local PDS).
