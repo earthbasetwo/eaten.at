@@ -22,32 +22,48 @@ pub const INLINE_SCRIPTS: &[&str] = &[EDITOR_SCRIPT];
 pub const JS_BUDGET_BYTES: usize = 5 * 1024;
 
 /// Self-hosted web fonts (`static/fonts/OFL.txt` has the licences).
-/// Latin and latin-ext subsets of the variable faces; the stylesheet's
+/// Latin and latin-ext subsets of each face; the stylesheet's
 /// `unicode-range` descriptors decide which ones a page downloads.
 const FONT_FILES: &[(&str, &[u8])] = &[
     (
-        "newsreader-latin.woff2",
-        include_bytes!("../static/fonts/newsreader-latin.woff2"),
+        "instrument-serif-latin.woff2",
+        include_bytes!("../static/fonts/instrument-serif-latin.woff2"),
     ),
     (
-        "newsreader-latin-ext.woff2",
-        include_bytes!("../static/fonts/newsreader-latin-ext.woff2"),
+        "instrument-serif-latin-ext.woff2",
+        include_bytes!("../static/fonts/instrument-serif-latin-ext.woff2"),
     ),
     (
-        "newsreader-italic-latin.woff2",
-        include_bytes!("../static/fonts/newsreader-italic-latin.woff2"),
+        "instrument-serif-italic-latin.woff2",
+        include_bytes!("../static/fonts/instrument-serif-italic-latin.woff2"),
     ),
     (
-        "newsreader-italic-latin-ext.woff2",
-        include_bytes!("../static/fonts/newsreader-italic-latin-ext.woff2"),
+        "instrument-serif-italic-latin-ext.woff2",
+        include_bytes!("../static/fonts/instrument-serif-italic-latin-ext.woff2"),
     ),
     (
-        "spline-sans-mono-latin.woff2",
-        include_bytes!("../static/fonts/spline-sans-mono-latin.woff2"),
+        "dm-sans-latin.woff2",
+        include_bytes!("../static/fonts/dm-sans-latin.woff2"),
     ),
     (
-        "spline-sans-mono-latin-ext.woff2",
-        include_bytes!("../static/fonts/spline-sans-mono-latin-ext.woff2"),
+        "dm-sans-latin-ext.woff2",
+        include_bytes!("../static/fonts/dm-sans-latin-ext.woff2"),
+    ),
+    (
+        "dm-sans-italic-latin.woff2",
+        include_bytes!("../static/fonts/dm-sans-italic-latin.woff2"),
+    ),
+    (
+        "dm-sans-italic-latin-ext.woff2",
+        include_bytes!("../static/fonts/dm-sans-italic-latin-ext.woff2"),
+    ),
+    (
+        "jetbrains-mono-latin.woff2",
+        include_bytes!("../static/fonts/jetbrains-mono-latin.woff2"),
+    ),
+    (
+        "jetbrains-mono-latin-ext.woff2",
+        include_bytes!("../static/fonts/jetbrains-mono-latin-ext.woff2"),
     ),
 ];
 
@@ -189,7 +205,7 @@ mod tests {
         let hashed = lookup(&ASSETS[0].hashed_name).unwrap();
         assert!(hashed.immutable);
         assert!(std::ptr::eq(hashed.asset, css.asset));
-        let font = lookup("newsreader-latin.woff2").unwrap();
+        let font = lookup("dm-sans-latin.woff2").unwrap();
         assert_eq!(font.asset.content_type, "font/woff2");
         assert!(!font.asset.body.is_empty());
         assert_eq!(lookup("app.deadbeef.css"), None);
@@ -200,7 +216,7 @@ mod tests {
     #[test]
     fn stylesheet_references_only_hashed_fonts_that_exist() {
         let css = css();
-        assert!(!css.contains("url(\"/static/newsreader-latin.woff2\")"));
+        assert!(!css.contains("url(\"/static/dm-sans-latin.woff2\")"));
         for font in FONT_FILES {
             let (stem, _) = font.0.rsplit_once('.').unwrap();
             let asset = lookup(font.0).unwrap().asset;

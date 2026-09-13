@@ -44,6 +44,17 @@ something.
 | Snapshot tests for HTML | `insta` | substring asserts | Rendered maud output is stable; snapshots catch regressions in meta tags and structure cheaply. |
 | Image re-encoding | `image` crate to JPEG | `libvips` bindings | Pure Rust, no system deps, good enough for cover-sized images. |
 
+## Decided for eaten.at
+
+| Date | Decision | Choice |
+|---|---|---|
+| 2026-09-12 | Visual design | The Campari design system (`docs/design-handoff/campari/`) replaces album-report's "paper journal" direction. `docs/design.md` has the rules. |
+| 2026-09-12 | Publication themes under Campari | Kept. Campari is the default palette; an author's four colors replace ground, ink, and accent, and the other Campari tokens are derived from them (`theme.rs` for the raised and sunken surfaces, `color-mix` for ink shades and borders). |
+| 2026-09-12 | Dark mode | None. Campari is a light palette and the site stays light whatever the system preference. |
+| 2026-09-12 | Listings | Cards (raised surface, border, 12px radius), not hairlined rows. |
+| 2026-09-12 | Prose size | Long-form prose is DM Sans at 17→18px; the rest of the interface uses Campari's exact 14–15px body scale. |
+| 2026-09-12 | Fonts | Instrument Serif, DM Sans, and JetBrains Mono are self-hosted woff2 subsets, not loaded from Google Fonts, so the CSP keeps every request same-origin. |
+
 ## Left over from the fork
 
 Cosmetic only; nothing here affects behaviour.

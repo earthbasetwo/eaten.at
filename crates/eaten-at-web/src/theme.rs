@@ -1,5 +1,12 @@
 //! Publication themes: four author-chosen colors, clamped to readable
 //! contrast and rendered into CSS custom properties as bare integers.
+//!
+//! The stylesheet needs two more grounds than an author gives: a raised
+//! surface for cards and fields, and a sunken one for bands and chips.
+//! Which way those move depends on whether the ground is light or dark,
+//! which CSS cannot ask, so they are derived here and emitted alongside
+//! the four author colors. Everything else (ink shades, borders) the
+//! stylesheet mixes from the foreground and background itself.
 
 use std::fmt::Write as _;
 
@@ -82,25 +89,64 @@ pub struct Theme {
     pub accent_foreground: Rgb,
 }
 
+/// How far the raised surface moves toward white from a light ground.
+/// Campari's own raised surface sits about halfway to white from its
+/// page ground.
+const RAISE_LIGHT: f64 = 0.5;
+/// How far the raised surface moves toward white from a dark ground: a
+/// small step, so light text on it keeps its contrast.
+const RAISE_DARK: f64 = 0.06;
+/// How far the sunken surface moves toward black from a light ground.
+const SINK_LIGHT: f64 = 0.05;
+/// How far the sunken surface moves toward black from a dark ground.
+const SINK_DARK: f64 = 0.3;
+
 impl Theme {
-    /// Adjust text colors until every text/background pair meets
+    /// Adjust text colors until every text/ground pair meets
     /// [`MIN_CONTRAST`]. Backgrounds are kept as the author chose them;
-    /// the foreground is pushed toward black or white, whichever gets
-    /// there. Colors that already pass are returned untouched.
+    /// the foreground is pushed toward black or white, whichever the
+    /// background favours. Colors that already pass are returned untouched.
     ///
-    /// The accent is also checked as *link text on the page background*
-    /// and nudged the same way, since that is how it is mostly used.
+    /// Text is checked against all three grounds it is set on (the page,
+    /// the raised surface, and the sunken surface). The accent is checked
+    /// as *link text* on the page and the raised surface only: sunken
+    /// panels carry no accent text, a rule Campari's own palette needs
+    /// (its red on its sunken ground is 4.44).
+    /// Where a ground sits so close to mid-gray that no color reaches the
+    /// minimum on every surface, the result is the extreme (black or
+    /// white), which is the best available.
     #[must_use]
     pub fn clamped(self) -> Self {
+        let (raised, sunken) = (self.raised(), self.sunken());
         // The accent may move; its text must be checked against where it
         // ends up, not where the author put it.
-        let accent = ensure_contrast(self.accent, self.background);
+        let accent = ensure_contrast(self.accent, &[self.background, raised]);
         Self {
             background: self.background,
-            foreground: ensure_contrast(self.foreground, self.background),
+            foreground: ensure_contrast(self.foreground, &[self.background, raised, sunken]),
             accent,
-            accent_foreground: ensure_contrast(self.accent_foreground, accent),
+            accent_foreground: ensure_contrast(self.accent_foreground, &[accent]),
         }
+    }
+
+    /// The surface for cards, fields, and panels: lighter than the page.
+    pub fn raised(&self) -> Rgb {
+        let t = if is_light(self.background) {
+            RAISE_LIGHT
+        } else {
+            RAISE_DARK
+        };
+        self.background.mix(Rgb::WHITE, t)
+    }
+
+    /// The surface for bands, chips, and wells: darker than the page.
+    pub fn sunken(&self) -> Rgb {
+        let t = if is_light(self.background) {
+            SINK_LIGHT
+        } else {
+            SINK_DARK
+        };
+        self.background.mix(Rgb::BLACK, t)
     }
 
     /// The CSS custom property declarations for `:root`, containing only
@@ -112,6 +158,8 @@ impl Theme {
             ("--theme-fg", self.foreground),
             ("--theme-accent", self.accent),
             ("--theme-accent-fg", self.accent_foreground),
+            ("--theme-raised", self.raised()),
+            ("--theme-sunken", self.sunken()),
         ] {
             let _ = write!(out, "{name}: {};", color.channels());
         }
@@ -131,19 +179,36 @@ impl Theme {
 /// Blend steps tried when pushing a color toward its contrast target.
 const CLAMP_STEPS: u32 = 64;
 
-/// Move `fg` toward black or white until it contrasts with `bg`.
-fn ensure_contrast(fg: Rgb, bg: Rgb) -> Rgb {
-    if contrast_ratio(fg, bg) >= MIN_CONTRAST {
+/// Whether dark text reads better than light text on `bg`.
+fn is_light(bg: Rgb) -> bool {
+    contrast_ratio(Rgb::BLACK, bg) > contrast_ratio(Rgb::WHITE, bg)
+}
+
+/// Whether `fg` meets [`MIN_CONTRAST`] on every one of `grounds`.
+fn contrasts_with_all(fg: Rgb, grounds: &[Rgb]) -> bool {
+    grounds
+        .iter()
+        .all(|&bg| contrast_ratio(fg, bg) >= MIN_CONTRAST)
+}
+
+/// Move `fg` toward black or white until it contrasts with every one of
+/// `grounds`. The direction is the one the first ground favours; the
+/// rest are expected to be close to it in lightness.
+fn ensure_contrast(fg: Rgb, grounds: &[Rgb]) -> Rgb {
+    let Some(&first) = grounds.first() else {
+        return fg;
+    };
+    if contrasts_with_all(fg, grounds) {
         return fg;
     }
-    let target = if contrast_ratio(Rgb::WHITE, bg) >= contrast_ratio(Rgb::BLACK, bg) {
-        Rgb::WHITE
-    } else {
+    let target = if is_light(first) {
         Rgb::BLACK
+    } else {
+        Rgb::WHITE
     };
     for i in 1..=CLAMP_STEPS {
         let candidate = fg.mix(target, f64::from(i) / f64::from(CLAMP_STEPS));
-        if contrast_ratio(candidate, bg) >= MIN_CONTRAST {
+        if contrasts_with_all(candidate, grounds) {
             return candidate;
         }
     }
@@ -213,8 +278,64 @@ mod tests {
         // still reach 4.5 from it, and the clamp must terminate there.
         for v in (0..=255u8).step_by(5) {
             let bg = Rgb::new(v, v, v);
-            let fixed = ensure_contrast(bg, bg);
+            let fixed = ensure_contrast(bg, &[bg]);
             assert!(contrast_ratio(fixed, bg) >= MIN_CONTRAST, "bg {v}");
+        }
+    }
+
+    #[test]
+    fn surfaces_lift_and_sink_in_the_direction_the_ground_favours() {
+        let light = Theme {
+            background: Rgb::new(0xf7, 0xe7, 0xdc),
+            foreground: Rgb::new(0x40, 0x20, 0x1c),
+            accent: Rgb::new(0xc4, 0x1e, 0x2f),
+            accent_foreground: Rgb::new(0xfc, 0xf3, 0xeb),
+        };
+        assert!(light.raised().luminance() > light.background.luminance());
+        assert!(light.sunken().luminance() < light.background.luminance());
+        // Campari's own palette survives the clamp untouched.
+        assert_eq!(light.clamped(), light);
+
+        let dark = Theme {
+            background: Rgb::new(24, 20, 30),
+            foreground: Rgb::new(235, 230, 240),
+            accent: Rgb::new(255, 140, 120),
+            accent_foreground: Rgb::new(24, 20, 30),
+        };
+        assert!(dark.raised().luminance() > dark.background.luminance());
+        assert!(dark.sunken().luminance() < dark.background.luminance());
+        // The dark lift is a small step, not halfway to white.
+        assert!(contrast_ratio(dark.foreground, dark.raised()) >= MIN_CONTRAST);
+    }
+
+    #[test]
+    fn clamped_text_reads_on_every_surface() {
+        // Author grounds across the range, with text chosen to be as bad
+        // as possible (the ground itself). Mid-grays are left out: there
+        // no single color can reach the minimum on all three surfaces,
+        // and the clamp settles on black or white instead.
+        for v in (0..=255u8).step_by(5).filter(|v| !(90..=150).contains(v)) {
+            let bg = Rgb::new(v, v.saturating_sub(10), v.saturating_add(5));
+            let theme = Theme {
+                background: bg,
+                foreground: bg,
+                accent: bg,
+                accent_foreground: bg,
+            }
+            .clamped();
+            for ground in [theme.background, theme.raised(), theme.sunken()] {
+                assert!(
+                    contrast_ratio(theme.foreground, ground) >= MIN_CONTRAST,
+                    "fg on {ground:?}, bg {v}"
+                );
+            }
+            for ground in [theme.background, theme.raised()] {
+                assert!(
+                    contrast_ratio(theme.accent, ground) >= MIN_CONTRAST,
+                    "accent on {ground:?}, bg {v}"
+                );
+            }
+            assert!(contrast_ratio(theme.accent_foreground, theme.accent) >= MIN_CONTRAST);
         }
     }
 
@@ -229,7 +350,7 @@ mod tests {
         let decl = theme.css_declarations();
         assert_eq!(
             decl,
-            "--theme-bg: 1 2 3;--theme-fg: 250 251 252;--theme-accent: 120 190 245;--theme-accent-fg: 0 0 0;"
+            "--theme-bg: 1 2 3;--theme-fg: 250 251 252;--theme-accent: 120 190 245;--theme-accent-fg: 0 0 0;--theme-raised: 16 17 18;--theme-sunken: 1 1 2;"
         );
         assert!(decl.bytes().all(|b| b.is_ascii_digit()
             || b == b' '
