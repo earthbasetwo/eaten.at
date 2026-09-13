@@ -41,6 +41,8 @@ Everything is an environment variable; a `.env` file is loaded by `just`.
 | `EATEN_AT_PUBLIC_URL` | `http://<listen address>` | Our public origin, used for absolute URLs in meta tags and feeds. Set to `https://eaten.at` in production. |
 | `EATEN_AT_OAUTH_KEY_FILE` | unset | Path of the private JWK that makes the app a confidential OAuth client; created on first start. Unset, the app is a public client. |
 | `EATEN_AT_BSKY_APPVIEW` | `https://public.api.bsky.app` | The Bluesky AppView that comment threads are read from (unauthenticated `getPostThread`, cached five minutes). |
+| `EATEN_AT_PLACES_API_URL` | `https://api.openplacesapi.com` | The Open Places API, which serves Overture Maps places for the editor's place search. |
+| `EATEN_AT_PLACES_API_KEY` | unset | The Open Places API key. Unset, place search is disabled and the editor takes places by hand. Never used from a browser. |
 | `RUST_LOG` | `info` | Log filter. `debug` shows cache misses, skipped records, and upstream fallbacks. |
 
 The app expects to sit behind a TLS-terminating reverse proxy that sets
@@ -68,7 +70,7 @@ EATEN_AT_LEXICON_APP_PASSWORD=… just lexicons-publish        # write what diff
 | `/at/{did}/{pub}/tagged/{tag}` | Write-ups in that publication carrying a tag. |
 | `/at/{did}/{pub}/feed.xml` | RSS. |
 | `/img/{did}/{doc}` | The document-image proxy: a `coverImage` another client set, else a generated placeholder. `?size=og` gives a 1200×630 rendition; `?kind=icon` a publication icon. |
-| `/write`, `/write/{doc}` | The editor, for signed-in authors. |
+| `/write`, `/write/{doc}` | The editor, for signed-in authors. A new write-up starts by searching for the place near the browser's location. |
 | `/settings` | Hosted-subdomain settings for the author's publications. |
 | `/healthz` | Liveness. |
 

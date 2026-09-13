@@ -6,13 +6,16 @@
 //
 //   ATPROTO_DIR=../atproto node scripts/dev-env.mjs
 //
-// PLC_PORT and PDS_PORT override the ports (default 2582 and 2583), so a
-// second local network can run beside another project's.
+// PLC_PORT, PDS_PORT, and PLACES_PORT override the ports (default 2582,
+// 2583, and 2584), so a second local network can run beside another
+// project's. The third is a stub of the Open Places API with canned
+// results, so the editor's place search works offline.
 //
 // The network is in memory: everything is recreated on each start. Stop
 // with Ctrl-C.
 
 import { rm, writeFile } from 'node:fs/promises'
+import http from 'node:http'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -21,6 +24,7 @@ const ROOT = path.resolve(HERE, '..')
 const ATPROTO_DIR = path.resolve(ROOT, process.env.ATPROTO_DIR ?? '../atproto')
 const PLC_PORT = Number(process.env.PLC_PORT ?? 2582)
 const PDS_PORT = Number(process.env.PDS_PORT ?? 2583)
+const PLACES_PORT = Number(process.env.PLACES_PORT ?? 2584)
 const PASSWORD = 'dev-password'
 // The app's cache for dev runs. Wiped on every start: the network's DIDs
 // change each time, and cached identities would point at repos that no
@@ -288,6 +292,57 @@ await createRecord(alice.agent, 'site.standard.document', {
   textContent: 'Just a blog post.',
 })
 
+// A stand-in for the Open Places API (GET /v1/places): the same three
+// places whatever the query, at the shape the real API answers with. A
+// query containing "nothing" finds nothing; one containing "quota" is
+// refused as over quota, so the editor's unavailable state can be seen.
+const PLACES = [
+  {
+    place_id: 'overture:76f1250d-8e38-40b3-a021-bfe1c16b4e1c',
+    name: 'Noodle House', lat: 40.701607, lon: -73.986565, distance_mi: 0.4,
+    category: 'noodle_restaurant', categories: ['noodle_restaurant'],
+    address: { formatted: '12 Example Lane', street: '12 Example Lane', locality: 'Brooklyn', region: 'ny', postal_code: '11201', country_code: 'US' },
+    website: 'https://example.com/noodle-house', confidence: 0.97, operating_status: 'open',
+  },
+  {
+    place_id: 'overture:44017831-5500-4780-a4e7-a8fac208e6fe',
+    name: 'Corner Café', lat: 40.68884, lon: -73.97991, distance_mi: 1.2,
+    category: 'cafe', categories: ['cafe'],
+    address: { street: '3 Example Square', locality: 'Brooklyn', region: 'ny', postal_code: '11217', country_code: 'US' },
+    website: 'http://example.com/corner-cafe', confidence: 0.9, operating_status: 'open',
+  },
+  {
+    place_id: 'overture:9b95db77-1739-4ab5-b427-7692069ca574',
+    name: 'Night Market', lat: 40.691357, lon: -73.982471, distance_mi: 2.6,
+    category: 'restaurant', categories: ['restaurant'],
+    address: { locality: 'Brooklyn', country_code: 'US' },
+    confidence: 0.72,
+  },
+]
+const places = http.createServer((req, res) => {
+  const url = new URL(req.url, `http://localhost:${PLACES_PORT}`)
+  const reply = (status, body) => {
+    res.writeHead(status, { 'content-type': 'application/json', 'x-request-id': 'dev', 'cache-control': 'no-store' })
+    res.end(JSON.stringify(body))
+  }
+  if (req.method !== 'GET' || url.pathname !== '/v1/places') {
+    return reply(404, { error: { code: 'not_found', message: 'No such endpoint.' } })
+  }
+  if (req.headers.authorization !== 'Bearer dev-key') {
+    return reply(401, { error: { code: 'unauthenticated', message: 'Missing bearer API key.' } })
+  }
+  const q = (url.searchParams.get('q') ?? '').toLowerCase()
+  if (!url.searchParams.get('lat') || !url.searchParams.get('lon')) {
+    return reply(400, { error: { code: 'validation_error', message: 'lat and lon are required.' } })
+  }
+  if (q.includes('quota')) {
+    return reply(402, { error: { code: 'quota_exhausted', message: 'Monthly quota exhausted.' } })
+  }
+  const results = q.includes('nothing') ? [] : PLACES
+  reply(200, { results, meta: { request_id: 'dev', data_source: 'overture', data_release: '2026-08-19.0', q, warnings: [] } })
+})
+await new Promise((resolve) => places.listen(PLACES_PORT, '127.0.0.1', resolve))
+
 const envDev = [
   `# Written by scripts/dev-env.mjs at ${new Date().toISOString()}. Regenerated on every start.`,
   'EATEN_AT_DEV_INSECURE=1',
@@ -302,6 +357,10 @@ const envDev = [
   `EATEN_AT_DEV_ALICE_DID=${alice.did}`,
   `EATEN_AT_DEV_ALICE_THEMED_PUBLICATION=${themedPublicationUri.split('/').pop()}`,
   `EATEN_AT_DB=${DEV_CACHE}`,
+  // The stub above stands in for Open Places; the real key in .env is
+  // never used against the local network.
+  `EATEN_AT_PLACES_API_URL=http://localhost:${PLACES_PORT}`,
+  'EATEN_AT_PLACES_API_KEY=dev-key',
   '',
 ].join('\n')
 await writeFile(path.join(ROOT, '.env.dev'), envDev)
@@ -311,6 +370,7 @@ Local atproto network is up (in memory; Ctrl-C to stop).
 
   PLC   http://localhost:${PLC_PORT}
   PDS   http://localhost:${PDS_PORT}
+  Open Places stub  http://localhost:${PLACES_PORT}   (any search finds three places; "nothing" finds none; "quota" is refused)
 
   eaten.test  ${publisher.did}   lexicon publisher (app password in .env.dev)
   alice.test  ${alice.did}   author, password "${PASSWORD}"
@@ -327,6 +387,7 @@ Wrote .env.dev and cleared ${DEV_CACHE}. In another terminal:
 
 const shutdown = async () => {
   console.log('\nStopping dev network…')
+  places.close()
   await network.close()
   process.exit(0)
 }

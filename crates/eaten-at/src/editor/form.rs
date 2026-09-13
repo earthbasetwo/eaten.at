@@ -4,6 +4,7 @@ use eaten_at_atproto::lexicon::{Document, ExternalUrl, KnownService, KnownValue,
 
 use super::MAX_LINKS;
 use crate::model::{body_of, Body};
+use crate::places::Hit;
 
 /// Everything the editor form carries, exactly as posted or prefilled.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -15,7 +16,15 @@ pub struct EditorForm {
     pub place_address: String,
     /// The price band select: blank, or `1` to `4`.
     pub place_price: String,
-    /// The Overture GERS id, as typed or as picked (plan 06).
+    /// Where the place came from, and so which state the editor is in.
+    pub place_mode: PlaceMode,
+    /// The search box on the choosing state.
+    pub place_query: String,
+    /// The searcher's point in decimal degrees, from the browser, carried
+    /// between posts so a second search need not ask again.
+    pub near_lat: String,
+    pub near_lon: String,
+    /// The Overture GERS id of the picked place; blank by hand.
     pub gers_id: String,
     /// The place's coordinates in microdegrees, hidden fields filled by a
     /// pick (plan 06) or carried from the record; blank when unknown.
@@ -38,6 +47,36 @@ pub struct EditorForm {
     /// The post's text, as typed. Blank means the default, the place's
     /// name.
     pub post_text: String,
+}
+
+/// How the place in the form was arrived at: still choosing one, matched
+/// to an Overture listing by a search, or entered by hand (plan 06).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PlaceMode {
+    #[default]
+    Choosing,
+    Picked,
+    Manual,
+}
+
+impl PlaceMode {
+    /// The hidden field's value.
+    pub fn value(self) -> &'static str {
+        match self {
+            Self::Choosing => "choosing",
+            Self::Picked => "picked",
+            Self::Manual => "manual",
+        }
+    }
+
+    /// The mode a posted value names; anything else means choosing.
+    pub fn parse(value: &str) -> Self {
+        match value.trim() {
+            "picked" => Self::Picked,
+            "manual" => Self::Manual,
+            _ => Self::Choosing,
+        }
+    }
 }
 
 /// One external link row.
@@ -163,6 +202,14 @@ impl RowKind {
 pub enum Action {
     AddRow(RowKind),
     RemoveRow(RowKind, usize),
+    /// Search for the place named in the search box.
+    Search,
+    /// Take the numbered search result as the place.
+    Pick(usize),
+    /// Enter the place by hand, with no listing behind it.
+    Manual,
+    /// Back to choosing a place, keeping everything else.
+    ChangePlace,
     Preview,
     Publish,
 }
@@ -173,9 +220,15 @@ impl Action {
         match value {
             "preview" => Some(Self::Preview),
             "publish" => Some(Self::Publish),
+            "search" => Some(Self::Search),
+            "manual" => Some(Self::Manual),
+            "change_place" => Some(Self::ChangePlace),
             other => {
                 if let Some(kind) = other.strip_prefix("add_") {
                     return RowKind::from_name(kind).map(Self::AddRow);
+                }
+                if let Some(index) = other.strip_prefix("pick:") {
+                    return index.parse().ok().map(Self::Pick);
                 }
                 let (kind, index) = other.strip_prefix("remove_")?.split_once(':')?;
                 Some(Self::RemoveRow(
@@ -190,6 +243,10 @@ impl Action {
         match self {
             Self::AddRow(kind) => format!("add_{}", kind.name()),
             Self::RemoveRow(kind, i) => format!("remove_{}:{i}", kind.name()),
+            Self::Search => "search".to_owned(),
+            Self::Pick(i) => format!("pick:{i}"),
+            Self::Manual => "manual".to_owned(),
+            Self::ChangePlace => "change_place".to_owned(),
             Self::Preview => "preview".to_owned(),
             Self::Publish => "publish".to_owned(),
         }
@@ -232,6 +289,14 @@ impl EditorForm {
                 .price
                 .map(|p| p.value().to_string())
                 .unwrap_or_default(),
+            place_mode: if visit.place.gers_id.is_some() {
+                PlaceMode::Picked
+            } else {
+                PlaceMode::Manual
+            },
+            place_query: String::new(),
+            near_lat: String::new(),
+            near_lon: String::new(),
             gers_id: visit.place.gers_id.clone().unwrap_or_default(),
             lat_e6: visit
                 .place
@@ -284,6 +349,10 @@ impl EditorForm {
                 "place_name" => form.place_name = value,
                 "place_address" => form.place_address = value,
                 "place_price" => form.place_price = value,
+                "place_mode" => form.place_mode = PlaceMode::parse(&value),
+                "place_query" => form.place_query = value,
+                "near_lat" => form.near_lat = value,
+                "near_lon" => form.near_lon = value,
                 "gers_id" => form.gers_id = value,
                 "lat_e6" => form.lat_e6 = value,
                 "lon_e6" => form.lon_e6 = value,
@@ -316,8 +385,10 @@ impl EditorForm {
         (form, action)
     }
 
-    /// Add or remove a row. Removing never empties a list: the last row
-    /// stays, cleared.
+    /// Apply a structural action: add or remove a row (removing never
+    /// empties a list: the last row stays, cleared), go back to
+    /// choosing, or choose to enter the place by hand. Searching and
+    /// picking need the network and are the route's business.
     pub fn apply(&mut self, action: &Action) {
         match action {
             Action::AddRow(kind) => match kind {
@@ -326,9 +397,55 @@ impl EditorForm {
             Action::RemoveRow(kind, i) => match kind {
                 RowKind::Link => remove_if_present(&mut self.links, *i),
             },
-            Action::Preview | Action::Publish => {}
+            Action::ChangePlace => self.change_place(),
+            Action::Manual => self.manual(),
+            Action::Search | Action::Pick(_) | Action::Preview | Action::Publish => {}
         }
         self.ensure_rows();
+    }
+
+    /// Back to choosing: the id and position go, the name becomes the
+    /// search, and everything else stays.
+    pub fn change_place(&mut self) {
+        self.place_mode = PlaceMode::Choosing;
+        self.place_query = self.place_name.trim().to_owned();
+        self.forget_listing();
+    }
+
+    /// Enter the place by hand: no listing, no id, no position.
+    pub fn manual(&mut self) {
+        self.place_mode = PlaceMode::Manual;
+        self.forget_listing();
+    }
+
+    /// Take a search hit as the place. The name and address are the
+    /// listing's (and stay editable); the website becomes the first link
+    /// when that row is free and the URL is `https`, the only kind a link
+    /// may be.
+    pub fn pick(&mut self, hit: &Hit) {
+        self.place_mode = PlaceMode::Picked;
+        self.gers_id.clone_from(&hit.gers_id);
+        self.place_name.clone_from(&hit.name);
+        self.place_address = hit.address.clone().unwrap_or_default();
+        self.lat_e6 = hit.lat_e6.to_string();
+        self.lon_e6 = hit.lon_e6.to_string();
+        if let Some(website) = hit.website.as_deref().filter(|w| w.starts_with("https://")) {
+            let free = self.links.first().is_some_and(|l| l.url.trim().is_empty());
+            let already = self.links.iter().any(|l| l.url.trim() == website);
+            if free && !already {
+                self.links[0] = LinkField {
+                    url: website.to_owned(),
+                    service: Choice::Known(KnownService::OfficialSite),
+                    label: String::new(),
+                };
+            }
+        }
+    }
+
+    fn forget_listing(&mut self) {
+        self.gers_id.clear();
+        self.lat_e6.clear();
+        self.lon_e6.clear();
     }
 
     fn ensure_rows(&mut self) {
@@ -374,10 +491,15 @@ mod tests {
         for action in [
             Action::AddRow(RowKind::Link),
             Action::RemoveRow(RowKind::Link, 0),
+            Action::Search,
+            Action::Pick(3),
+            Action::Manual,
+            Action::ChangePlace,
             Action::Preview,
         ] {
             assert_eq!(Action::parse(&action.value()), Some(action));
         }
+        assert_eq!(Action::parse("pick:x"), None);
         assert_eq!(Action::parse("remove_link:x"), None);
         assert_eq!(Action::parse("add_thing"), None);
         assert_eq!(Action::parse("remove_thing:1"), None);
@@ -396,6 +518,64 @@ mod tests {
         assert_eq!(form.links.len(), 11);
         form.apply(&Action::RemoveRow(RowKind::Link, 99));
         assert_eq!(form.links.len(), 11);
+    }
+
+    #[test]
+    fn picking_changing_and_manual_entry_move_between_modes() {
+        let hit = Hit {
+            gers_id: "76f1250d".into(),
+            name: "Devocion".into(),
+            address: Some("105 York St, Brooklyn, NY 11201".into()),
+            lat_e6: 40_701_607,
+            lon_e6: -73_986_565,
+            distance_mi: 0.9,
+            category: Some("coffee shop".into()),
+            website: Some("https://www.devocion.com/".into()),
+        };
+        let mut form = EditorForm::blank("new");
+        assert_eq!(form.place_mode, PlaceMode::Choosing);
+        form.body = "Good.".into();
+        form.pick(&hit);
+        assert_eq!(form.place_mode, PlaceMode::Picked);
+        assert_eq!(form.gers_id, "76f1250d");
+        assert_eq!(form.place_name, "Devocion");
+        assert_eq!(form.place_address, "105 York St, Brooklyn, NY 11201");
+        assert_eq!(
+            (form.lat_e6.as_str(), form.lon_e6.as_str()),
+            ("40701607", "-73986565")
+        );
+        assert_eq!(form.links[0].url, "https://www.devocion.com/");
+        assert_eq!(
+            form.links[0].service,
+            Choice::Known(KnownService::OfficialSite)
+        );
+        assert_eq!(form.body, "Good.", "the prose is untouched");
+
+        form.apply(&Action::ChangePlace);
+        assert_eq!(form.place_mode, PlaceMode::Choosing);
+        assert_eq!(form.place_query, "Devocion", "the name seeds the search");
+        assert_eq!(form.gers_id, "");
+        assert_eq!(form.lat_e6, "");
+        assert_eq!(form.place_name, "Devocion", "kept until a pick replaces it");
+        assert_eq!(form.links[0].url, "https://www.devocion.com/", "links stay");
+
+        // A plain-http website is not offered as a link, and a taken
+        // first row is left alone.
+        let mut form = EditorForm::blank("new");
+        form.pick(&Hit {
+            website: Some("http://katzsdelicatessen.com/".into()),
+            ..hit.clone()
+        });
+        assert_eq!(form.links[0].url, "");
+        form.links[0].url = "https://mine.example/".into();
+        form.pick(&hit);
+        assert_eq!(form.links[0].url, "https://mine.example/");
+
+        form.apply(&Action::Manual);
+        assert_eq!(form.place_mode, PlaceMode::Manual);
+        assert_eq!(form.gers_id, "");
+        assert_eq!(PlaceMode::parse("nonsense"), PlaceMode::Choosing);
+        assert_eq!(PlaceMode::parse(" picked "), PlaceMode::Picked);
     }
 
     #[test]

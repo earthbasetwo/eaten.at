@@ -7,6 +7,11 @@
   "use strict";
   var form = document.querySelector("form.editor");
   if (!form) return;
+  /* The choosing state (plan 06) is the server's: every field rides
+     along hidden, so there is nothing to keep and a draft from the
+     writing state would only be offered against the wrong fields. */
+  var mode = form.elements.place_mode;
+  if (mode && mode.value === "choosing") return;
   var key = "ea:draft:" + location.pathname;
   var store = null;
   try { store = window.localStorage; } catch (e) { store = null; }
@@ -93,7 +98,7 @@
   form.addEventListener("change", scheduleSave);
   form.addEventListener("submit", function (e) {
     var action = e.submitter && e.submitter.value;
-    if (action === "publish") forget(); else save();
+    if (action === "publish" || action === "change_place") forget(); else save();
   });
   fields().forEach(grow);
 })();

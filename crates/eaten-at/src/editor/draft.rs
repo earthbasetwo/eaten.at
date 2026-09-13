@@ -10,7 +10,7 @@ use eaten_at_atproto::lexicon::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::form::{EditorForm, PUBLICATION_NEW};
+use super::form::{EditorForm, PlaceMode, PUBLICATION_NEW};
 use super::{MAX_BODY_BYTES, MAX_LINKS, MAX_TAGS};
 use crate::publish::MAX_POST_GRAPHEMES;
 use crate::tags;
@@ -124,7 +124,9 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     }
 
     let place_name = form.place_name.trim();
-    if place_name.is_empty() {
+    if form.place_mode == PlaceMode::Choosing {
+        errors.add("place_name", "Choose a place first.");
+    } else if place_name.is_empty() {
         errors.add("place_name", "Name the place.");
     } else if graphemes(place_name) > MAX_PLACE_NAME_GRAPHEMES {
         errors.add(
@@ -435,6 +437,10 @@ mod tests {
             place_name: "Promises".into(),
             place_address: " 1 Example St ".into(),
             place_price: "2".into(),
+            place_mode: PlaceMode::Picked,
+            place_query: String::new(),
+            near_lat: String::new(),
+            near_lon: String::new(),
             gers_id: " 08f2a5b6c7d8e9f0a1b2c3d4e5f60718 ".into(),
             lat_e6: "40688838".into(),
             lon_e6: "-73979914".into(),
@@ -568,6 +574,19 @@ mod tests {
     }
 
     #[test]
+    fn a_form_still_choosing_a_place_cannot_be_published() {
+        let pubs = [publication()];
+        let mut form = good_form();
+        form.place_mode = PlaceMode::Choosing;
+        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        assert_eq!(errors.get("place_name"), Some("Choose a place first."));
+        form.place_mode = PlaceMode::Manual;
+        form.gers_id = String::new();
+        let draft = validate(&form, &ctx(&pubs)).unwrap();
+        assert_eq!(draft.visit.place.gers_id, None, "by hand means no id");
+    }
+
+    #[test]
     fn coordinates_are_checked_one_half_at_a_time() {
         let pubs = [publication()];
         let mut form = good_form();
@@ -694,6 +713,7 @@ mod tests {
         }))
         .unwrap();
         let form = EditorForm::from_document(&doc, &original);
+        assert_eq!(form.place_mode, PlaceMode::Picked, "it has a gersId");
         assert_eq!(form.meal, Choice::Foreign("tea".into()));
         assert_eq!(form.gers_id, "sample-gers");
         assert_eq!(form.lat_e6, "1");

@@ -39,9 +39,13 @@ a class in that file.
 6. **A publication recolours, never restructures.** An author's theme
    replaces ground, ink, and accent; layout, type, spacing, and shape are
    fixed.
-7. **Server-rendered, no script.** Nothing here needs JavaScript. Fonts
-   are self-hosted and content-hashed, so no page makes a third-party
-   request and the strict CSP holds.
+7. **Server-rendered, no script.** Nothing here needs JavaScript, with
+   one exception: the editor's place search needs a point and only the
+   browser has one, so a small island asks for the location (D35).
+   Without it the search runs near the author's last visit, and a place
+   can always be entered by hand. Fonts are self-hosted and
+   content-hashed, so no page makes a third-party request and the
+   strict CSP holds.
 8. **Light only.** Campari is one palette. The site does not follow the
    system's dark preference.
 
@@ -203,6 +207,12 @@ same order.
 size, description in `ink-secondary`, the publication's URL in the mono
 voice. Settings reuses the same card with its hosting form inside.
 
+**Place result** (`.result-item`). A card in the editor's choosing
+state: the place's name in the display serif at card size, then the
+address, distance, and category in the mono voice, and a secondary
+"Write about this place" pill at the right. Things a reader picks
+between are cards.
+
 **Visit card** (`.visit-card`). A card between the page title and the
 prose: the place name (`.place-name`) in the display serif. Under the name, in the mono voice, the visit date, the
 meal, and the price band as dollar signs, separated by middle dots
@@ -296,7 +306,8 @@ one sentence saying what the site is.
 | Signing in | site | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
 | Sign-in failed | site | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
 | Status page | site | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
-| Editor `/write` | site | page head: no kicker or h1 for a new write-up; "Edit" kicker and the write-up's title when editing; a form-error summary when needed | optional preview (the document as readers see it, on a raised panel under a "Preview" kicker); then the form: write-up pane left, visit pane right (Place, Visit, Links, Details, Bluesky groups), stacked under 56rem |
+| Editor `/write`, choosing | site | page head: "Write" kicker, h1 "Where did you eat?" | the search box with one primary "Search", a status line for where the search looks, the results as place cards, "Not listed? Enter it by hand", and the Overture attribution |
+| Editor `/write`, writing | site | page head: "Write" kicker and the place's name (new), or "Edit" kicker and the write-up's title; a form-error summary when needed | optional preview (the document as readers see it, on a raised panel under a "Preview" kicker); then the form: write-up pane left, visit pane right (Place, Visit, Links, Details, Bluesky groups), stacked under 56rem |
 | Delete `/write/{rkey}/delete` | site | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
 | Crosspost `/write/{rkey}/crosspost` | site | page head: "Bluesky" kicker, h1 "Post “title” to Bluesky" (or "… is on Bluesky"), lede | the post text field and one primary "Post to Bluesky"; or, before permission, one primary "Allow posting and continue"; secondary "← Skip for now" either way; posted: the thread link and a secondary way back |
 | Settings `/settings` | site | page head: "Settings" kicker, h1 "Your publications", lede | chooser cards: name, current address in the metadata voice, a small form of two radio choices and one primary "Save" |
@@ -312,6 +323,11 @@ panes need the room.
 - **Hints** are the sans at small size in `ink-muted`.
 - **Problems** are a `.field-error` line in the accent directly under the
   control, and the control's border takes the accent too.
+- **Choosing a place** comes first for a new write-up. The Place group
+  of the writing state opens with a mono line saying where the place
+  came from ("Matched to an Overture Maps listing." or "Entered by
+  hand") and a "Change place" link button that returns to choosing with
+  everything else kept.
 - **Repeated fields** (links) are rows separated by hairlines, each
   ending in a "Remove" link button. Adding a row is a "+ Add a link"
   link button.

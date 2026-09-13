@@ -50,6 +50,9 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | D31 | Foreign vocabulary | Settled 2026-09-13: the editor never offers a free-text "Other" for a `knownValues` field. A value another client wrote is shown as its own selected option and preserved on rewrite, but not authored here. |
 | D32 | Cover image | Settled 2026-09-13: a write-up has no authored cover. `coverImage` is never written and is carried over like `links`; the image proxy shows a foreign one, else a generated placeholder. Photos replace it (plan 07). |
 | D33 | Place identity | Settled 2026-09-13: a place's identity is its Overture Maps GERS id in `at.eaten.place.gersId`; no other id services. `latE6` and `lonE6` carry its position in integer microdegrees, and the only map link is OpenStreetMap at that point. Supersedes D11. |
+| D34 | Place search | Settled 2026-09-13: the editor finds places through the Open Places API (Overture data), server-side with a key, results cached for an hour. A place not found can be entered by hand and carries no `gersId`. |
+| D35 | Location | Settled 2026-09-13: the search point comes from the browser's geolocation through a small script island (D3 amended: the one function that needs script), falling back to the author's most recent visit's coordinates, and failing that to manual entry. No geocoder. |
+| D36 | Open Places ids | Verified 2026-09-13 against release 2026-08-19: every `place_id` is `overture:` followed by a UUID, the Overture GERS id. The suffix is what `gersId` stores. |
 
 ## Stack choices
 

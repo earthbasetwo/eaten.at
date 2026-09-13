@@ -530,6 +530,25 @@
   .preview-document { max-inline-size: var(--column); }
   .preview .doc-footer a[href="#"] { pointer-events: none; }
   .restore { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: baseline; margin-block-end: var(--space-l); }
+  /* Choosing a place: the search box, a status line for where the search
+     looks, the results as cards, and the way out by hand. */
+  .editor-choosing { max-inline-size: var(--column); }
+  .editor-choosing > * + * { margin-block-start: var(--space-m); }
+  .search-field .lookup-row { align-items: center; }
+  .locate-status { min-block-size: 1.2em; }
+  .results { list-style: none; padding: 0; margin: var(--space-l) 0 0; display: flex; flex-direction: column; gap: var(--space-m); }
+  .result-item {
+    display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: center; justify-content: space-between;
+    padding: var(--card-pad);
+    background: var(--color-raised); border: 1px solid var(--color-border); border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+  }
+  .result-item:hover, .result-item:focus-within { border-color: var(--color-border-strong); }
+  .result-body { min-inline-size: 0; flex: 1 1 16rem; }
+  .result-name { font-family: var(--font-display); font-size: var(--text-card); line-height: 1.1; color: var(--color-ink); }
+  .result-meta { margin-block-start: var(--space-xs); }
+  .place-source { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-s); align-items: baseline; }
+  .attribution { margin-block-start: var(--space-l); }
   .hosting-form { margin-block-start: var(--space-m); max-inline-size: 34rem; }
   .hosting-form > * + * { margin-block-start: var(--space-m); }
   .choice {

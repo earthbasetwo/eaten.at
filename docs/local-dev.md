@@ -54,8 +54,12 @@ Terminal 1, from this repo:
 just dev-env
 ```
 
-This starts a PLC on `localhost:2582` and a PDS on `localhost:2583`, creates
-two accounts, seeds records, and writes `.env.dev`:
+This starts a PLC on `localhost:2582`, a PDS on `localhost:2583`, and a
+stub of the Open Places API on `localhost:2584` (any search finds the same
+three places; a query containing "nothing" finds none, one containing
+"quota" is refused, so every state of the place search can be seen without
+the network). It creates two accounts, seeds records, and writes
+`.env.dev`:
 
 - **`eaten.test`**, the lexicon publisher, with an app password.
 - **`alice.test`**, an author with two publications:
@@ -95,8 +99,12 @@ opens every page in headless Chrome at 1080px and 390px wide: the landing,
 lookup, sign-in, and not-found pages and both publications' front, document,
 and tag pages signed out (asserting Field Notes carries no theme and After
 Hours does),
-and the landing, editor (empty, with validation errors, editing, previewing),
-delete, crosspost, and settings pages signed in. A page view fails when it:
+and the landing, editor (choosing a place, search results, an empty
+search, search unavailable, after a pick, by hand, with validation errors,
+editing, changing the place, previewing), delete, crosspost, and settings
+pages signed in. Headless Chrome grants no location, so the check types the
+point into the hidden fields the island would fill. A page view fails when
+it:
 
 - returns an unexpected status or ends up at an unexpected URL (a signed-in
   page that bounces to `/login` fails),
@@ -144,6 +152,7 @@ for a day, handle lookups for an hour) and every page would fail with
 | `EATEN_AT_DEV_PDS`, `EATEN_AT_DEV_ALICE_DID` | Used by the `just` recipes and handy for `curl`. |
 | `EATEN_AT_DEV_ALICE_THEMED_PUBLICATION` | The record key of the themed publication; its front page is `/at/$EATEN_AT_DEV_ALICE_DID/<key>/`. Used by `just visual-check`. |
 | `EATEN_AT_DB=.dev-cache.db` | A separate database for dev runs (cache, OAuth state, sessions), wiped by the runner on every start. |
+| `EATEN_AT_PLACES_API_URL`, `EATEN_AT_PLACES_API_KEY` | The stub above and its fixed key, so the real key in `.env` is never spent on the local network. |
 
 Not overridden: `EATEN_AT_BSKY_APPVIEW`. The local network has no AppView, so comment threads are read from the public one; a seeded document gets a thread by adding a `bskyPostRef` naming a real Bluesky post to its record (`putRecord` on the local PDS).
 
