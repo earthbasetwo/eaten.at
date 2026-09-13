@@ -87,14 +87,12 @@ pub async fn publication_page(
         .into_response());
     }
     let cursor = query.cursor.as_deref().filter(|c| !c.is_empty());
-    let page = state
-        .subject_listing(&identity, &publication, cursor)
-        .await?;
+    let page = state.visit_listing(&identity, &publication, cursor).await?;
 
     let items: Vec<_> = page
         .items
         .iter()
-        .map(|subject_doc| view::listing_item(&did, &pub_rkey, subject_doc))
+        .map(|visit_doc| view::listing_item(&did, &pub_rkey, visit_doc))
         .collect();
     let tags = view::tag_links(
         &did,
@@ -197,7 +195,7 @@ pub async fn tagged_page(
     let items: Vec<_> = page
         .items
         .iter()
-        .map(|subject_doc| view::listing_item(&did, &pub_rkey, subject_doc))
+        .map(|visit_doc| view::listing_item(&did, &pub_rkey, visit_doc))
         .collect();
     let base = paths::tagged(&did, &pub_rkey, &tag);
     let publication_path = paths::publication(&did, &pub_rkey);

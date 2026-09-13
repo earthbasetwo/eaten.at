@@ -1,36 +1,216 @@
 //! Our own lexicons: `at.eaten.*`.
+//!
+//! A write-up is a `site.standard.document` whose `content` is an
+//! [`Visit`]. The place, the date, the dishes, and the rating are typed;
+//! the prose sits inside the visit as an open-union `body`. Strings are
+//! stored as written; the app validates at the point of use.
 
-use serde::{Deserialize, Serialize};
+use std::fmt;
+
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use super::common::Datetime;
+use super::common::{lenient_option, Datetime};
 use crate::at_uri::AtUri;
 
-/// NSID of the subject object placed in `document.links`.
-pub const SUBJECT_NSID: &str = "at.eaten.subject";
+/// NSID of the visit object placed in `document.content`.
+pub const VISIT_NSID: &str = "at.eaten.visit";
+/// NSID of the place object embedded in a visit.
+pub const PLACE_NSID: &str = "at.eaten.place";
 
-/// `at.eaten.subject`: what a document is about. Its presence in
-/// `document.links` is what makes a document one of ours.
-///
-/// Strings are stored as written; the app validates at the point of use.
+/// A closed set of strings from a lexicon's `knownValues`, matched
+/// exactly and case-sensitively; anything else is another client's
+/// vocabulary and is carried through untouched.
+pub trait KnownValue: Copy + Sized + 'static {
+    /// Every known value, in lexicon order.
+    const ALL: &'static [Self];
+    /// The value as written in records.
+    fn as_str(self) -> &'static str;
+    /// Label for display.
+    fn display_name(self) -> &'static str;
+    /// Exact match against the lexicon's `knownValues`.
+    fn from_value(value: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.as_str() == value)
+    }
+}
+
+macro_rules! known_values {
+    ($(#[$meta:meta])* $name:ident { $($variant:ident => $value:literal, $label:literal;)+ }) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum $name {
+            $($variant,)+
+        }
+
+        impl KnownValue for $name {
+            const ALL: &'static [Self] = &[$(Self::$variant,)+];
+
+            fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $value,)+
+                }
+            }
+
+            fn display_name(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $label,)+
+                }
+            }
+        }
+
+        impl $name {
+            /// Every known value, in lexicon order.
+            pub const ALL: &'static [Self] = <Self as KnownValue>::ALL;
+
+            /// Exact, case-sensitive match against the lexicon's `knownValues`.
+            pub fn from_value(value: &str) -> Option<Self> {
+                <Self as KnownValue>::from_value(value)
+            }
+
+            /// The value as written in records.
+            pub fn as_str(self) -> &'static str {
+                <Self as KnownValue>::as_str(self)
+            }
+
+            /// Label for display.
+            pub fn display_name(self) -> &'static str {
+                <Self as KnownValue>::display_name(self)
+            }
+        }
+    };
+}
+
+known_values! {
+    /// The `knownValues` of `at.eaten.place#externalUrl.service`.
+    KnownService {
+        OfficialSite => "officialSite", "Official site";
+        Menu => "menu", "Menu";
+        Reservations => "reservations", "Reservations";
+    }
+}
+
+known_values! {
+    /// The `knownValues` of `at.eaten.place#externalId.service`.
+    KnownIdService {
+        GooglePlace => "googlePlace", "Google Maps";
+        ApplePlace => "applePlace", "Apple Maps";
+        OvertureGers => "overtureGers", "Overture Maps";
+    }
+}
+
+impl KnownIdService {
+    /// A page for the place at this service, when the service has one
+    /// that takes its own id.
+    pub fn url_for(self, id: &str) -> Option<String> {
+        let encoded = url::form_urlencoded::byte_serialize(id.as_bytes()).collect::<String>();
+        match self {
+            Self::GooglePlace => Some(format!(
+                "https://www.google.com/maps/place/?q=place_id:{encoded}"
+            )),
+            Self::ApplePlace => Some(format!("https://maps.apple.com/place?place-id={encoded}")),
+            Self::OvertureGers => None,
+        }
+    }
+}
+
+known_values! {
+    /// The `knownValues` of `at.eaten.visit.meal`.
+    Meal {
+        Breakfast => "breakfast", "Breakfast";
+        Brunch => "brunch", "Brunch";
+        Lunch => "lunch", "Lunch";
+        Dinner => "dinner", "Dinner";
+        LateNight => "lateNight", "Late night";
+    }
+}
+
+/// `at.eaten.visit`: the content of a write-up.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Subject {
+pub struct Visit {
     #[serde(rename = "$type", default, skip_serializing_if = "Option::is_none")]
     pub type_: Option<String>,
-    /// The subject's name, as the author gives it.
-    pub title: String,
-    /// Places to read more about the subject, in the author's order.
+    pub place: Place,
+    #[serde(rename = "visitedOn")]
+    pub visited_on: VisitDate,
+    /// Which meal; a [`Meal`] value or another client's word.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meal: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dishes: Vec<Dish>,
+    /// Out-of-range values from other clients read as unrated.
     #[serde(
-        rename = "externalUrls",
         default,
-        skip_serializing_if = "Vec::is_empty"
+        deserialize_with = "lenient_option",
+        skip_serializing_if = "Option::is_none"
     )]
-    pub external_urls: Vec<ExternalUrl>,
+    pub rating: Option<Rating>,
+    /// Open union. Kept raw until the app's model interprets it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<Value>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, Value>,
 }
 
-/// `at.eaten.subject#externalUrl`.
+impl Visit {
+    /// The meal, if it is one we know.
+    pub fn known_meal(&self) -> Option<Meal> {
+        self.meal.as_deref().and_then(Meal::from_value)
+    }
+}
+
+/// `at.eaten.place`: where a visit happened.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Place {
+    #[serde(rename = "$type", default, skip_serializing_if = "Option::is_none")]
+    pub type_: Option<String>,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
+    /// Out-of-range values from other clients read as absent.
+    #[serde(
+        default,
+        deserialize_with = "lenient_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub price: Option<PriceBand>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ids: Vec<ExternalId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub urls: Vec<ExternalUrl>,
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
+}
+
+impl Place {
+    /// Whether two places share an identifier, which is what makes them
+    /// the same place.
+    pub fn same_as(&self, other: &Self) -> bool {
+        self.ids.iter().any(|a| {
+            other
+                .ids
+                .iter()
+                .any(|b| a.service == b.service && a.id == b.id)
+        })
+    }
+}
+
+/// `at.eaten.place#externalId`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExternalId {
+    pub service: String,
+    pub id: String,
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
+}
+
+impl ExternalId {
+    /// The service this id belongs to, if it is one we know.
+    pub fn known_service(&self) -> Option<KnownIdService> {
+        KnownIdService::from_value(&self.service)
+    }
+}
+
+/// `at.eaten.place#externalUrl`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExternalUrl {
     pub url: String,
@@ -52,33 +232,196 @@ impl ExternalUrl {
     }
 }
 
-/// The `knownValues` of `externalUrl.service`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum KnownService {
-    OfficialSite,
+/// `at.eaten.visit#dish`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Dish {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
 }
 
-impl KnownService {
-    /// Every known value, in lexicon order.
-    pub const ALL: [Self; 1] = [Self::OfficialSite];
+/// The house rating scale: four steps, stored as the integers 1 to 4.
+/// The words and the plus glyphs are how eaten.at renders them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "u8", into = "u8")]
+pub enum Rating {
+    Solid = 1,
+    Recommended = 2,
+    StronglyRecommended = 3,
+    CantMiss = 4,
+}
 
-    /// Exact, case-sensitive match against the lexicon's `knownValues`.
-    pub fn from_value(value: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|s| s.as_str() == value)
+impl Rating {
+    /// Every step, lowest first.
+    pub const ALL: [Self; 4] = [
+        Self::Solid,
+        Self::Recommended,
+        Self::StronglyRecommended,
+        Self::CantMiss,
+    ];
+
+    /// The stored integer.
+    pub fn value(self) -> u8 {
+        self as u8
     }
 
-    /// The value as written in records.
-    pub fn as_str(self) -> &'static str {
+    /// The step from its stored integer.
+    pub fn from_value(value: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|r| r.value() == value)
+    }
+
+    /// The verdict in words.
+    pub fn word(self) -> &'static str {
         match self {
-            Self::OfficialSite => "officialSite",
+            Self::Solid => "Solid",
+            Self::Recommended => "Recommended",
+            Self::StronglyRecommended => "Strongly Recommended",
+            Self::CantMiss => "Can’t Miss",
         }
     }
 
-    /// Label for a link.
-    pub fn display_name(self) -> &'static str {
+    /// The verdict as plus signs, one per step.
+    pub fn marks(self) -> &'static str {
         match self {
-            Self::OfficialSite => "Official site",
+            Self::Solid => "+",
+            Self::Recommended => "++",
+            Self::StronglyRecommended => "+++",
+            Self::CantMiss => "++++",
         }
+    }
+}
+
+impl TryFrom<u8> for Rating {
+    type Error = String;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::from_value(value).ok_or_else(|| format!("rating {value} is not between 1 and 4"))
+    }
+}
+
+impl From<Rating> for u8 {
+    fn from(rating: Rating) -> Self {
+        rating.value()
+    }
+}
+
+/// A place's price band, 1 to 4.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "u8", into = "u8")]
+pub struct PriceBand(u8);
+
+impl PriceBand {
+    pub const MIN: u8 = 1;
+    pub const MAX: u8 = 4;
+
+    /// A band from its integer, if it is in range.
+    pub fn new(value: u8) -> Option<Self> {
+        (Self::MIN..=Self::MAX)
+            .contains(&value)
+            .then_some(Self(value))
+    }
+
+    /// The stored integer.
+    pub fn value(self) -> u8 {
+        self.0
+    }
+
+    /// The band as that many dollar signs.
+    pub fn signs(self) -> String {
+        "$".repeat(usize::from(self.0))
+    }
+}
+
+impl TryFrom<u8> for PriceBand {
+    type Error = String;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::new(value).ok_or_else(|| format!("price band {value} is not between 1 and 4"))
+    }
+}
+
+impl From<PriceBand> for u8 {
+    fn from(band: PriceBand) -> Self {
+        band.0
+    }
+}
+
+/// A calendar date, `YYYY-MM-DD`, as `at.eaten.visit.visitedOn` carries
+/// it. Kept as text and validated on read; equality follows the date.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct VisitDate {
+    date: jiff::civil::Date,
+}
+
+impl VisitDate {
+    /// Parse `YYYY-MM-DD` exactly: ten characters, hyphens in place, a
+    /// real date.
+    pub fn parse(s: &str) -> Result<Self, String> {
+        let bytes = s.as_bytes();
+        let shape_ok = bytes.len() == 10
+            && bytes[4] == b'-'
+            && bytes[7] == b'-'
+            && bytes
+                .iter()
+                .enumerate()
+                .all(|(i, b)| matches!(i, 4 | 7) || b.is_ascii_digit());
+        if !shape_ok {
+            return Err(format!("{s:?} is not a YYYY-MM-DD date"));
+        }
+        let date: jiff::civil::Date = s.parse().map_err(|e| format!("{s:?}: {e}"))?;
+        Ok(Self { date })
+    }
+
+    /// Wrap a civil date.
+    pub fn from_date(date: jiff::civil::Date) -> Self {
+        Self { date }
+    }
+
+    /// Today, in the system's time zone.
+    pub fn today() -> Self {
+        Self::from_date(jiff::Zoned::now().date())
+    }
+
+    /// The day this date names.
+    pub fn date(&self) -> jiff::civil::Date {
+        self.date
+    }
+
+    /// `YYYY-MM-DD`.
+    pub fn as_string(&self) -> String {
+        format!(
+            "{:04}-{:02}-{:02}",
+            self.date.year(),
+            self.date.month(),
+            self.date.day()
+        )
+    }
+}
+
+impl fmt::Debug for VisitDate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "VisitDate({})", self.as_string())
+    }
+}
+
+impl fmt::Display for VisitDate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.as_string())
+    }
+}
+
+impl Serialize for VisitDate {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.as_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for VisitDate {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(deserializer)?;
+        Self::parse(&raw).map_err(serde::de::Error::custom)
     }
 }
 
@@ -139,44 +482,171 @@ fn lenient_at_uri<'de, D: serde::Deserializer<'de>>(
 mod tests {
     use super::*;
 
-    #[test]
-    fn subject_round_trips_preserving_unknown_service_and_fields() {
-        let json = serde_json::json!({
-            "$type": "at.eaten.subject",
-            "title": "Sample Subject",
-            "externalUrls": [
-                {"url": "https://example.com/elsewhere", "service": "bc"},
-                {"url": "https://example.com", "service": "officialSite", "label": "Home"}
+    fn visit_json() -> Value {
+        serde_json::json!({
+            "$type": "at.eaten.visit",
+            "place": {
+                "name": "Sample Place",
+                "address": "1 Example St",
+                "price": 2,
+                "ids": [
+                    {"service": "googlePlace", "id": "ChIJexample"},
+                    {"service": "yelp", "id": "sample-place", "rank": 1}
+                ],
+                "urls": [
+                    {"url": "https://example.com/elsewhere", "service": "bc"},
+                    {"url": "https://example.com", "service": "officialSite", "label": "Home"}
+                ],
+                "neighbourhood": "Old Town"
+            },
+            "visitedOn": "2026-09-12",
+            "meal": "dinner",
+            "dishes": [
+                {"name": "Soup", "note": "hot"},
+                {"name": "Bread", "spicy": false}
             ],
+            "rating": 3,
+            "body": {"$type": "at.markpub.markdown", "text": {"markdown": "Good."}},
             "future": true
-        });
-        let subject: Subject = serde_json::from_value(json.clone()).unwrap();
-        assert_eq!(subject.external_urls[0].known_service(), None);
-        assert_eq!(
-            subject.external_urls[1].known_service(),
-            Some(KnownService::OfficialSite)
-        );
-        assert_eq!(serde_json::to_value(&subject).unwrap(), json);
+        })
     }
 
     #[test]
-    fn known_service_is_exact_match() {
+    fn visit_round_trips_preserving_unknown_values_and_fields() {
+        let json = visit_json();
+        let visit: Visit = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(visit.place.name, "Sample Place");
+        assert_eq!(visit.place.price, PriceBand::new(2));
+        assert_eq!(
+            visit.place.ids[0].known_service(),
+            Some(KnownIdService::GooglePlace)
+        );
+        assert_eq!(visit.place.ids[1].known_service(), None);
+        assert_eq!(visit.place.urls[0].known_service(), None);
+        assert_eq!(
+            visit.place.urls[1].known_service(),
+            Some(KnownService::OfficialSite)
+        );
+        assert_eq!(visit.visited_on.as_string(), "2026-09-12");
+        assert_eq!(visit.known_meal(), Some(Meal::Dinner));
+        assert_eq!(visit.dishes.len(), 2);
+        assert_eq!(visit.rating, Some(Rating::StronglyRecommended));
+        assert_eq!(serde_json::to_value(&visit).unwrap(), json);
+    }
+
+    #[test]
+    fn known_values_are_exact_matches() {
         assert_eq!(
             KnownService::from_value("officialSite"),
             Some(KnownService::OfficialSite)
         );
         assert_eq!(KnownService::from_value("OfficialSite"), None);
-        assert_eq!(KnownService::from_value("site"), None);
+        assert_eq!(
+            KnownIdService::from_value("googlePlace"),
+            Some(KnownIdService::GooglePlace)
+        );
+        assert_eq!(KnownIdService::from_value("google"), None);
+        assert_eq!(Meal::from_value("lateNight"), Some(Meal::LateNight));
+        assert_eq!(Meal::from_value("late night"), None);
         for s in KnownService::ALL {
-            assert_eq!(KnownService::from_value(s.as_str()), Some(s));
+            assert_eq!(KnownService::from_value(s.as_str()), Some(*s));
+        }
+        for s in KnownIdService::ALL {
+            assert_eq!(KnownIdService::from_value(s.as_str()), Some(*s));
+        }
+        for m in Meal::ALL {
+            assert_eq!(Meal::from_value(m.as_str()), Some(*m));
         }
     }
 
     #[test]
-    fn subject_requires_title() {
-        assert!(serde_json::from_value::<Subject>(serde_json::json!({})).is_err());
-        let s: Subject = serde_json::from_value(serde_json::json!({"title": "T"})).unwrap();
-        assert!(s.external_urls.is_empty());
+    fn id_services_link_where_they_can() {
+        assert_eq!(
+            KnownIdService::GooglePlace.url_for("ChIJ a/b").as_deref(),
+            Some("https://www.google.com/maps/place/?q=place_id:ChIJ+a%2Fb")
+        );
+        assert_eq!(
+            KnownIdService::ApplePlace.url_for("I1").as_deref(),
+            Some("https://maps.apple.com/place?place-id=I1")
+        );
+        assert_eq!(KnownIdService::OvertureGers.url_for("x"), None);
+    }
+
+    #[test]
+    fn rating_is_an_integer_between_one_and_four() {
+        for r in Rating::ALL {
+            assert_eq!(Rating::from_value(r.value()), Some(r));
+            assert_eq!(r.marks().len(), usize::from(r.value()));
+        }
+        assert_eq!(serde_json::to_value(Rating::CantMiss).unwrap(), 4);
+        assert_eq!(
+            serde_json::from_value::<Rating>(serde_json::json!(2)).unwrap(),
+            Rating::Recommended
+        );
+        assert!(serde_json::from_value::<Rating>(serde_json::json!(0)).is_err());
+        assert!(serde_json::from_value::<Rating>(serde_json::json!(5)).is_err());
+        assert!(serde_json::from_value::<Rating>(serde_json::json!("3")).is_err());
+    }
+
+    #[test]
+    fn out_of_range_rating_and_price_read_as_absent() {
+        let mut json = visit_json();
+        json["rating"] = serde_json::json!(9);
+        json["place"]["price"] = serde_json::json!(-1);
+        let visit: Visit = serde_json::from_value(json).unwrap();
+        assert_eq!(visit.rating, None);
+        assert_eq!(visit.place.price, None);
+    }
+
+    #[test]
+    fn visit_requires_place_and_a_real_date() {
+        assert!(serde_json::from_value::<Visit>(serde_json::json!({})).is_err());
+        assert!(serde_json::from_value::<Visit>(serde_json::json!({
+            "place": {"name": "P"}, "visitedOn": "2026-02-30"
+        }))
+        .is_err());
+        assert!(serde_json::from_value::<Visit>(serde_json::json!({
+            "place": {"name": "P"}, "visitedOn": "2026-09-12T12:00:00Z"
+        }))
+        .is_err());
+        let v: Visit = serde_json::from_value(serde_json::json!({
+            "place": {"name": "P"}, "visitedOn": "2026-09-12"
+        }))
+        .unwrap();
+        assert!(v.dishes.is_empty());
+        assert_eq!(v.rating, None);
+        assert_eq!(v.body, None);
+    }
+
+    #[test]
+    fn visit_dates_parse_strictly_and_print_canonically() {
+        assert_eq!(
+            VisitDate::parse("2026-09-12").unwrap().to_string(),
+            "2026-09-12"
+        );
+        assert!(VisitDate::parse("2026-9-12").is_err());
+        assert!(VisitDate::parse("12/09/2026").is_err());
+        assert!(VisitDate::parse("2026-13-01").is_err());
+        assert!(VisitDate::parse("").is_err());
+        assert!(VisitDate::parse("2026-09-12").unwrap() < VisitDate::parse("2026-09-13").unwrap());
+        assert_eq!(VisitDate::today().as_string().len(), 10);
+    }
+
+    #[test]
+    fn places_match_on_a_shared_id() {
+        let a: Place = serde_json::from_value(serde_json::json!({
+            "name": "A", "ids": [{"service": "googlePlace", "id": "1"}]
+        }))
+        .unwrap();
+        let b: Place = serde_json::from_value(serde_json::json!({
+            "name": "B", "ids": [{"service": "applePlace", "id": "1"}, {"service": "googlePlace", "id": "1"}]
+        }))
+        .unwrap();
+        let c: Place = serde_json::from_value(serde_json::json!({"name": "A"})).unwrap();
+        assert!(a.same_as(&b));
+        assert!(!a.same_as(&c), "a shared name is not identity");
+        assert_eq!(PriceBand::new(2).unwrap().signs(), "$$");
+        assert_eq!(PriceBand::new(5), None);
     }
 
     #[test]

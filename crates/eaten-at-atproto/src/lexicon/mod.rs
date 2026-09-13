@@ -12,7 +12,10 @@ pub mod site_standard;
 
 pub mod at_eaten;
 
-pub use at_eaten::{ExternalUrl, KnownService, Preferences, Subject, SUBJECT_NSID};
+pub use at_eaten::{
+    Dish, ExternalId, ExternalUrl, KnownIdService, KnownService, KnownValue, Meal, Place,
+    Preferences, PriceBand, Rating, Visit, VisitDate, PLACE_NSID, VISIT_NSID,
+};
 
 pub use common::{lenient_option, BlobRef, Datetime, SelfLabel, SelfLabels, StrongRef};
 pub use site_standard::{

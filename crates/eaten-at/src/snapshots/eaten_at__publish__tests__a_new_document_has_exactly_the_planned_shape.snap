@@ -5,22 +5,44 @@ expression: "serde_json::to_string_pretty(&doc).unwrap()"
 {
   "$type": "site.standard.document",
   "content": {
-    "$type": "at.markpub.markdown",
-    "flavor": "commonmark",
-    "text": {
-      "$type": "at.markpub.text",
-      "markdown": "Forty-six *minutes*.\n\nNine notes."
-    }
-  },
-  "links": {
-    "$type": "at.eaten.subject",
-    "externalUrls": [
+    "$type": "at.eaten.visit",
+    "body": {
+      "$type": "at.markpub.markdown",
+      "flavor": "commonmark",
+      "text": {
+        "$type": "at.markpub.text",
+        "markdown": "Forty-six *minutes*.\n\nNine notes."
+      }
+    },
+    "dishes": [
       {
-        "service": "bc",
-        "url": "https://x.example/a"
+        "name": "Soup",
+        "note": "hot"
+      },
+      {
+        "name": "Bread"
       }
     ],
-    "title": "Promises"
+    "meal": "dinner",
+    "place": {
+      "address": "1 Example St",
+      "ids": [
+        {
+          "id": "g1",
+          "service": "googlePlace"
+        }
+      ],
+      "name": "Promises",
+      "price": 2,
+      "urls": [
+        {
+          "service": "bc",
+          "url": "https://x.example/a"
+        }
+      ]
+    },
+    "rating": 3,
+    "visitedOn": "2026-09-08"
   },
   "path": "/2026/09/a-room-with-the-lights-off",
   "publishedAt": "2026-09-09T15:00:00.000Z",
@@ -29,6 +51,6 @@ expression: "serde_json::to_string_pretty(&doc).unwrap()"
     "notes",
     "Short"
   ],
-  "textContent": "Forty-six minutes.\n\nNine notes.",
+  "textContent": "Promises · 2026-09-08 · Strongly Recommended\n\nForty-six minutes.\n\nNine notes.\n\nDishes: Soup, Bread",
   "title": "A room with the lights off"
 }

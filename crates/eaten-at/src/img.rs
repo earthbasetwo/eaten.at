@@ -15,7 +15,7 @@ use url::Url;
 
 use crate::cache::Namespace;
 use crate::error::AppError;
-use crate::model::SubjectDocument;
+use crate::model::VisitDocument;
 use crate::state::AppState;
 
 /// Largest source image we will download, in bytes. The lexicon caps
@@ -35,7 +35,7 @@ const JPEG_QUALITY: u8 = 84;
 /// Which rendition of a document's cover is wanted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Size {
-    /// Square-ish, at most 800px on the long side. Subject cards and listings.
+    /// Square-ish, at most 800px on the long side. Visit cards and listings.
     #[default]
     Card,
     /// 1200×630 canvas for OpenGraph unfurls: the cover centred on a
@@ -82,25 +82,25 @@ pub struct Rendition {
 }
 
 impl AppState {
-    /// The cover for `subject_doc` at `size`, cached. Never fails: the last
+    /// The cover for `visit_doc` at `size`, cached. Never fails: the last
     /// link in the chain is a generated placeholder.
     pub async fn cover_rendition(
         &self,
         identity: &eaten_at_atproto::identity::Identity,
-        subject_doc: &SubjectDocument,
+        visit_doc: &VisitDocument,
         size: Size,
     ) -> Rendition {
-        let key = format!("{}/{}/{}", identity.did, subject_doc.rkey(), size.as_str());
+        let key = format!("{}/{}/{}", identity.did, visit_doc.rkey(), size.as_str());
         let cached = self
             .cache()
             .get_or_fetch_bytes::<AppError, _, _>(Namespace::Image, &key, || async {
-                Ok(Some(self.resolve_cover(identity, subject_doc, size).await))
+                Ok(Some(self.resolve_cover(identity, visit_doc, size).await))
             })
             .await;
         match cached {
             Ok(Some(jpeg)) => Rendition { jpeg },
             _ => Rendition {
-                jpeg: self.resolve_cover(identity, subject_doc, size).await,
+                jpeg: self.resolve_cover(identity, visit_doc, size).await,
             },
         }
     }
@@ -146,20 +146,20 @@ impl AppState {
     async fn resolve_cover(
         &self,
         identity: &eaten_at_atproto::identity::Identity,
-        subject_doc: &SubjectDocument,
+        visit_doc: &VisitDocument,
         size: Size,
     ) -> Vec<u8> {
-        let (source, image) = self.source_image(identity, subject_doc).await;
-        tracing::debug!(did = %identity.did, rkey = subject_doc.rkey(), source = source.as_str(), "cover resolved");
+        let (source, image) = self.source_image(identity, visit_doc).await;
+        tracing::debug!(did = %identity.did, rkey = visit_doc.rkey(), source = source.as_str(), "cover resolved");
         match tokio::task::spawn_blocking(move || encode(&image, size)).await {
             Ok(Ok(jpeg)) => jpeg,
             Ok(Err(err)) => {
                 tracing::warn!(%err, "cover encode failed; using placeholder");
-                encode(&placeholder(subject_doc), size).unwrap_or_default()
+                encode(&placeholder(visit_doc), size).unwrap_or_default()
             }
             Err(err) => {
                 tracing::warn!(%err, "cover encode task failed; using placeholder");
-                encode(&placeholder(subject_doc), size).unwrap_or_default()
+                encode(&placeholder(visit_doc), size).unwrap_or_default()
             }
         }
     }
@@ -167,15 +167,15 @@ impl AppState {
     async fn source_image(
         &self,
         identity: &eaten_at_atproto::identity::Identity,
-        subject_doc: &SubjectDocument,
+        visit_doc: &VisitDocument,
     ) -> (Source, DynamicImage) {
-        if let Some(blob) = &subject_doc.document().cover_image {
+        if let Some(blob) = &visit_doc.document().cover_image {
             let url = self.repo_for(identity).blob_url(&identity.did, blob.cid());
             if let Some(image) = self.fetch_and_decode(url).await {
                 return (Source::Blob, image);
             }
         }
-        (Source::Placeholder, placeholder(subject_doc))
+        (Source::Placeholder, placeholder(visit_doc))
     }
 
     /// Download and decode an image, or `None` with a log line for any
@@ -356,11 +356,11 @@ fn average_color(image: &DynamicImage) -> Rgb<u8> {
     Rgb([(sum[0] / n) as u8, (sum[1] / n) as u8, (sum[2] / n) as u8])
 }
 
-/// A deterministic placeholder: two-tone blocks derived from the subject's
-/// title, so the same subject always gets the same image and different
-/// subjects are told apart at a glance.
-pub fn placeholder(subject_doc: &SubjectDocument) -> DynamicImage {
-    placeholder_from_seed(&subject_doc.subject.title)
+/// A deterministic placeholder: two-tone blocks derived from the place's
+/// name, so the same place always gets the same image and different
+/// places are told apart at a glance.
+pub fn placeholder(visit_doc: &VisitDocument) -> DynamicImage {
+    placeholder_from_seed(&visit_doc.visit.place.name)
 }
 
 /// [`placeholder`] for an arbitrary seed string.
@@ -519,9 +519,9 @@ mod tests {
 
     #[test]
     fn placeholder_is_deterministic_and_distinct() {
-        let a = encode(&placeholder_from_seed("Sample Subject"), Size::Card).unwrap();
-        let a2 = encode(&placeholder_from_seed("Sample Subject"), Size::Card).unwrap();
-        let b = encode(&placeholder_from_seed("Second Subject"), Size::Card).unwrap();
+        let a = encode(&placeholder_from_seed("Sample Place"), Size::Card).unwrap();
+        let a2 = encode(&placeholder_from_seed("Sample Place"), Size::Card).unwrap();
+        let b = encode(&placeholder_from_seed("Second Place"), Size::Card).unwrap();
         assert_eq!(a, a2);
         assert_ne!(a, b);
         assert_eq!(decode(&a).unwrap().dimensions(), (600, 600));

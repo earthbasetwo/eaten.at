@@ -12,39 +12,101 @@ pub struct Link {
     pub href: String,
 }
 
-/// Everything known about the subject a write-up is about.
+/// The author's verdict on the house scale, ready to show.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RatingView {
+    /// The verdict in words, e.g. "Recommended".
+    pub word: String,
+    /// The verdict as plus signs, one per step.
+    pub marks: String,
+}
+
+/// One dish on the visit card.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DishView {
+    pub name: String,
+    pub note: Option<String>,
+}
+
+/// Everything known about the visit a write-up describes.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct SubjectCard {
-    pub title: String,
+pub struct VisitCard {
+    pub place_name: String,
+    pub address: Option<String>,
+    /// The price band as currency signs, e.g. "$$".
+    pub price: Option<String>,
+    /// The visit date, `YYYY-MM-DD`.
+    pub visited_on: String,
+    /// Which meal, in words.
+    pub meal: Option<String>,
+    pub rating: Option<RatingView>,
+    pub dishes: Vec<DishView>,
     /// URL of the cover image to show, if any.
     pub cover_src: Option<String>,
     /// Links out, in the author's order. Rendered by
-    /// [`subject_links`], not by the card.
+    /// [`visit_links`], not by the card.
     pub links: Vec<Link>,
 }
 
-/// The subject card shown above a write-up: cover beside the title.
-pub fn subject_card(card: &SubjectCard) -> Markup {
+/// The visit card shown above a write-up: cover beside the place's name,
+/// a metadata line of date, meal, and price, the address, the rating,
+/// and the dishes.
+pub fn visit_card(card: &VisitCard) -> Markup {
     html! {
-        aside.subject-card aria-label="Subject" {
+        aside.visit-card aria-label="Visit" {
             @if let Some(src) = &card.cover_src {
-                img.subject-cover src=(src) alt="" width="120" height="120" loading="lazy";
+                img.visit-cover src=(src) alt="" width="120" height="120" loading="lazy";
             }
-            div.subject-card-body {
-                p.subject-title { (card.title) }
+            div.visit-card-body {
+                p.place-name { (card.place_name) }
+                p.visit-meta {
+                    time datetime=(card.visited_on) { (human_date(&card.visited_on)) }
+                    @if let Some(meal) = &card.meal { span.visit-meal { (meal) } }
+                    @if let Some(price) = &card.price {
+                        span.price aria-label=(format!("price band {} of 4", price.chars().count())) { (price) }
+                    }
+                }
+                @if let Some(address) = &card.address {
+                    p.place-address { (address) }
+                }
+                @if let Some(rating) = &card.rating {
+                    (rating_marks(rating))
+                }
+                @if !card.dishes.is_empty() {
+                    ul.dishes aria-label="Dishes" {
+                        @for dish in &card.dishes {
+                            li {
+                                span.dish-name { (dish.name) }
+                                @if let Some(note) = &dish.note { " " span.dish-note { (note) } }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-/// Where else to read about the subject. Nothing is rendered for
+/// The rating as plus signs with the word beside them. Assistive
+/// technology reads the word; the glyphs are decoration.
+pub fn rating_marks(rating: &RatingView) -> Markup {
+    html! {
+        p.rating {
+            span.rating-marks aria-hidden="true" { (rating.marks) }
+            " "
+            span.rating-word { (rating.word) }
+        }
+    }
+}
+
+/// Where else to read about the place. Nothing is rendered for
 /// an empty list.
-pub fn subject_links(links: &[Link]) -> Markup {
+pub fn visit_links(links: &[Link]) -> Markup {
     html! {
         @if !links.is_empty() {
-            nav.subject-links aria-label="Links" {
-                span.subject-links-label { "Links" }
-                ul.subject-links-list {
+            nav.visit-links aria-label="Links" {
+                span.visit-links-label { "Links" }
+                ul.visit-links-list {
                     @for link in links {
                         li { a href=(link.href) rel="ugc nofollow noopener" { (link.label) } }
                     }
@@ -59,7 +121,8 @@ pub fn subject_links(links: &[Link]) -> Markup {
 pub struct ListingItem {
     pub href: String,
     pub title: String,
-    pub subject_title: String,
+    pub place_name: String,
+    pub rating: Option<RatingView>,
     pub published: String,
     pub excerpt: String,
     pub cover_src: Option<String>,
@@ -78,8 +141,14 @@ pub fn listing(items: &[ListingItem]) -> Markup {
                         div.listing-body {
                             p.kicker { time datetime=(item.published) { (human_date(&item.published)) } }
                             h2.listing-title { a href=(item.href) { (item.title) } }
-                            p.listing-subject {
-                                span.listing-subject-title { (item.subject_title) }
+                            p.listing-place {
+                                span.listing-place-name { (item.place_name) }
+                                @if let Some(rating) = &item.rating {
+                                    " "
+                                    span.rating aria-label=(format!("Rated {}", rating.word)) {
+                                        span.rating-marks aria-hidden="true" { (rating.marks) }
+                                    }
+                                }
                             }
                             @if !item.excerpt.is_empty() { p.listing-excerpt { (item.excerpt) } }
                         }
@@ -245,37 +314,97 @@ mod tests {
     }
 
     #[test]
-    fn card_shows_title_and_cover() {
-        let out = subject_card(&SubjectCard {
-            title: "Sample Subject".into(),
+    fn card_shows_place_meta_rating_and_dishes() {
+        let out = visit_card(&VisitCard {
+            place_name: "Sample Place".into(),
+            address: Some("1 Example St".into()),
+            price: Some("$$".into()),
+            visited_on: "2026-09-12".into(),
+            meal: Some("Dinner".into()),
+            rating: Some(RatingView {
+                word: "Recommended".into(),
+                marks: "++".into(),
+            }),
+            dishes: vec![
+                DishView {
+                    name: "Soup".into(),
+                    note: Some("hot".into()),
+                },
+                DishView {
+                    name: "Bread".into(),
+                    note: None,
+                },
+            ],
             cover_src: Some("/img/did/rk".into()),
             links: vec![link("Elsewhere", "https://example.com/x")],
         })
         .into_string();
         assert!(
-            out.contains("<p class=\"subject-title\">Sample Subject</p>"),
+            out.contains("<p class=\"place-name\">Sample Place</p>"),
             "{out}"
         );
         assert!(
-            out.contains("class=\"subject-cover\" src=\"/img/did/rk\" alt=\"\""),
+            out.contains("class=\"visit-cover\" src=\"/img/did/rk\" alt=\"\""),
+            "{out}"
+        );
+        assert!(
+            out.contains("<p class=\"visit-meta\"><time datetime=\"2026-09-12\">September 12, 2026</time><span class=\"visit-meal\">Dinner</span><span class=\"price\" aria-label=\"price band 2 of 4\">$$</span></p>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("<p class=\"place-address\">1 Example St</p>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("<p class=\"rating\"><span class=\"rating-marks\" aria-hidden=\"true\">++</span> <span class=\"rating-word\">Recommended</span></p>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("<ul class=\"dishes\" aria-label=\"Dishes\"><li><span class=\"dish-name\">Soup</span> <span class=\"dish-note\">hot</span></li><li><span class=\"dish-name\">Bread</span></li></ul>"),
             "{out}"
         );
         // Links are the footer's business, not the card's.
         assert!(!out.contains("example.com"), "{out}");
-        let bare = subject_card(&SubjectCard {
-            title: "Untitled".into(),
-            ..SubjectCard::default()
+        let bare = visit_card(&VisitCard {
+            place_name: "Somewhere".into(),
+            visited_on: "2026-09-12".into(),
+            ..VisitCard::default()
         })
         .into_string();
         assert!(!bare.contains("<img"), "{bare}");
+        assert!(!bare.contains("rating"), "{bare}");
+        assert!(!bare.contains("dishes"), "{bare}");
+        assert!(!bare.contains("place-address"), "{bare}");
     }
 
     #[test]
-    fn subject_links_are_labelled_and_marked_ugc() {
-        assert_eq!(subject_links(&[]).into_string(), "");
-        let out = subject_links(&[link("Elsewhere", "https://example.com/x")]).into_string();
+    fn listing_rows_carry_place_and_rating() {
+        let out = listing(&[ListingItem {
+            href: "/d".into(),
+            title: "A night out".into(),
+            place_name: "Sample Place".into(),
+            rating: Some(RatingView {
+                word: "Can’t Miss".into(),
+                marks: "++++".into(),
+            }),
+            published: "2026-09-07T12:00:00.000Z".into(),
+            excerpt: String::new(),
+            cover_src: None,
+        }])
+        .into_string();
         assert!(
-            out.starts_with("<nav class=\"subject-links\" aria-label=\"Links\">"),
+            out.contains("<p class=\"listing-place\"><span class=\"listing-place-name\">Sample Place</span> <span class=\"rating\" aria-label=\"Rated Can’t Miss\"><span class=\"rating-marks\" aria-hidden=\"true\">++++</span></span></p>"),
+            "{out}"
+        );
+        assert!(!out.contains("listing-excerpt"), "{out}");
+    }
+
+    #[test]
+    fn visit_links_are_labelled_and_marked_ugc() {
+        assert_eq!(visit_links(&[]).into_string(), "");
+        let out = visit_links(&[link("Elsewhere", "https://example.com/x")]).into_string();
+        assert!(
+            out.starts_with("<nav class=\"visit-links\" aria-label=\"Links\">"),
             "{out}"
         );
         assert!(

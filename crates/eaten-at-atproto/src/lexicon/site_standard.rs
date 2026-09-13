@@ -211,10 +211,10 @@ mod tests {
     const REAL_DOC: &str = include_str!("../../tests/fixtures/standard-site-document.json");
     const REAL_PUB: &str = include_str!("../../tests/fixtures/standard-site-publication.json");
 
-    fn subject() -> Value {
+    fn link() -> Value {
         serde_json::json!({
-            "$type": "at.eaten.subject",
-            "title": "Sample Subject"
+            "$type": "com.example.link",
+            "url": "https://example.com/elsewhere"
         })
     }
 
@@ -258,14 +258,14 @@ mod tests {
 
     #[test]
     fn links_reads_single_object() {
-        let doc: Document = serde_json::from_value(minimal(&subject())).unwrap();
-        assert_eq!(doc.links, vec![subject()]);
+        let doc: Document = serde_json::from_value(minimal(&link())).unwrap();
+        assert_eq!(doc.links, vec![link()]);
     }
 
     #[test]
     fn links_reads_array() {
         let doc: Document =
-            serde_json::from_value(minimal(&Value::Array(vec![subject(), subject()]))).unwrap();
+            serde_json::from_value(minimal(&Value::Array(vec![link(), link()]))).unwrap();
         assert_eq!(doc.links.len(), 2);
     }
 
@@ -281,10 +281,10 @@ mod tests {
 
     #[test]
     fn links_writes_singular_for_one_and_array_for_many() {
-        let one: Document = serde_json::from_value(minimal(&subject())).unwrap();
+        let one: Document = serde_json::from_value(minimal(&link())).unwrap();
         assert!(serde_json::to_value(&one).unwrap()["links"].is_object());
         let two: Document =
-            serde_json::from_value(minimal(&Value::Array(vec![subject(), subject()]))).unwrap();
+            serde_json::from_value(minimal(&Value::Array(vec![link(), link()]))).unwrap();
         assert!(serde_json::to_value(&two).unwrap()["links"].is_array());
         let mut none = one.clone();
         none.links.clear();

@@ -18,7 +18,7 @@ a class in that file.
 
 ## Principles
 
-1. **Reading first.** The write-up is the point. The subject card
+1. **Reading first.** The write-up is the point. The visit card
    and every piece of chrome sit beside the text and stay out of its way.
 2. **Three voices.** Titles and names are set in the display serif
    (Instrument Serif). Everything read or pressed, prose and the
@@ -26,9 +26,9 @@ a class in that file.
    content (dates, handles, DIDs, URLs, labels) is small, faint mono
    (JetBrains Mono). A reader can tell content from chrome by typeface
    alone.
-3. **Accent for actions.** Campari red is for links, buttons, and
-   active states. Never a large fill, a heading, or a border (except a
-   field's error state and the form error's rule).
+3. **Accent for actions and ratings.** Campari red is for links,
+   buttons, active states, and the rating. Never a large fill, a heading,
+   or a border (except a field's error state and the form error's rule).
 4. **Cards on blush.** Things a reader picks between (write-ups,
    publications) are cards: a raised surface, a hairline border, a 12px
    radius, and one soft shadow. Sections within a page are separated by
@@ -116,7 +116,7 @@ Sizes are fluid between a 390px and a 1080px viewport.
 | `--text-body` | 14 → 15 | the interface |
 | `--text-lede` | 15 | ledes |
 | `--text-prose` | 17 → 18 | a write-up's prose and the editor's body field |
-| `--text-card` | 20 → 22 | card titles, the subject title, legends, the nameplate's description |
+| `--text-card` | 20 → 22 | card titles, the place name, legends, the nameplate's description |
 | `--text-masthead` | 20 → 22 | the running head |
 | `--text-heading` | 22 → 28 | h2 inside prose |
 | `--text-title` | 34 → 44 | the page title (h1) |
@@ -149,7 +149,7 @@ Section spacing is 40px (`--section-gap`), card padding 16→20px
 | `--title-gap` | 24 → 32 | below a page title, before content |
 | `--footer-gap` / `--footer-pad` | 32/16 → 40/24 | above and inside the document footer |
 | `--card-gap` | 12 → 16 | cover to text inside a card |
-| `--cover-size` / `--cover-small` | 84/72 → 120/96 | cover on the subject card / in a listing card |
+| `--cover-size` / `--cover-small` | 84/72 → 120/96 | cover on the visit card / in a listing card |
 
 | Radius | Value | Use |
 |---|---|---|
@@ -159,7 +159,7 @@ Section spacing is 40px (`--section-gap`), card padding 16→20px
 | `--radius-pill` | 999px | buttons, tags, pagination, the skip link |
 
 Elevation: every raised surface has a 1px `--color-border`. Cards alone add
-`--shadow-card` (`0 2px 8px` oxblood at 6%). The subject cover keeps a
+`--shadow-card` (`0 2px 8px` oxblood at 6%). The visit cover keeps a
 slightly deeper `--shadow-cover`.
 
 Motion: 180ms ease-out (`--ease`) on color, background, and border only.
@@ -186,24 +186,37 @@ or note (`.meta`). The document page's kicker is its date; the tag page's
 is "Tag"; a status page's is "Error 404"; the chooser's is
 "Publications".
 
-**Card** (`.listing-item article`, `.chooser-item`, `.subject-card`).
+**Card** (`.listing-item article`, `.chooser-item`, `.visit-card`).
 Raised surface, 1px border, 12px radius, card padding, the card shadow.
 On hover or focus-within the border darkens to `border-strong`. Nothing
 lifts or moves.
 
 **Listing card** (`.listing-item`). Cards in a column, 16px apart. Small
 cover left (10px radius); right, a kicker date, the title in the display
-serif at card size, the subject as a mono meta line, and the excerpt in
-the sans at small size in `ink-secondary`. It is the document page in
-miniature and in the same order.
+serif at card size, the place name as a mono meta line with the rating
+marks beside it (`.listing-place`), and the excerpt in the sans at small
+size in `ink-secondary`. It is the document page in miniature and in the
+same order.
 
 **Chooser card** (`.chooser-item`). Name in the display serif at card
 size, description in `ink-secondary`, the publication's URL in the mono
 voice. Settings reuses the same card with its hosting form inside.
 
-**Subject card** (`.subject-card`). A card between the page title and the
-prose: cover (with its shadow) beside the subject title in the display
-serif.
+**Visit card** (`.visit-card`). A card between the page title and the
+prose: cover (with its shadow) beside the place name (`.place-name`) in
+the display serif. Under the name, in the mono voice, the visit date, the
+meal, and the price band as dollar signs, separated by middle dots
+(`.visit-meta`); then the address in the sans at small size
+(`.place-address`); then the rating; then the dishes (`.dishes`), each a
+name at 500 weight with an optional note in `ink-muted`.
+
+**Rating** (`.rating`). The verdict as plus signs, one per step, with the
+word beside it: `+` Solid, `++` Recommended, `+++` Strongly Recommended,
+`++++` Can't Miss. The sans at 700 and button size in the accent on the
+card; at the mono size in a listing card, where only the marks show and
+the word is the accessible label. The marks are hidden from assistive
+technology; the word is what is read. An unrated visit shows nothing. The
+same glyphs label the editor's rating radios.
 
 **Prose** (`.prose`). The write-up, at measure and at prose size. Headings
 are the display serif in `ink`. Links keep a faint underline at rest, in
@@ -275,7 +288,7 @@ one sentence saying what the site is.
 | Landing `/` | site | page head: h1 pitch, lede | lookup form, note in metadata voice |
 | Publication front page | site | nameplate | listing, notice if truncated, pagination |
 | Tag page | publication | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
-| Document | publication | kicker date, h1 title | subject card, prose, comments (when the document names a Bluesky post), footer |
+| Document | publication | kicker date, h1 title | visit card, prose, comments (when the document names a Bluesky post), footer |
 | Chooser (`/at/{did}/`) | site | page head: "Publications" kicker, h1 author, lede | chooser cards |
 | No publications | site | page head: "Publications" kicker, h1 author | empty state |
 | Interstitial | site | page head: "Content warning" kicker, h1 | the labels, note, actions |
@@ -284,7 +297,7 @@ one sentence saying what the site is.
 | Signing in | site | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
 | Sign-in failed | site | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
 | Status page | site | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
-| Editor `/write` | site | page head: "Write" or "Edit" kicker, h1; a form-error summary when needed | optional preview (the document as readers see it, on a raised panel under a "Preview" kicker); then the form: write-up pane left, subject pane right, stacked under 56rem |
+| Editor `/write` | site | page head: "Write" or "Edit" kicker, h1; a form-error summary when needed | optional preview (the document as readers see it, on a raised panel under a "Preview" kicker); then the form: write-up pane left, visit pane right (Place, Visit, Dishes, Links, Details, Bluesky groups), stacked under 56rem |
 | Delete `/write/{rkey}/delete` | site | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
 | Crosspost `/write/{rkey}/crosspost` | site | page head: "Bluesky" kicker, h1 "Post “title” to Bluesky" (or "… is on Bluesky"), lede | the post text field and one primary "Post to Bluesky"; or, before permission, one primary "Allow posting and continue"; secondary "← Skip for now" either way; posted: the thread link and a secondary way back |
 | Settings `/settings` | site | page head: "Settings" kicker, h1 "Your publications", lede | chooser cards: name, current address in the metadata voice, a small form of two radio choices and one primary "Save" |
@@ -300,14 +313,20 @@ panes need the room.
 - **Hints** are the sans at small size in `ink-muted`.
 - **Problems** are a `.field-error` line in the accent directly under the
   control, and the control's border takes the accent too.
-- **Repeated fields** (links) are rows separated by hairlines, each
-  ending in a "Remove" link button. Adding a row is a "+ Add a link" link
-  button.
+- **Repeated fields** (ids, dishes, links) are rows separated by
+  hairlines, each ending in a "Remove" link button. Adding a row is a
+  "+ Add an id", "+ Add a dish", or "+ Add a link" link button.
+- **Choices.** The date is a plain date input. The price band, the meal,
+  and each row's service are selects; where a lexicon has `knownValues`,
+  an "Other" option reveals a text field so a value from another
+  client's vocabulary survives an edit. The rating is a radio group of
+  "Unrated" and the four steps, each labelled with its marks and its
+  word.
 - **Actions:** one primary button, "Publish" (or "Save changes").
   "Preview" and "Delete" are secondary pills. A document's own author
   sees an "edit" link among the footer's muted links.
-- **Bluesky group:** the subject pane ends with a `.choice` box "Also
-  post to Bluesky", the post text with the subject title as its
+- **Bluesky group:** the visit pane ends with a `.choice` box "Also
+  post to Bluesky", the post text with the place name as its
   placeholder, and a hint. Once posted, the group is one line linking the
   thread.
 - **Drafts:** with JavaScript on, a draft kept on the device is offered
@@ -342,8 +361,8 @@ a sign-in link.
   in the sans at body size.
 - Do make a thing a reader chooses between a card. Don't box a section of
   a page.
-- Do use the accent for a link, the primary button, or an error. Don't use
-  it for a heading, a surface, or on a sunken panel.
+- Do use the accent for a link, the primary button, the rating, or an
+  error. Don't use it for a heading, a surface, or on a sunken panel.
 - Do use size for hierarchy in the display serif. Don't bold it.
 - Do let a page be short. Don't fill an empty state with instructions.
 - Do keep the column at 720px. Don't add a wide variant for a listing.

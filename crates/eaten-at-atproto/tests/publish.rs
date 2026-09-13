@@ -17,7 +17,7 @@ use wiremock::matchers::{body_json, header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const DID: &str = "did:plc:re3ebnp5v7ffagz6rb6xfei4";
-const SUBJECT: &str = include_str!("../../../lexicons/at.eaten.subject.json");
+const VISIT: &str = include_str!("../../../lexicons/at.eaten.visit.json");
 const PREFS: &str = include_str!("../../../lexicons/at.eaten.preferences.json");
 
 fn http() -> GuardedClient {
@@ -32,7 +32,7 @@ fn http() -> GuardedClient {
 fn schemas() -> Vec<SchemaFile> {
     vec![
         SchemaFile::parse(PREFS, "at.eaten.preferences").unwrap(),
-        SchemaFile::parse(SUBJECT, "at.eaten.subject").unwrap(),
+        SchemaFile::parse(VISIT, "at.eaten.visit").unwrap(),
     ]
 }
 
@@ -73,15 +73,15 @@ async fn mount_login(server: &MockServer) {
 #[tokio::test]
 async fn plan_distinguishes_unchanged_changed_and_missing() {
     let server = MockServer::start().await;
-    let [prefs, subject] = <[SchemaFile; 2]>::try_from(schemas()).unwrap();
-    // Published copy of the subject with the $type present and one field changed.
-    let mut changed = subject.record_value();
-    changed["defs"]["main"]["properties"]["title"]["maxGraphemes"] = json!(100);
-    mount_existing(&server, "at.eaten.subject", changed).await;
+    let [prefs, visit] = <[SchemaFile; 2]>::try_from(schemas()).unwrap();
+    // Published copy of the visit with the $type present and one field changed.
+    let mut changed = visit.record_value();
+    changed["defs"]["main"]["properties"]["rating"]["maximum"] = json!(5);
+    mount_existing(&server, "at.eaten.visit", changed).await;
     mount_existing(&server, "at.eaten.preferences", prefs.record_value()).await;
 
     let reader = RepoClient::new(http(), Url::parse(&server.uri()).unwrap());
-    let entries = plan(&reader, &Did::parse(DID).unwrap(), &[prefs, subject])
+    let entries = plan(&reader, &Did::parse(DID).unwrap(), &[prefs, visit])
         .await
         .unwrap();
     assert_eq!(entries[0].action, Action::Unchanged);
@@ -103,7 +103,7 @@ async fn plan_distinguishes_unchanged_changed_and_missing() {
 #[tokio::test]
 async fn apply_writes_only_what_differs_with_exact_bodies() {
     let server = MockServer::start().await;
-    let [prefs, subject] = <[SchemaFile; 2]>::try_from(schemas()).unwrap();
+    let [prefs, visit] = <[SchemaFile; 2]>::try_from(schemas()).unwrap();
     mount_existing(&server, "at.eaten.preferences", prefs.record_value()).await;
     mount_not_found(&server).await;
     mount_login(&server).await;
@@ -112,10 +112,10 @@ async fn apply_writes_only_what_differs_with_exact_bodies() {
         .and(header("authorization", "Bearer access-token"))
         .and(body_json(json!({
             "repo": DID, "collection": "com.atproto.lexicon.schema",
-            "rkey": "at.eaten.subject", "record": subject.record_value()
+            "rkey": "at.eaten.visit", "record": visit.record_value()
         })))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "uri": format!("at://{DID}/com.atproto.lexicon.schema/at.eaten.subject"), "cid": "bafynew"
+            "uri": format!("at://{DID}/com.atproto.lexicon.schema/at.eaten.visit"), "cid": "bafynew"
         })))
         .expect(1)
         .mount(&server)
@@ -130,12 +130,12 @@ async fn apply_writes_only_what_differs_with_exact_bodies() {
     .await
     .unwrap();
     assert_eq!(session.did.as_str(), DID);
-    let entries = plan(&session.reader(), &session.did, &[prefs, subject])
+    let entries = plan(&session.reader(), &session.did, &[prefs, visit])
         .await
         .unwrap();
     let written = apply(&session, &entries).await.unwrap();
     assert_eq!(written.len(), 1);
-    assert_eq!(written[0].0, "at.eaten.subject");
+    assert_eq!(written[0].0, "at.eaten.visit");
     assert_eq!(written[0].1.cid, "bafynew");
 }
 
@@ -187,17 +187,17 @@ async fn resolves_nsid_through_dns_txt_and_the_authority_repo() {
         })))
         .mount(&server)
         .await;
-    let subject = SchemaFile::parse(SUBJECT, "at.eaten.subject").unwrap();
-    mount_existing(&server, "at.eaten.subject", subject.record_value()).await;
+    let visit = SchemaFile::parse(VISIT, "at.eaten.visit").unwrap();
+    mount_existing(&server, "at.eaten.visit", visit.record_value()).await;
     mount_not_found(&server).await;
 
     assert_eq!(
-        lexicon_dns_name("at.eaten.subject").as_deref(),
+        lexicon_dns_name("at.eaten.visit").as_deref(),
         Some("_lexicon.eaten.at")
     );
     let dns = StaticDns::new().with_txt("_lexicon.eaten.at", &["v=spf1", &format!("did={DID}")]);
     assert_eq!(
-        authority_did(&dns, "at.eaten.subject")
+        authority_did(&dns, "at.eaten.visit")
             .await
             .unwrap()
             .as_str(),
@@ -211,16 +211,16 @@ async fn resolves_nsid_through_dns_txt_and_the_authority_repo() {
             plc_directory: Url::parse(&server.uri()).unwrap(),
         },
     );
-    let value = resolve_lexicon(&identity, &dns, "at.eaten.subject")
+    let value = resolve_lexicon(&identity, &dns, "at.eaten.visit")
         .await
         .unwrap();
-    assert_eq!(value, subject.value());
+    assert_eq!(value, visit.value());
 
     let err = resolve_lexicon(&identity, &dns, "at.eaten.missing")
         .await
         .unwrap_err();
     assert!(matches!(err, ResolveError::NoRecord(_)), "{err}");
-    let err = resolve_lexicon(&identity, &StaticDns::new(), "at.eaten.subject")
+    let err = resolve_lexicon(&identity, &StaticDns::new(), "at.eaten.visit")
         .await
         .unwrap_err();
     assert!(matches!(err, ResolveError::NoDnsRecord(_)), "{err}");
@@ -232,7 +232,7 @@ async fn resolves_nsid_through_dns_txt_and_the_authority_repo() {
         ],
     );
     assert!(matches!(
-        authority_did(&ambiguous, "at.eaten.subject").await,
+        authority_did(&ambiguous, "at.eaten.visit").await,
         Err(ResolveError::Ambiguous(_))
     ));
 }

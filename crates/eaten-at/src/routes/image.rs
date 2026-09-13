@@ -8,7 +8,7 @@ use serde::Deserialize;
 use super::resolve_repo;
 use crate::error::AppError;
 use crate::img::Size;
-use crate::model::SubjectDocument;
+use crate::model::VisitDocument;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -35,10 +35,10 @@ pub async fn cover(
             .document(&identity, &rkey)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("document {rkey} not found")))?;
-        let subject_doc = SubjectDocument::from_record(record)
-            .ok_or_else(|| AppError::NotFound(format!("document {rkey} has no subject")))?;
+        let visit_doc = VisitDocument::from_record(record)
+            .ok_or_else(|| AppError::NotFound(format!("document {rkey} is not a visit")))?;
         let size = Size::from_query(query.size.as_deref());
-        state.cover_rendition(&identity, &subject_doc, size).await
+        state.cover_rendition(&identity, &visit_doc, size).await
     };
 
     let response = Response::builder()

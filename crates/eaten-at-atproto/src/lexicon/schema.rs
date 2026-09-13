@@ -131,12 +131,12 @@ pub fn is_nsid(s: &str) -> bool {
 mod tests {
     use super::*;
 
-    const SUBJECT: &str = include_str!("../../../../lexicons/at.eaten.subject.json");
+    const VISIT: &str = include_str!("../../../../lexicons/at.eaten.visit.json");
 
     #[test]
     fn loads_our_schema_and_computes_authority() {
-        let schema = SchemaFile::parse(SUBJECT, "at.eaten.subject").unwrap();
-        assert_eq!(schema.id, "at.eaten.subject");
+        let schema = SchemaFile::parse(VISIT, "at.eaten.visit").unwrap();
+        assert_eq!(schema.id, "at.eaten.visit");
         assert_eq!(schema.authority(), "at.eaten");
         assert_eq!(authority_domain(&schema.id).as_deref(), Some("eaten.at"));
         assert_eq!(schema.record_value()["$type"], SCHEMA_COLLECTION);
@@ -192,12 +192,12 @@ mod tests {
 
     #[test]
     fn nsid_syntax() {
-        assert!(is_nsid("at.eaten.subject"));
+        assert!(is_nsid("at.eaten.visit"));
         assert!(is_nsid("com.atproto.lexicon.schema"));
-        assert!(!is_nsid("eaten.subject"));
-        assert!(!is_nsid("at.eaten.1subject"));
-        assert!(!is_nsid("at.-eaten.subject"));
-        assert!(!is_nsid("at.eaten.sub-ject"));
+        assert!(!is_nsid("eaten.visit"));
+        assert!(!is_nsid("at.eaten.1visit"));
+        assert!(!is_nsid("at.-eaten.visit"));
+        assert!(!is_nsid("at.eaten.vi-sit"));
         assert_eq!(
             authority_domain("site.standard.document").as_deref(),
             Some("standard.site")

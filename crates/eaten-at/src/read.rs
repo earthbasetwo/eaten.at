@@ -159,7 +159,7 @@ fn not_found_as_none<T>(result: Result<T, RepoError>) -> Result<Option<T>, AppEr
     }
 }
 
-// ---- Publication choice, preferences, handle lookup, subject listings ----
+// ---- Publication choice, preferences, handle lookup, visit listings ----
 
 use eaten_at_atproto::at_uri::AtUri;
 
@@ -167,7 +167,7 @@ use eaten_at_atproto::identity::Handle;
 use eaten_at_atproto::lexicon::at_eaten::{PREFERENCES_NSID, PREFERENCES_RKEY};
 use eaten_at_atproto::lexicon::Preferences;
 
-use crate::model::SubjectDocument;
+use crate::model::VisitDocument;
 
 /// Pages of the document collection scanned per listing request before
 /// giving up on filling a page (plan §5.2, "filtering cost").
@@ -184,10 +184,10 @@ pub enum PublicationChoice {
     None,
 }
 
-/// One page of subject documents for a publication.
+/// One page of visit documents for a publication.
 #[derive(Debug, Clone, Default)]
-pub struct SubjectListing {
-    pub items: Vec<SubjectDocument>,
+pub struct VisitListing {
+    pub items: Vec<VisitDocument>,
     /// Cursor for the next page, if there may be more.
     pub next_cursor: Option<String>,
     /// The scan cap stopped the listing before the page was full. The page
@@ -259,21 +259,21 @@ impl AppState {
             .await
     }
 
-    /// Subject documents belonging to `publication`, newest first, one page
+    /// Visit documents belonging to `publication`, newest first, one page
     /// at a time. Scans the repo's document collection page by page,
-    /// keeping only subject documents whose `site` is this publication,
+    /// keeping only visit documents whose `site` is this publication,
     /// until a page is full or [`MAX_LIST_SCAN_PAGES`] pages have been read.
-    pub async fn subject_listing(
+    pub async fn visit_listing(
         &self,
         identity: &Identity,
         publication: &Record<Publication>,
         cursor: Option<&str>,
-    ) -> Result<SubjectListing, AppError> {
-        self.scan_subjects(identity, publication, cursor, |_| true)
+    ) -> Result<VisitListing, AppError> {
+        self.scan_visits(identity, publication, cursor, |_| true)
             .await
     }
 
-    /// [`subject_listing`](Self::subject_listing) restricted to documents
+    /// [`visit_listing`](Self::visit_listing) restricted to documents
     /// carrying `tag` (plan §7.6: publication-scoped, matched loosely).
     pub async fn tagged_listing(
         &self,
@@ -281,9 +281,9 @@ impl AppState {
         publication: &Record<Publication>,
         tag: &str,
         cursor: Option<&str>,
-    ) -> Result<SubjectListing, AppError> {
-        self.scan_subjects(identity, publication, cursor, |subject_doc| {
-            subject_doc
+    ) -> Result<VisitListing, AppError> {
+        self.scan_visits(identity, publication, cursor, |visit_doc| {
+            visit_doc
                 .document()
                 .tags
                 .iter()
@@ -292,14 +292,14 @@ impl AppState {
         .await
     }
 
-    async fn scan_subjects(
+    async fn scan_visits(
         &self,
         identity: &Identity,
         publication: &Record<Publication>,
         cursor: Option<&str>,
-        keep: impl Fn(&SubjectDocument) -> bool,
-    ) -> Result<SubjectListing, AppError> {
-        let mut listing = SubjectListing::default();
+        keep: impl Fn(&VisitDocument) -> bool,
+    ) -> Result<VisitListing, AppError> {
+        let mut listing = VisitListing::default();
         let mut cursor = cursor.map(str::to_owned);
         let page_size = DOCUMENT_PAGE_SIZE as usize;
         for scanned in 0.. {
@@ -312,9 +312,9 @@ impl AppState {
                 if !belongs_to(&record.value, &publication.uri) {
                     continue;
                 }
-                if let Some(subject_doc) = SubjectDocument::from_record(record) {
-                    if keep(&subject_doc) {
-                        listing.items.push(subject_doc);
+                if let Some(visit_doc) = VisitDocument::from_record(record) {
+                    if keep(&visit_doc) {
+                        listing.items.push(visit_doc);
                     }
                 }
             }

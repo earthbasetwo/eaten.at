@@ -27,7 +27,7 @@ use crate::editor::view::{
 };
 use crate::editor::{self, Action, Context, EditorForm, FieldErrors, PUBLICATION_NEW};
 use crate::error::AppError;
-use crate::model::SubjectDocument;
+use crate::model::VisitDocument;
 use crate::paths;
 use crate::publish::{self, PublishError, MAX_POST_GRAPHEMES};
 use crate::read::PublicationChoice;
@@ -90,18 +90,18 @@ impl Author {
 /// The document being edited, when there is one.
 struct Editing {
     rkey: String,
-    subject_doc: SubjectDocument,
+    visit_doc: VisitDocument,
 }
 
 impl Editing {
     /// The Bluesky post the document names, when it is a post in the
     /// author's own repo.
     fn post(&self, did: &Did) -> Option<AtUri> {
-        crate::view::bluesky_post_uri(self.subject_doc.document()).filter(|uri| uri.did() == did)
+        crate::view::bluesky_post_uri(self.visit_doc.document()).filter(|uri| uri.did() == did)
     }
 
     fn document_path(&self, did: &Did) -> String {
-        AtUri::parse(&self.subject_doc.document().site).map_or_else(
+        AtUri::parse(&self.visit_doc.document().site).map_or_else(
             |_| paths::repo(did),
             |site| paths::document(did, site.rkey(), &self.rkey),
         )
@@ -122,11 +122,11 @@ async fn editing(state: &AppState, author: &Author, rkey: &str) -> Result<Editin
         .document(&author.identity, rkey)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("document {rkey} not found")))?;
-    let subject_doc = SubjectDocument::from_record(record)
-        .ok_or_else(|| AppError::BadRequest("that document has no subject".to_owned()))?;
+    let visit_doc = VisitDocument::from_record(record)
+        .ok_or_else(|| AppError::BadRequest("that document is not a visit".to_owned()))?;
     Ok(Editing {
         rkey: rkey.to_owned(),
-        subject_doc,
+        visit_doc,
     })
 }
 
@@ -149,7 +149,7 @@ fn render(
     let action_path = editing.map_or_else(|| "/write".to_owned(), |e| format!("/write/{}", e.rkey));
     let options = author.options();
     let crosspost =
-        match editing.and_then(|e| crate::view::bluesky_post_url(e.subject_doc.document())) {
+        match editing.and_then(|e| crate::view::bluesky_post_url(e.visit_doc.document())) {
             Some(url) => CrosspostState::Posted(url),
             None if author.posting.create => CrosspostState::Ready,
             None => CrosspostState::NeedsPermission,
@@ -165,7 +165,7 @@ fn render(
             publications: &options,
             action_path: &action_path,
             editing: editing.is_some(),
-            has_cover: editing.is_some_and(|e| e.subject_doc.document().cover_image.is_some()),
+            has_cover: editing.is_some_and(|e| e.visit_doc.document().cover_image.is_some()),
             preview: outcome.preview.clone(),
             publish_error: outcome.publish_error,
             crosspost,
@@ -206,8 +206,7 @@ pub async fn edit_form(
     let nonce = nonce.0.as_str();
     let author = author(&state, &did).await?;
     let editing = editing(&state, &author, &rkey).await?;
-    let form =
-        EditorForm::from_document(editing.subject_doc.document(), &editing.subject_doc.subject);
+    let form = EditorForm::from_document(editing.visit_doc.document(), &editing.visit_doc.visit);
     let outcome = Outcome::default();
     Ok(render(
         nonce,
@@ -268,7 +267,7 @@ async fn submit(
     let uris = author.uris();
     let context = Context {
         publications: &uris,
-        original: editing.map(|e| &e.subject_doc.subject),
+        original: editing.map(|e| &e.visit_doc.visit),
     };
     let draft = match editor::validate(&form, &context) {
         Ok(draft) => draft,
@@ -303,7 +302,7 @@ async fn submit(
         state,
         &author.identity,
         &draft,
-        editing.map(|e| &e.subject_doc),
+        editing.map(|e| &e.visit_doc),
     )
     .await
     {
@@ -389,13 +388,13 @@ fn crosspost_response(
         None if author.posting.create => CrosspostState::Ready,
         None => CrosspostState::NeedsPermission,
     };
-    let default_text = editor::default_post_text(&editing.subject_doc.subject.title);
+    let default_text = editor::default_post_text(&editing.visit_doc.visit.place.name);
     let text = if post_text.trim().is_empty() {
         default_text
     } else {
         post_text.trim().to_owned()
     };
-    let title = &editing.subject_doc.document().title;
+    let title = &editing.visit_doc.document().title;
     let page = layout::render(&Page {
         title: &["Bluesky", title],
         main: view::crosspost_page(&CrosspostPage {
@@ -497,7 +496,7 @@ pub async fn delete_form(
 ) -> Result<Response, AppError> {
     let author = author(&state, &did).await?;
     let editing = editing(&state, &author, &rkey).await?;
-    let title = editing.subject_doc.document().title.clone();
+    let title = editing.visit_doc.document().title.clone();
     let post = match editing.post(&did) {
         None => DeletePost::None,
         Some(_) if author.posting.delete => DeletePost::Offered,
@@ -532,7 +531,7 @@ pub async fn delete_submit(
 ) -> Result<Response, AppError> {
     let author = author(&state, &did).await?;
     let editing = editing(&state, &author, &rkey).await?;
-    let back = AtUri::parse(&editing.subject_doc.document().site).map_or_else(
+    let back = AtUri::parse(&editing.visit_doc.document().site).map_or_else(
         |_| paths::repo(&did),
         |site| paths::publication(&did, site.rkey()),
     );

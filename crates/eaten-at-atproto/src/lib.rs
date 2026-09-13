@@ -22,12 +22,16 @@ pub const NSID_AUTHORITY: &str = "at.eaten";
 /// tool (Phase 2) writes them into the `eaten.at` repo unchanged.
 pub const LEXICONS: &[(&str, &str)] = &[
     (
-        "at.eaten.subject",
-        include_str!("../../../lexicons/at.eaten.subject.json"),
+        "at.eaten.place",
+        include_str!("../../../lexicons/at.eaten.place.json"),
     ),
     (
         "at.eaten.preferences",
         include_str!("../../../lexicons/at.eaten.preferences.json"),
+    ),
+    (
+        "at.eaten.visit",
+        include_str!("../../../lexicons/at.eaten.visit.json"),
     ),
 ];
 

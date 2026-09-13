@@ -1,17 +1,17 @@
 //! The editor page: two panes where width allows, the write-up on the
-//! left and the subject on the right, every control a plain form element.
+//! left and the visit on the right, every control a plain form element.
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
-use eaten_at_atproto::lexicon::KnownService;
-use eaten_at_web::components::{subject_card, subject_links, tag_links, Link, SubjectCard};
+use eaten_at_atproto::lexicon::{KnownIdService, KnownService, KnownValue, Meal, Rating};
+use eaten_at_web::components::{tag_links, visit_card, visit_links, Link};
 use eaten_at_web::markdown;
 use maud::{html, Markup, PreEscaped};
 
 use super::form::{
-    Action, EditorForm, LinkField, ServiceChoice, PUBLICATION_NEW, SERVICE_NONE, SERVICE_OTHER,
+    Action, Choice, EditorForm, RowKind, PUBLICATION_NEW, SERVICE_NONE, SERVICE_OTHER,
 };
-use super::{default_post_text, DocumentDraft, FieldErrors, MAX_LINKS};
+use super::{default_post_text, DocumentDraft, FieldErrors};
 use crate::publish::MAX_POST_GRAPHEMES;
 
 /// What the editor can offer about Bluesky for this document.
@@ -96,13 +96,42 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                     }))
                     p.meta.field-hint { "Shown in listings and link previews. Left blank, the first paragraph stands in." }
                 }
-                div.editor-pane.editor-subject {
+                div.editor-pane.editor-visit {
                     fieldset.editor-group {
-                        legend.kicker { "Subject" }
-                        (field("subject_title", "Subject title", errors, &html! {
-                            input #subject_title name="subject_title" type="text" value=(form.subject_title) required
-                                aria-describedby=[described(errors, "subject_title")];
+                        legend.kicker { "Place" }
+                        (field("place_name", "Name", errors, &html! {
+                            input #place_name name="place_name" type="text" value=(form.place_name) required
+                                aria-describedby=[described(errors, "place_name")];
                         }))
+                        (field("place_address", "Address (optional)", errors, &html! {
+                            input #place_address name="place_address" type="text" value=(form.place_address)
+                                autocomplete="off" aria-describedby=[described(errors, "place_address")];
+                        }))
+                        (field("place_price", "Price (optional)", errors, &html! {
+                            select #place_price name="place_price" aria-describedby=[described(errors, "place_price")] {
+                                option value="" selected[form.place_price.trim().is_empty()] { "Not said" }
+                                @for band in 1..=4u8 {
+                                    option value=(band) selected[form.place_price.trim() == band.to_string()] {
+                                        ("$".repeat(usize::from(band)))
+                                    }
+                                }
+                            }
+                        }))
+                        (ids(form, errors))
+                        p.meta.field-hint { "An id says which place this is, so write-ups about the same place can be matched. Google and Apple ids also make a map link." }
+                    }
+                    fieldset.editor-group {
+                        legend.kicker { "Visit" }
+                        (field("visited_on", "Date", errors, &html! {
+                            input #visited_on name="visited_on" type="date" value=(form.visited_on) required
+                                aria-describedby=[described(errors, "visited_on")];
+                        }))
+                        (meal_select(form, errors))
+                        (rating_choice(form, errors))
+                    }
+                    fieldset.editor-group {
+                        legend.kicker { "Dishes" }
+                        (dishes(form, errors))
                     }
                     fieldset.editor-group {
                         legend.kicker { "Links" }
@@ -123,7 +152,7 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                         @if page.has_cover {
                             p.meta.field-hint { "The current cover stays unless you choose a new file." }
                         } @else {
-                            p.meta.field-hint { "Under 5 MB. Without one, a placeholder is generated from the subject's title." }
+                            p.meta.field-hint { "Under 5 MB. Without one, a placeholder is generated from the place's name." }
                         }
                         (publication(form, page.publications, errors))
                     }
@@ -149,7 +178,7 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
 /// The crosspost toggle and its text (plan §5.7), or the link to the
 /// post once there is one.
 fn bluesky(form: &EditorForm, errors: &FieldErrors, state: &CrosspostState) -> Markup {
-    let placeholder = default_post_text(&form.subject_title);
+    let placeholder = default_post_text(&form.place_name);
     html! {
         @match state {
             CrosspostState::Posted(url) => {
@@ -316,6 +345,26 @@ fn field(name: &str, label: &str, errors: &FieldErrors, control: &Markup) -> Mar
     }
 }
 
+/// The remove button for a row, shown only while there is more than one.
+fn row_remove(kind: RowKind, i: usize, rows: usize) -> Markup {
+    html! {
+        @if rows > 1 {
+            button.link-button.row-remove type="submit" name="action" value=(Action::RemoveRow(kind, i).value()) {
+                "Remove"
+            }
+        }
+    }
+}
+
+/// The add button for a row kind, shown only under its cap.
+fn row_add(kind: RowKind, rows: usize, label: &str) -> Markup {
+    html! {
+        @if rows < kind.cap() {
+            p { button.link-button type="submit" name="action" value=(Action::AddRow(kind).value()) { (label) } }
+        }
+    }
+}
+
 fn links(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.rows aria-label="Links" {
@@ -327,45 +376,179 @@ fn links(form: &EditorForm, errors: &FieldErrors) -> Markup {
                             placeholder="https://" spellcheck="false"
                             aria-describedby=[described(errors, &format!("link_url_{i}"))];
                     }))
-                    (service_select(i, link))
+                    (KnownSelect::<KnownService> {
+                        name: format!("link_service_{i}"),
+                        other_name: format!("link_service_other_{i}"),
+                        label: "What it is",
+                        choice: link.service,
+                        other: &link.service_other,
+                        blank: Blank::None("No service"),
+                    }.render(errors))
                     (field(&format!("link_label_{i}"), "Label (optional)", errors, &html! {
                         input id=(format!("link_label_{i}")) name=(format!("link_label_{i}")) type="text" value=(link.label)
                             aria-describedby=[described(errors, &format!("link_label_{i}"))];
                     }))
-                    @if form.links.len() > 1 {
-                        button.link-button.row-remove type="submit" name="action" value=(Action::RemoveLink(i).value()) {
-                            "Remove"
-                        }
-                    }
+                    (row_remove(RowKind::Link, i, form.links.len()))
                 }
             }
-            @if form.links.len() < MAX_LINKS {
-                p { button.link-button type="submit" name="action" value=(Action::AddLink.value()) { "+ Add a link" } }
-            }
+            (row_add(RowKind::Link, form.links.len(), "+ Add a link"))
         }
     }
 }
 
-fn service_select(i: usize, link: &LinkField) -> Markup {
-    let name = format!("link_service_{i}");
-    let other_name = format!("link_service_other_{i}");
+fn dishes(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
-        div.field {
-            label.kicker for=(name) { "Service" }
-            select id=(name) name=(name) {
-                option value="" selected[link.service == ServiceChoice::Unset] { "Choose…" }
-                @for service in KnownService::ALL {
-                    option value=(service.as_str()) selected[link.service == ServiceChoice::Known(service)] {
-                        (service.display_name())
+        div.rows aria-label="Dishes" {
+            @if let Some(message) = errors.get("dishes") { p.field-error { (message) } }
+            @for (i, dish) in form.dishes.iter().enumerate() {
+                div.row.row-dish {
+                    (field(&format!("dish_name_{i}"), "Dish", errors, &html! {
+                        input id=(format!("dish_name_{i}")) name=(format!("dish_name_{i}")) type="text" value=(dish.name)
+                            aria-describedby=[described(errors, &format!("dish_name_{i}"))];
+                    }))
+                    (field(&format!("dish_note_{i}"), "Note (optional)", errors, &html! {
+                        input id=(format!("dish_note_{i}")) name=(format!("dish_note_{i}")) type="text" value=(dish.note)
+                            aria-describedby=[described(errors, &format!("dish_note_{i}"))];
+                    }))
+                    (row_remove(RowKind::Dish, i, form.dishes.len()))
+                }
+            }
+            (row_add(RowKind::Dish, form.dishes.len(), "+ Add a dish"))
+        }
+    }
+}
+
+fn ids(form: &EditorForm, errors: &FieldErrors) -> Markup {
+    html! {
+        div.rows aria-label="Ids" {
+            @if let Some(message) = errors.get("ids") { p.field-error { (message) } }
+            @for (i, id) in form.ids.iter().enumerate() {
+                div.row.row-id {
+                    (KnownSelect::<KnownIdService> {
+                        name: format!("id_service_{i}"),
+                        other_name: format!("id_service_other_{i}"),
+                        label: "Id from",
+                        choice: id.service,
+                        other: &id.service_other,
+                        blank: Blank::Prompt,
+                    }.render(errors))
+                    (field(&format!("id_value_{i}"), "Id", errors, &html! {
+                        input id=(format!("id_value_{i}")) name=(format!("id_value_{i}")) type="text" value=(id.id)
+                            spellcheck="false" autocomplete="off"
+                            aria-describedby=[described(errors, &format!("id_value_{i}"))];
+                    }))
+                    (row_remove(RowKind::Id, i, form.ids.len()))
+                }
+            }
+            (row_add(RowKind::Id, form.ids.len(), "+ Add an id"))
+        }
+    }
+}
+
+/// What the blank option of a known-values select means.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Blank {
+    /// Nothing chosen yet; the row is incomplete without a choice.
+    Prompt,
+    /// A real choice of "none", offered last under this label, with a
+    /// separate prompt first.
+    None(&'static str),
+}
+
+/// A select over a lexicon's known values with an "Other" that reveals a
+/// text field, so a value from another client's vocabulary survives a
+/// round trip.
+struct KnownSelect<'a, K: KnownValue> {
+    name: String,
+    other_name: String,
+    label: &'a str,
+    choice: Choice<K>,
+    other: &'a str,
+    blank: Blank,
+}
+
+impl<K: KnownValue + PartialEq> KnownSelect<'_, K> {
+    fn render(&self, errors: &FieldErrors) -> Markup {
+        let name = self.name.as_str();
+        let other_name = self.other_name.as_str();
+        let choice = self.choice;
+        html! {
+            div.field.field-invalid[errors.get(name).is_some()] {
+                label.kicker for=(name) { (self.label) }
+                select id=(name) name=(name) aria-describedby=[described(errors, name)] {
+                    @match self.blank {
+                        Blank::Prompt => {
+                            option value="" selected[choice == Choice::Unset || choice == Choice::None] { "Choose…" }
+                        }
+                        Blank::None(_) => {
+                            option value="" selected[choice == Choice::Unset] { "Choose…" }
+                        }
+                    }
+                    @for value in K::ALL {
+                        option value=(value.as_str()) selected[choice == Choice::Known(*value)] {
+                            (value.display_name())
+                        }
+                    }
+                    option value=(SERVICE_OTHER) selected[choice == Choice::Other] { "Other" }
+                    @if let Blank::None(label) = self.blank {
+                        option value=(SERVICE_NONE) selected[choice == Choice::None] { (label) }
                     }
                 }
-                option value=(SERVICE_OTHER) selected[link.service == ServiceChoice::Other] { "Other" }
-                option value=(SERVICE_NONE) selected[link.service == ServiceChoice::None] { "No service" }
+                @if let Some(message) = errors.get(name) {
+                    p.field-error id=(format!("{name}-error")) { (message) }
+                }
+            }
+            (field(other_name, "Other", errors, &html! {
+                input id=(other_name) name=(other_name) type="text" value=(self.other)
+                    placeholder="as the other client names it"
+                    aria-describedby=[described(errors, other_name)];
+            }))
+        }
+    }
+}
+
+fn meal_select(form: &EditorForm, errors: &FieldErrors) -> Markup {
+    html! {
+        div.field {
+            label.kicker for="meal" { "Meal (optional)" }
+            select #meal name="meal" {
+                option value="" selected[form.meal == Choice::Unset || form.meal == Choice::None] { "Not said" }
+                @for meal in Meal::ALL {
+                    option value=(meal.as_str()) selected[form.meal == Choice::Known(*meal)] { (meal.display_name()) }
+                }
+                option value=(SERVICE_OTHER) selected[form.meal == Choice::Other] { "Other" }
             }
         }
-        div.field.field-other {
-            label.kicker for=(other_name) { "Other service" }
-            input id=(other_name) name=(other_name) type="text" value=(link.service_other) placeholder="as the link's own client names it";
+        (field("meal_other", "Other meal", errors, &html! {
+            input #meal_other name="meal_other" type="text" value=(form.meal_other)
+                aria-describedby=[described(errors, "meal_other")];
+        }))
+    }
+}
+
+/// The rating as a radio group: unrated, then the four steps, each
+/// labelled with its marks and its word.
+fn rating_choice(form: &EditorForm, errors: &FieldErrors) -> Markup {
+    let current = form.rating.trim();
+    html! {
+        fieldset.field.rating-choice.field-invalid[errors.get("rating").is_some()] {
+            legend.kicker { "Rating (optional)" }
+            label.choice for="rating_none" {
+                input #rating_none name="rating" type="radio" value="" checked[current.is_empty()];
+                " Unrated"
+            }
+            @for rating in Rating::ALL {
+                @let id = format!("rating_{}", rating.value());
+                label.choice for=(id) {
+                    input id=(id) name="rating" type="radio" value=(rating.value()) checked[current == rating.value().to_string()];
+                    " "
+                    span.rating aria-hidden="true" { (rating.marks()) }
+                    " " (rating.word())
+                }
+            }
+            @if let Some(message) = errors.get("rating") {
+                p.field-error id="rating-error" { (message) }
+            }
         }
     }
 }
@@ -404,27 +587,11 @@ fn publication(
 /// The draft as readers would see it: date line, title, card, prose,
 /// links, tags. A new cover is shown inline.
 pub fn preview(draft: &DocumentDraft) -> Markup {
-    let card = SubjectCard {
-        title: draft.subject.title.clone(),
-        cover_src: draft
-            .cover
-            .as_ref()
-            .map(|c| format!("data:{};base64,{}", c.mime, STANDARD.encode(&c.bytes))),
-        links: draft
-            .subject
-            .external_urls
-            .iter()
-            .map(|u| Link {
-                label: u.label.clone().unwrap_or_else(|| {
-                    u.service
-                        .as_deref()
-                        .and_then(KnownService::from_value)
-                        .map_or_else(|| host_of(&u.url), |s| s.display_name().to_owned())
-                }),
-                href: u.url.clone(),
-            })
-            .collect(),
-    };
+    let cover_src = draft
+        .cover
+        .as_ref()
+        .map(|c| format!("data:{};base64,{}", c.mime, STANDARD.encode(&c.bytes)));
+    let card = crate::view::card_for(&draft.visit, cover_src);
     let tags: Vec<Link> = draft
         .tags
         .iter()
@@ -437,11 +604,11 @@ pub fn preview(draft: &DocumentDraft) -> Markup {
         article.document.preview-document {
             p.kicker { "Today" }
             h1.doc-title { (draft.title) }
-            (subject_card(&card))
+            (visit_card(&card))
             div.prose { (PreEscaped(markdown::render(&draft.markdown))) }
             footer.doc-footer {
                 @if !card.links.is_empty() {
-                    div.doc-footer-row { (subject_links(&card.links)) }
+                    div.doc-footer-row { (visit_links(&card.links)) }
                 }
                 @if !tags.is_empty() {
                     div.doc-footer-row { (tag_links(&tags, None)) }
@@ -449,14 +616,4 @@ pub fn preview(draft: &DocumentDraft) -> Markup {
             }
         }
     }
-}
-
-fn host_of(url: &str) -> String {
-    url::Url::parse(url)
-        .ok()
-        .and_then(|u| {
-            u.host_str()
-                .map(|h| h.trim_start_matches("www.").to_owned())
-        })
-        .unwrap_or_else(|| url.to_owned())
 }

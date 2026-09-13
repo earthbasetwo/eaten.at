@@ -60,10 +60,10 @@ two accounts, seeds records, and writes `.env.dev`:
 - **`eaten.test`**, the lexicon publisher, with an app password.
 - **`alice.test`**, an author with two publications:
   - **Field Notes**, with no theme, so it renders in the site's own
-    palette. It has three write-ups carrying an `at.eaten.subject` (one
-    with a description, one with a Bluesky post reference so the comment
-    section renders) and one plain document without a subject, to prove
-    the filtering. An `at.eaten.preferences` record makes it the default,
+    palette. It has three write-ups whose `content` is an
+    `at.eaten.visit` (one with a description, one with a Bluesky post
+    reference so the comment section renders, one unrated) and one plain
+    document that is not a visit, to prove the filtering. An `at.eaten.preferences` record makes it the default,
     so `/@alice.test` opens it.
   - **After Hours**, with a dark author theme whose text colour fails
     contrast on purpose, and two write-ups, so the theme path and its
@@ -75,7 +75,7 @@ Terminal 2:
 
 ```
 just run-dev                  # the app, with .env.dev loaded
-just lexicons-check-dev       # dry run: our two schemas against eaten.test's repo
+just lexicons-check-dev       # dry run: our three schemas against eaten.test's repo
 just lexicons-publish-dev     # publish, then verify via _lexicon.eaten.at
 ```
 

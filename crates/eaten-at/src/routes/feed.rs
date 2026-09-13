@@ -17,23 +17,23 @@ pub async fn feed(
 ) -> Result<Response<Body>, AppError> {
     let (did, identity) = resolve_repo(&state, &did).await?;
     let publication = require_publication(&state, &identity, &pub_rkey).await?;
-    let page = state.subject_listing(&identity, &publication, None).await?;
+    let page = state.visit_listing(&identity, &publication, None).await?;
 
     let items = page
         .items
         .iter()
-        .map(|subject_doc| Item {
-            title: view::document_headline(Some(subject_doc), &subject_doc.document().title),
+        .map(|visit_doc| Item {
+            title: view::document_headline(Some(visit_doc), &visit_doc.document().title),
             link: view::canonical_url(
                 &state,
                 &did,
                 &pub_rkey,
-                &subject_doc.record,
+                &visit_doc.record,
                 &publication.value,
             ),
-            description: view::summary(subject_doc),
-            published: subject_doc.document().published_at.timestamp(),
-            image: state.absolute(&paths::cover_og(&did, subject_doc.rkey())),
+            description: view::summary(visit_doc),
+            published: visit_doc.document().published_at.timestamp(),
+            image: state.absolute(&paths::cover_og(&did, visit_doc.rkey())),
         })
         .collect();
     let channel = Channel {

@@ -7,7 +7,7 @@ use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::at_eaten::{PREFERENCES_NSID, PREFERENCES_RKEY};
 use eaten_at_atproto::lexicon::{
-    BlobRef, Datetime, Document, DOCUMENT_NSID, PUBLICATION_NSID, SUBJECT_NSID,
+    BlobRef, Datetime, Document, Visit, DOCUMENT_NSID, PUBLICATION_NSID, VISIT_NSID,
 };
 use eaten_at_atproto::oauth::{AuthorizedSession, OAuthError};
 use eaten_at_atproto::repo::write::WriteReceipt;
@@ -20,7 +20,7 @@ use crate::cache::Namespace;
 use crate::editor::{DocumentDraft, Target};
 use crate::error::AppError;
 use crate::img::{Size, MAX_COVER_BYTES};
-use crate::model::SubjectDocument;
+use crate::model::VisitDocument;
 use crate::state::AppState;
 use crate::view;
 
@@ -138,8 +138,9 @@ pub struct Placement<'a> {
 /// The `site.standard.document` record for a draft, exactly as written
 /// (plan §4.1, §5.4). Fields our editor does not know about survive from
 /// the original; `description` is present only when the author wrote
-/// one; `links` is a single object unless the original carried other
-/// members too.
+/// one; `content` is the visit with the prose inside it, and
+/// `textContent` is its plaintext rendering. `links` is not ours and is
+/// carried over as found.
 pub fn build_document(draft: &DocumentDraft, placement: &Placement<'_>) -> Value {
     let mut doc = placement.original.map_or_else(
         || json!({}),
@@ -177,45 +178,56 @@ pub fn build_document(draft: &DocumentDraft, placement: &Placement<'_>) -> Value
             fields.remove("coverImage");
         }
     }
-    fields.insert(
-        "content".into(),
-        json!({
-            "$type": "at.markpub.markdown",
-            "flavor": "commonmark",
-            "text": { "$type": "at.markpub.text", "markdown": draft.markdown },
-        }),
-    );
+    fields.insert("content".into(), content(draft));
     fields.insert(
         "textContent".into(),
-        json!(markdown::to_plaintext(&draft.markdown)),
+        json!(text_content(&draft.visit, &draft.markdown)),
     );
     if draft.tags.is_empty() {
         fields.remove("tags");
     } else {
         fields.insert("tags".into(), json!(draft.tags));
     }
-
-    let subject = serde_json::to_value(&draft.subject).unwrap_or_default();
-    let mut links: Vec<Value> = placement
-        .original
-        .map(|d| d.links.clone())
-        .unwrap_or_default();
-    match links
-        .iter_mut()
-        .find(|l| l.get("$type").and_then(Value::as_str) == Some(SUBJECT_NSID))
-    {
-        Some(ours) => *ours = subject,
-        None => links.push(subject),
-    }
-    fields.insert(
-        "links".into(),
-        if links.len() == 1 {
-            links.remove(0)
-        } else {
-            Value::Array(links)
-        },
-    );
     doc
+}
+
+/// The document's `content`: the draft's visit, typed, with the markdown
+/// body inside it (D12: `text.markdown` only).
+pub fn content(draft: &DocumentDraft) -> Value {
+    let mut visit = draft.visit.clone();
+    visit.type_ = Some(VISIT_NSID.to_owned());
+    visit.body = Some(json!({
+        "$type": "at.markpub.markdown",
+        "flavor": "commonmark",
+        "text": { "$type": "at.markpub.text", "markdown": draft.markdown },
+    }));
+    serde_json::to_value(&visit).unwrap_or_default()
+}
+
+/// The plaintext a reader that does not know `at.eaten.visit` sees: a
+/// line naming the place, the date, and the verdict; the prose without
+/// markup; then the dishes.
+pub fn text_content(visit: &Visit, markdown: &str) -> String {
+    let mut header = format!("{} · {}", visit.place.name.trim(), visit.visited_on);
+    if let Some(rating) = visit.rating {
+        header.push_str(" · ");
+        header.push_str(rating.word());
+    }
+    let mut parts = vec![header];
+    let prose = markdown::to_plaintext(markdown);
+    if !prose.trim().is_empty() {
+        parts.push(prose.trim().to_owned());
+    }
+    let dishes: Vec<&str> = visit
+        .dishes
+        .iter()
+        .map(|d| d.name.trim())
+        .filter(|n| !n.is_empty())
+        .collect();
+    if !dishes.is_empty() {
+        parts.push(format!("Dishes: {}", dishes.join(", ")));
+    }
+    parts.join("\n\n")
 }
 
 /// Publish a draft: create what a first publish needs, upload the cover,
@@ -224,7 +236,7 @@ pub async fn publish(
     state: &AppState,
     identity: &Identity,
     draft: &DocumentDraft,
-    editing: Option<&SubjectDocument>,
+    editing: Option<&VisitDocument>,
 ) -> Result<Published, PublishError> {
     let did = &identity.did;
     let session = state.oauth().session(did).await?;
@@ -271,7 +283,7 @@ pub async fn publish(
         Some(cover) => Some(session.upload_blob(cover.bytes.clone(), cover.mime).await?),
         None => None,
     };
-    let original = editing.map(SubjectDocument::document);
+    let original = editing.map(VisitDocument::document);
     let cover = uploaded
         .as_ref()
         .or_else(|| original.and_then(|d| d.cover_image.as_ref()));
@@ -528,10 +540,10 @@ async fn link_card(
         .publication(identity, site.rkey())
         .await?
         .ok_or_else(|| AppError::NotFound(format!("publication {} not found", site.rkey())))?;
-    let subject_doc = SubjectDocument::from_record(record.clone());
-    let title = view::document_headline(subject_doc.as_ref(), &record.value.title);
-    let description = match &subject_doc {
-        Some(subject_doc) => view::summary(subject_doc),
+    let visit_doc = VisitDocument::from_record(record.clone());
+    let title = view::document_headline(visit_doc.as_ref(), &record.value.title);
+    let description = match &visit_doc {
+        Some(visit_doc) => view::summary(visit_doc),
         None => record.value.description.clone().unwrap_or_default(),
     };
     let url = view::canonical_url(
@@ -541,11 +553,11 @@ async fn link_card(
         record,
         &publication.value,
     );
-    let thumb = match (&record.value.cover_image, &subject_doc) {
+    let thumb = match (&record.value.cover_image, &visit_doc) {
         (Some(blob), _) => Some(blob.clone()),
-        (None, Some(subject_doc)) => {
+        (None, Some(visit_doc)) => {
             let jpeg = state
-                .cover_rendition(identity, subject_doc, Size::Card)
+                .cover_rendition(identity, visit_doc, Size::Card)
                 .await
                 .jpeg;
             if jpeg.is_empty() || jpeg.len() > MAX_COVER_BYTES {
@@ -604,7 +616,6 @@ async fn forget_document(state: &AppState, did: &Did, rkey: &str) {
 mod tests {
     use super::*;
     use crate::editor::Cover;
-    use eaten_at_atproto::lexicon::{ExternalUrl, Subject};
 
     #[test]
     fn slugs() {
@@ -649,17 +660,20 @@ mod tests {
             markdown: "Forty-six *minutes*.\n\nNine notes.".into(),
             description: None,
             tags: vec!["notes".into(), "Short".into()],
-            subject: Subject {
-                type_: Some(SUBJECT_NSID.into()),
-                title: "Promises".into(),
-                external_urls: vec![ExternalUrl {
-                    url: "https://x.example/a".into(),
-                    service: Some("bc".into()),
-                    label: None,
-                    extra: serde_json::Map::new(),
-                }],
-                extra: serde_json::Map::new(),
-            },
+            visit: serde_json::from_value(json!({
+                "place": {
+                    "name": "Promises",
+                    "address": "1 Example St",
+                    "price": 2,
+                    "ids": [{"service": "googlePlace", "id": "g1"}],
+                    "urls": [{"url": "https://x.example/a", "service": "bc"}]
+                },
+                "visitedOn": "2026-09-08",
+                "meal": "dinner",
+                "dishes": [{"name": "Soup", "note": "hot"}, {"name": "Bread"}],
+                "rating": 3
+            }))
+            .unwrap(),
             cover: None,
             target: Target::Existing(
                 AtUri::parse(
@@ -729,7 +743,7 @@ mod tests {
             "publishedAt": "2026-09-09T15:00:00.000Z",
             "updatedAt": "2026-09-09T16:00:00.000Z",
             "foreignField": {"kept": true},
-            "links": {"$type": SUBJECT_NSID, "title": "A"},
+            "links": {"$type": "com.example.link", "url": "https://elsewhere.example"},
             "content": {"$type": "at.markpub.markdown", "text": {"$type": "at.markpub.text", "markdown": "m"}}
         });
         let doc: Document = serde_json::from_value(original.clone()).unwrap();
@@ -768,11 +782,31 @@ mod tests {
         insta::assert_snapshot!(serde_json::to_string_pretty(&doc).unwrap());
         assert!(doc.get("updatedAt").is_none());
         assert!(doc.get("description").is_none());
+        assert!(doc.get("links").is_none(), "links are not ours to write");
+        assert_eq!(doc["content"]["$type"], VISIT_NSID);
         assert_eq!(
-            doc["links"]["externalUrls"][0]["service"], "bc",
+            doc["content"]["place"]["urls"][0]["service"], "bc",
             "unknown service preserved"
         );
-        assert_eq!(doc["textContent"], "Forty-six minutes.\n\nNine notes.");
+        assert_eq!(doc["content"]["body"]["$type"], "at.markpub.markdown");
+        assert_eq!(
+            doc["textContent"],
+            "Promises · 2026-09-08 · Strongly Recommended\n\nForty-six minutes.\n\nNine notes.\n\nDishes: Soup, Bread"
+        );
+    }
+
+    #[test]
+    fn text_content_reads_on_its_own() {
+        let mut d = draft();
+        d.visit.rating = None;
+        d.visit.dishes.clear();
+        d.markdown = "  ".into();
+        assert_eq!(text_content(&d.visit, &d.markdown), "Promises · 2026-09-08");
+        d.markdown = "# Head\n\nSome *words*.".into();
+        assert_eq!(
+            text_content(&d.visit, &d.markdown),
+            "Promises · 2026-09-08\n\nHead\n\nSome words."
+        );
     }
 
     #[test]
@@ -790,9 +824,14 @@ mod tests {
             "foreignField": {"kept": true},
             "links": [
                 {"$type": "site.standard.somethingElse", "x": 1},
-                {"$type": SUBJECT_NSID, "title": "Old"}
+                {"$type": "com.example.link", "url": "https://elsewhere.example"}
             ],
-            "content": {"$type": "at.markpub.markdown", "text": {"$type": "at.markpub.text", "markdown": "old"}}
+            "content": {
+                "$type": VISIT_NSID,
+                "place": {"name": "Old"},
+                "visitedOn": "2026-08-29",
+                "body": {"$type": "at.markpub.markdown", "text": {"$type": "at.markpub.text", "markdown": "old"}}
+            }
         }))
         .unwrap();
         let site =
@@ -829,12 +868,13 @@ mod tests {
         assert!(doc.get("tags").is_none());
         let links = doc["links"]
             .as_array()
-            .expect("other members keep the array form");
-        assert_eq!(links.len(), 2);
+            .expect("foreign links keep the array form");
+        assert_eq!(links.len(), 2, "links are carried over untouched");
         assert_eq!(links[0]["$type"], "site.standard.somethingElse");
-        assert_eq!(links[1]["title"], "Promises");
+        assert_eq!(doc["content"]["place"]["name"], "Promises");
+        assert_eq!(doc["content"]["visitedOn"], "2026-09-08");
         assert_eq!(
-            doc["content"]["text"]["markdown"],
+            doc["content"]["body"]["text"]["markdown"],
             "Forty-six *minutes*.\n\nNine notes."
         );
     }
