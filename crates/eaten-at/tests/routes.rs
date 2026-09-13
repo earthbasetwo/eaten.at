@@ -7,6 +7,7 @@ use axum::http::{header, Request, StatusCode};
 use eaten_at::app::router;
 use eaten_at::bsky::BskyConfig;
 use eaten_at::cache::{Cache, SystemClock};
+use eaten_at::places::PlacesConfig;
 use eaten_at::state::{AppConfig, AppState};
 use eaten_at_atproto::http::{GuardedClient, Policy, StaticHosts};
 use eaten_at_atproto::identity::{IdentityConfig, StaticDns};
@@ -212,6 +213,10 @@ fn state_for(server: &MockServer, dns: StaticDns) -> AppState {
             },
             public_url: Url::parse("https://eaten.at").unwrap(),
             oauth_signing_key: None,
+            places: PlacesConfig {
+                base_url: Url::parse(&server.uri()).unwrap(),
+                api_key: Some("test-key".into()),
+            },
         },
         Cache::in_memory(Arc::new(SystemClock)).unwrap(),
     )

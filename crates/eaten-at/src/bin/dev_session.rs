@@ -99,6 +99,7 @@ mod tests {
             plc_directory: None,
             oauth_key_file: None,
             bsky_appview: None,
+            places: eaten_at::places::PlacesConfig::default(),
             dev: insecure.map(|insecure| Dev {
                 insecure,
                 hosts: StaticHosts::default(),

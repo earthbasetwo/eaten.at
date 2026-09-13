@@ -13,6 +13,7 @@ use url::Url;
 
 use crate::bsky::BskyConfig;
 use crate::cache::{Cache, SystemClock};
+use crate::places::PlacesConfig;
 use crate::state::{AppConfig, AppState, USER_AGENT};
 
 /// Names of every environment variable the app reads.
@@ -33,6 +34,10 @@ pub mod env {
     /// The Bluesky `AppView` that comment threads are read from. Defaults
     /// to the public one.
     pub const BSKY_APPVIEW: &str = "EATEN_AT_BSKY_APPVIEW";
+    /// The Open Places API base URL. Defaults to the production API.
+    pub const PLACES_API_URL: &str = "EATEN_AT_PLACES_API_URL";
+    /// The Open Places API key. Without it, place search is disabled.
+    pub const PLACES_API_KEY: &str = "EATEN_AT_PLACES_API_KEY";
 }
 
 /// Everything the process needs to start.
@@ -44,6 +49,7 @@ pub struct Settings {
     pub plc_directory: Option<Url>,
     pub oauth_key_file: Option<PathBuf>,
     pub bsky_appview: Option<Url>,
+    pub places: PlacesConfig,
     pub dev: Option<Dev>,
 }
 
@@ -90,6 +96,15 @@ impl Settings {
             ),
             None => None,
         };
+        let places = PlacesConfig {
+            base_url: match var(env::PLACES_API_URL) {
+                Some(raw) => Url::parse(&raw).with_context(|| {
+                    format!("{}={raw:?} is not a valid URL", env::PLACES_API_URL)
+                })?,
+                None => PlacesConfig::default().base_url,
+            },
+            api_key: var(env::PLACES_API_KEY),
+        };
         let insecure =
             var(env::DEV_INSECURE).is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
         let hosts = match var(env::DEV_HOSTS) {
@@ -116,6 +131,7 @@ impl Settings {
             plc_directory,
             oauth_key_file: var(env::OAUTH_KEY_FILE).map(PathBuf::from),
             bsky_appview,
+            places,
             dev,
         })
     }
@@ -170,6 +186,12 @@ impl Settings {
                 env::DEV_INSECURE
             );
         }
+        if self.places.api_key.is_none() {
+            tracing::warn!(
+                "{} is not set: place search is disabled and the editor offers manual entry only",
+                env::PLACES_API_KEY
+            );
+        }
         let cache = Cache::open(&self.db, Arc::new(SystemClock))
             .with_context(|| format!("could not open cache database {}", self.db.display()))?;
         let config = AppConfig {
@@ -182,6 +204,7 @@ impl Settings {
                 },
                 None => BskyConfig::default(),
             },
+            places: self.places.clone(),
         };
         AppState::new(self.http()?, self.dns()?, config, cache)
     }
