@@ -1,0 +1,22 @@
+---
+source: crates/eaten-at-web/tests/markdown_snapshot.rs
+expression: render(WRITE_UP)
+---
+<h2>Curi Curi</h2>
+<p>Curio Curio's second record is the one where the <em>jangle</em> finally gives way
+to something heavier. I first heard it at <a href="https://curiocurio.bandcamp.com/album/curi-curi" rel="ugc nofollow noopener">Bandcamp Friday</a> <small class="host">curiocurio.bandcamp.com</small>
+and have not stopped.</p>
+<h3>The songs</h3>
+<ol>
+<li>"Opener" sets the pace</li>
+<li>"Middle" drifts</li>
+</ol>
+<blockquote>
+<p>Quoted from the liner notes: <strong>play loud</strong>.</p>
+</blockquote>
+<p>Some code: <code>let x = 1;</code> and a block:</p>
+<pre><code>fn main() {}
+</code></pre>
+<p><a href="https://f4.bcbits.com/img/a1.jpg" rel="ugc nofollow noopener">Sleeve</a> <small class="host">f4.bcbits.com</small></p>
+<hr>
+<p>Closing thoughts with a bare link <a href="https://example.com/review" rel="ugc nofollow noopener">https://example.com/review</a> and an <a href="mailto:me@example.com" rel="ugc nofollow noopener">email</a>.</p>

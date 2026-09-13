@@ -1,0 +1,18 @@
+{
+  "$type": "site.standard.document",
+  "canonicalUrl": "https://standard.site/docs/lexicons/document",
+  "coverImage": {
+    "$type": "blob",
+    "mimeType": "image/png",
+    "ref": {
+      "$link": "bafkreihtwhkj4tgrulsbgv5nb53z3hiatfeat4asm6uv4y6ymqmqxfmvi4"
+    },
+    "size": 110855
+  },
+  "description": "Schema reference for documents, used to provide metadata for documents published on the web.",
+  "path": "/docs/lexicons/document",
+  "publishedAt": "2026-02-10T00:00:00.000Z",
+  "site": "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/3me5vykp6lf2y",
+  "textContent": "import { Table } from '@/app/components/docs'\n\nDocument Lexicon\n\nThe site.standard.document lexicon provides metadata for documents published on the web.\n\nOverview\n\nDocuments may be standalone or associated with a publication. This lexicon can be used to store a document's content and its associated metadata.\n\nSchema\n\nRequired Properties\n\n<Table\n    headers={['Property', 'Type', 'Description']}\n    rows={[\n        ['site', 'string', <>Points to a publication record <code>at://</code> or a publication url <code>https://</code> for loose documents. Avoid trailing slashes.</>],\n        ['title', 'string', <>Title of the document. <code>maxLength: 5000</code> <code>maxGraphemes: 500</code></>],\n        ['publishedAt', 'datetime', 'Timestamp of the documents publish time.'],\n    ]}\n/>\n\nOptional Properties\n\n<Table\n    headers={['Property', 'Type', 'Description']}\n    rows={[\n        ['path', 'string', <>Combine with <code>site</code> or publication <code>url</code> to construct a canonical URL to the document. A slash should be included at the beginning of this value.</>],\n        ['description', 'string', <>A brief description or excerpt from the document. <code>maxLength: 30000</code> <code>maxGraphemes: 3000</code></>],\n        ['coverImage', 'blob', 'Image to used for thumbnail or cover image. Less than 1MB is size.'],\n        ['content', 'union', <>Open union used to define the record's content. Each entry must specify a <code>$type</code></>],\n        ['textContent', 'string', 'Plaintext representation of the documents contents. Should not contain markdown or other formatting.'],\n        ['bskyPostRef', 'ref', 'Strong reference to a Bluesky post. Useful to keep track of comments off-platform.'],\n        ['tags', 'array', <>Array of strings used to tag or categorize the document. Avoid prepending tags with hashtags. <code>maxLength: 1280</code> <code>maxGraphemes: 128</code></>],\n        ['updatedAt', 'datetime', 'Timestamp of the documents last edit.'],\n    ]}\n/>\n\nExample\n\nContent Format\n\nThe content property is an open union, allowing for extensibility. Each entry must specify a $type and may be extended with other lexicons to support additional content formats like Markdown, blocks, or other rich text.\n\nView the Lexicon\n\n- View full lexicon schema\n- Example record\n\nBest Practices\n\n- While we encourage avoid trailing slashes, some may not implement this in practice. If you are validating records, you should trim trailing slashes for site in your codebase.\n\nRelated\n\n- Publication lexicon - Collections of documents\n- Verification - Link documents to web pages\n- Quick Start - Implementation guide",
+  "title": "Document Lexicon"
+}

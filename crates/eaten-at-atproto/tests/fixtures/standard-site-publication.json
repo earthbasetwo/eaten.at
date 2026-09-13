@@ -1,0 +1,18 @@
+{
+  "$type": "site.standard.publication",
+  "createdAt": "2026-02-06T03:00:14.923Z",
+  "description": "Standard.site provides shared lexicons for long-form publishing on AT Protocol. Making content easier to discover, index, and move across the ATmosphere.",
+  "icon": {
+    "$type": "blob",
+    "mimeType": "image/png",
+    "ref": {
+      "$link": "bafkreicccrcq574fdbug4ebyx6w327xo7hkqo5wqhidlfvlpnz7qronqqy"
+    },
+    "size": 1696
+  },
+  "name": "Standard.site",
+  "preferences": {
+    "showInDiscover": true
+  },
+  "url": "https://standard.site"
+}

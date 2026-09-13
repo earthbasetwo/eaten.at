@@ -1,0 +1,44 @@
+{
+  "lexicon": 1,
+  "id": "at.eaten.subject",
+  "defs": {
+    "main": {
+      "type": "object",
+      "description": "Identifies the subject a site.standard.document is about. Placed in the document's links open union. The presence of this object is what marks a document as one of ours.",
+      "required": ["title"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The subject's name, as the author gives it.",
+          "maxLength": 2000,
+          "maxGraphemes": 200
+        },
+        "externalUrls": {
+          "type": "array",
+          "description": "Places to read more about the subject, in the author's preferred order.",
+          "maxLength": 12,
+          "items": { "type": "ref", "ref": "#externalUrl" }
+        }
+      }
+    },
+    "externalUrl": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string", "format": "uri", "maxLength": 2048 },
+        "service": {
+          "type": "string",
+          "description": "Service this URL points at. Consumers dispatch service-specific rendering on an exact match against knownValues. Values outside knownValues belong to the authoring client's own vocabulary and MUST be preserved on rewrite and rendered as a plain link.",
+          "knownValues": ["officialSite"],
+          "maxLength": 640
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable link label.",
+          "maxLength": 640,
+          "maxGraphemes": 64
+        }
+      }
+    }
+  }
+}

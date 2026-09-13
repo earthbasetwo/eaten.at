@@ -1,0 +1,22 @@
+---
+source: crates/eaten-at/tests/routes.rs
+expression: head
+---
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ross Writes — eaten.at</title>
+<link rel="stylesheet" href="/static/app.HASH.css">
+<meta name="description" content="Ross Writes description">
+<link rel="canonical" href="https://ross.eaten.at">
+<meta property="og:url" content="https://ross.eaten.at">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ross Writes">
+<meta property="og:description" content="Ross Writes description">
+<meta property="og:site_name" content="Ross Writes">
+<meta property="og:image" content="https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/pub1?kind=icon">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="alternate" type="application/rss+xml" title="Ross Writes feed" href="https://eaten.at/at/did:plc:re3ebnp5v7ffagz6rb6xfei4/pub1/feed.xml">
+</head>

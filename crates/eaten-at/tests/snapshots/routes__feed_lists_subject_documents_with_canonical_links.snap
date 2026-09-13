@@ -1,0 +1,30 @@
+---
+source: crates/eaten-at/tests/routes.rs
+expression: body
+---
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Ross Writes</title>
+    <link>https://ross.eaten.at</link>
+    <description>Ross Writes description</description>
+    <atom:link href="https://eaten.at/at/did:plc:re3ebnp5v7ffagz6rb6xfei4/pub1/feed.xml" rel="self" type="application/rss+xml"/>
+    <lastBuildDate>Mon, 07 Sep 2026 12:00:00 +0000</lastBuildDate>
+    <item>
+      <title>Third &amp; &lt;Subject&gt;</title>
+      <link>https://ross.eaten.at/2026/09/third-post</link>
+      <guid isPermaLink="true">https://ross.eaten.at/2026/09/third-post</guid>
+      <description>A write-up of Third Subject.</description>
+      <pubDate>Mon, 07 Sep 2026 12:00:00 +0000</pubDate>
+      <enclosure url="https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d3?size=og" type="image/jpeg" length="0"/>
+    </item>
+    <item>
+      <title>First Subject</title>
+      <link>https://ross.eaten.at/2026/09/first-post</link>
+      <guid isPermaLink="true">https://ross.eaten.at/2026/09/first-post</guid>
+      <description>A write-up of First Subject.</description>
+      <pubDate>Mon, 07 Sep 2026 12:00:00 +0000</pubDate>
+      <enclosure url="https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d1?size=og" type="image/jpeg" length="0"/>
+    </item>
+  </channel>
+</rss>

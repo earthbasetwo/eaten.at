@@ -1,0 +1,36 @@
+[package]
+name = "eaten-at-atproto"
+description = "AT Protocol plumbing for eaten.at: identity, repo I/O, OAuth, lexicons"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+atrium-api = { version = "0.25", default-features = false }
+atrium-common = "0.1"
+atrium-identity = "0.1"
+atrium-oauth = { version = "0.1.7", default-features = false }
+atrium-xrpc = "0.12"
+bytes = "1"
+hickory-resolver = { version = "0.26", default-features = false, features = ["tokio", "system-config"] }
+jiff = { version = "0.2", features = ["serde"] }
+jose-jwk = "0.1"
+p256 = "0.13"
+rand_core = { version = "0.6", features = ["getrandom"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "http2"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror.workspace = true
+tokio = { version = "1", features = ["sync", "net", "rt"] }
+tracing = "0.1"
+url = { version = "2", features = ["serde"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+base64 = "0.22"
+tokio = { version = "1", features = ["full"] }
+wiremock = "0.6"

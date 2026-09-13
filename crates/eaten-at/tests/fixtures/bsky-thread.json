@@ -1,0 +1,175 @@
+{
+  "thread": {
+    "$type": "app.bsky.feed.defs#threadViewPost",
+    "post": {
+      "uri": "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/app.bsky.feed.post/3kroot",
+      "cid": "bafyroot",
+      "author": {
+        "did": "did:plc:re3ebnp5v7ffagz6rb6xfei4",
+        "handle": "alice.test",
+        "displayName": "Alice",
+        "avatar": "https://cdn.bsky.app/img/avatar/plain/did:plc:re3ebnp5v7ffagz6rb6xfei4/bafyavatar@jpeg",
+        "labels": [],
+        "createdAt": "2024-01-01T00:00:00.000Z"
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "Third Post — Third Subject",
+        "createdAt": "2026-09-07T12:05:00.000Z",
+        "embed": {
+          "$type": "app.bsky.embed.external",
+          "external": {
+            "uri": "https://ross.eaten.at/2026/09/third-post",
+            "title": "Third Subject",
+            "description": "A write-up of Third Subject."
+          }
+        }
+      },
+      "embed": {
+        "$type": "app.bsky.embed.external#view",
+        "external": {
+          "uri": "https://ross.eaten.at/2026/09/third-post",
+          "title": "Third Subject",
+          "description": "A write-up of Third Subject."
+        }
+      },
+      "replyCount": 5,
+      "repostCount": 0,
+      "likeCount": 3,
+      "quoteCount": 0,
+      "indexedAt": "2026-09-07T12:05:01.000Z",
+      "labels": []
+    },
+    "replies": [
+      {
+        "$type": "app.bsky.feed.defs#threadViewPost",
+        "post": {
+          "uri": "at://did:plc:carolcarolcarolcarolcaro/app.bsky.feed.post/3kcarol",
+          "cid": "bafycarol",
+          "author": {
+            "did": "did:plc:carolcarolcarolcarolcaro",
+            "handle": "handle.invalid",
+            "displayName": "   ",
+            "labels": []
+          },
+          "record": {
+            "$type": "app.bsky.feed.post",
+            "text": "Same here.",
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "reply": {
+              "root": {"uri": "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/app.bsky.feed.post/3kroot", "cid": "bafyroot"},
+              "parent": {"uri": "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/app.bsky.feed.post/3kroot", "cid": "bafyroot"}
+            }
+          },
+          "replyCount": 0,
+          "indexedAt": "2026-09-08T12:00:01.000Z",
+          "labels": []
+        },
+        "replies": []
+      },
+      {
+        "$type": "app.bsky.feed.defs#threadViewPost",
+        "post": {
+          "uri": "at://did:plc:bobbobbobbobbobbobbobbob/app.bsky.feed.post/3kbob1",
+          "cid": "bafybob1",
+          "author": {
+            "did": "did:plc:bobbobbobbobbobbobbobbob",
+            "handle": "bob.test",
+            "displayName": "Bob",
+            "labels": []
+          },
+          "record": {
+            "$type": "app.bsky.feed.post",
+            "text": "Loved *this* <b>record</b>\r\nand the write-up.",
+            "createdAt": "2026-09-08T10:00:00.000Z",
+            "facets": [{"index": {"byteStart": 6, "byteEnd": 12}, "features": [{"$type": "app.bsky.richtext.facet#tag", "tag": "this"}]}]
+          },
+          "replyCount": 1,
+          "indexedAt": "2026-09-08T10:00:01.000Z",
+          "labels": []
+        },
+        "replies": [
+          {
+            "$type": "app.bsky.feed.defs#threadViewPost",
+            "post": {
+              "uri": "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/app.bsky.feed.post/3kalice1",
+              "cid": "bafyalice1",
+              "author": {
+                "did": "did:plc:re3ebnp5v7ffagz6rb6xfei4",
+                "handle": "alice.test",
+                "displayName": "Alice"
+              },
+              "record": {
+                "$type": "app.bsky.feed.post",
+                "text": "Thanks Bob!",
+                "createdAt": "2026-09-08T10:30:00.000Z"
+              },
+              "indexedAt": "2026-09-08T10:30:01.000Z"
+            },
+            "replies": [
+              {
+                "$type": "app.bsky.feed.defs#threadViewPost",
+                "post": {
+                  "uri": "at://did:plc:bobbobbobbobbobbobbobbob/app.bsky.feed.post/3kbob2",
+                  "cid": "bafybob2",
+                  "author": {
+                    "did": "did:plc:bobbobbobbobbobbobbobbob",
+                    "handle": "bob.test",
+                    "displayName": "Bob"
+                  },
+                  "record": {
+                    "$type": "app.bsky.feed.post",
+                    "text": "Any time.",
+                    "createdAt": "2026-09-08T11:00:00.000Z"
+                  },
+                  "indexedAt": "2026-09-08T11:00:01.000Z"
+                }
+              },
+              {
+                "$type": "app.bsky.feed.defs#blockedPost",
+                "uri": "at://did:plc:blockedblockedblockedblo/app.bsky.feed.post/3kblocked",
+                "blocked": true,
+                "author": {"did": "did:plc:blockedblockedblockedblo"}
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "$type": "app.bsky.feed.defs#notFoundPost",
+        "uri": "at://did:plc:gonegonegonegonegonegone/app.bsky.feed.post/3kgone",
+        "notFound": true
+      },
+      {
+        "$type": "app.bsky.feed.defs#threadViewPost",
+        "post": {
+          "uri": "at://did:plc:spamspamspamspamspamspam/app.bsky.feed.post/3kspam",
+          "cid": "bafyspam",
+          "author": {
+            "did": "did:plc:spamspamspamspamspamspam",
+            "handle": "spam.test"
+          },
+          "record": {
+            "$type": "app.bsky.feed.post",
+            "text": "Buy followers now",
+            "createdAt": "2026-09-08T09:00:00.000Z"
+          },
+          "indexedAt": "2026-09-08T09:00:01.000Z",
+          "labels": [{"src": "did:plc:ar7c4by46qjdydhdevvrndac", "uri": "at://did:plc:spamspamspamspamspamspam/app.bsky.feed.post/3kspam", "val": "!hide", "cts": "2026-09-08T09:01:00.000Z"}]
+        },
+        "replies": [
+          {
+            "$type": "app.bsky.feed.defs#threadViewPost",
+            "post": {
+              "uri": "at://did:plc:bobbobbobbobbobbobbobbob/app.bsky.feed.post/3kbob3",
+              "cid": "bafybob3",
+              "author": {"did": "did:plc:bobbobbobbobbobbobbobbob", "handle": "bob.test", "displayName": "Bob"},
+              "record": {"$type": "app.bsky.feed.post", "text": "Reported.", "createdAt": "2026-09-08T09:10:00.000Z"},
+              "indexedAt": "2026-09-08T09:10:01.000Z"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

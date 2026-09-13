@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "at.eaten.preferences",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "literal:self",
+      "description": "Per-user eaten.at settings, stored in the user's own repo. All fields optional; absence means defaults.",
+      "record": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "defaultPublication": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "AT-URI of the site.standard.publication to show for a bare handle URL and to preselect in the editor. A hint, not a restriction: the user may write documents to any publication in their repo."
+          },
+          "crosspostToBluesky": {
+            "type": "boolean",
+            "description": "Whether to default the Bluesky crosspost toggle on when publishing. Per-document override always available.",
+            "default": false
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

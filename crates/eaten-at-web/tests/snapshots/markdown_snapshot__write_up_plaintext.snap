@@ -1,0 +1,24 @@
+---
+source: crates/eaten-at-web/tests/markdown_snapshot.rs
+expression: to_plaintext(WRITE_UP)
+---
+Curi Curi
+
+Curio Curio's second record is the one where the jangle finally gives way
+to something heavier. I first heard it at Bandcamp Friday
+and have not stopped.
+
+The songs
+
+- "Opener" sets the pace
+- "Middle" drifts
+
+Quoted from the liner notes: play loud.
+
+Some code: let x = 1; and a block:
+
+fn main() {}
+
+Sleeve
+
+Closing thoughts with a bare link https://example.com/review and an email.

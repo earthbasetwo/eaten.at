@@ -1,0 +1,34 @@
+---
+source: crates/eaten-at/src/publish.rs
+expression: "serde_json::to_string_pretty(&doc).unwrap()"
+---
+{
+  "$type": "site.standard.document",
+  "content": {
+    "$type": "at.markpub.markdown",
+    "flavor": "commonmark",
+    "text": {
+      "$type": "at.markpub.text",
+      "markdown": "Forty-six *minutes*.\n\nNine notes."
+    }
+  },
+  "links": {
+    "$type": "at.eaten.subject",
+    "externalUrls": [
+      {
+        "service": "bc",
+        "url": "https://x.example/a"
+      }
+    ],
+    "title": "Promises"
+  },
+  "path": "/2026/09/a-room-with-the-lights-off",
+  "publishedAt": "2026-09-09T15:00:00.000Z",
+  "site": "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1",
+  "tags": [
+    "notes",
+    "Short"
+  ],
+  "textContent": "Forty-six minutes.\n\nNine notes.",
+  "title": "A room with the lights off"
+}

@@ -1,0 +1,54 @@
+[package]
+name = "eaten-at"
+description = "eaten.at web application"
+default-run = "eaten-at"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "eaten-at"
+path = "src/main.rs"
+
+[[bin]]
+name = "publish-lexicons"
+path = "src/bin/publish_lexicons.rs"
+
+[dependencies]
+eaten-at-atproto.workspace = true
+eaten-at-web.workspace = true
+anyhow.workspace = true
+axum.workspace = true
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+jiff = "0.2"
+maud = { version = "0.27", features = ["axum"] }
+quick-xml = "0.42"
+rand = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "http2"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde = "1"
+serde_json = "1"
+sha2 = "0.10"
+thiserror.workspace = true
+tower = "0.5"
+unicode-segmentation = "1"
+unicode-normalization = "0.1"
+base64 = "0.22"
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url = "2"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+wiremock = "0.6"
+serde_json = "1"
+tokio = { version = "1", features = ["full", "test-util"] }
+insta = "1"
+regex-lite = "0.1"
+
+[lints]
+workspace = true

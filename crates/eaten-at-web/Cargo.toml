@@ -1,0 +1,21 @@
+[package]
+name = "eaten-at-web"
+description = "Presentation layer for eaten.at: typed HTML components and CSS"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ammonia = "4"
+maud = "0.27"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+unicode-segmentation = "1"
+url = "2"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+insta = "1"

@@ -1,0 +1,5 @@
+---
+source: crates/eaten-at-web/tests/markdown_snapshot.rs
+expression: "excerpt(WRITE_UP, EXCERPT_TARGET)"
+---
+Curio Curio's second record is the one where the jangle finally gives way to something heavier. I first heard it at Bandcamp Friday and have not stopped.
