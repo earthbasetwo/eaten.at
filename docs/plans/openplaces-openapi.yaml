@@ -1,0 +1,510 @@
+openapi: 3.1.0
+info:
+  title: Open Places API
+  version: 1.0.0
+  description: First-production public Places API contract.
+servers:
+  - url: https://api.openplacesapi.com
+security:
+  - bearerApiKey: []
+paths:
+  /v1/places:
+    get:
+      operationId: searchPlaces
+      summary: Search places or list a category near a location
+      description: Searches place names and scoped addresses near a latitude/longitude point. When `category` is supplied, `q` is optional and the endpoint can list places in that Overture category within the radius.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 128
+          description: Search text. Required unless `category` is supplied. Trimmed and whitespace-collapsed before validation. Unicode letters and numbers are preserved, compatibility-width forms are normalized, and Latin spellings are diacritic/transliteration folded for matching. Queries must include at least 3 searchable letters or numbers, except contiguous CJK queries may contain 2 characters. Punctuation and separators do not count. `mode=address` requires at least 4 searchable characters; shorter all-mode queries search names only and return an `address_matching_skipped` warning.
+          example: coffee
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^[a-z0-9][a-z0-9_:-]{0,127}$"
+          description: Exact category string such as `cafe` or `restaurant`. When supplied, `q` becomes optional. Matching includes primary and alternate categories plus hierarchy ancestors of the primary category. Category-only browse ranks primary matches before alternates, then hierarchy ancestors.
+          example: cafe
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+          example: 40.7128
+        - name: lon
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+          example: -74.006
+        - name: radius_mi
+          in: query
+          required: false
+          schema:
+            type: number
+            exclusiveMinimum: 0
+            maximum: 50
+            default: 25
+          example: 25
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, name, address]
+            default: all
+          example: all
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+          description: Defaults to `10`. Text search is capped at `20`; category browsing is capped at `50`.
+          example: 10
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 950
+            default: 0
+          description: Pagination offset for category browsing. Only supported when `category` is supplied. Each page is billed as one search.
+          example: 50
+        - name: min_confidence
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0
+            maximum: 1
+          description: Minimum Overture confidence score to return. No silent default is applied; omit it to receive all matching records with their `confidence` score.
+          example: 0.85
+        - name: layer_preset
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^[a-z0-9][a-z0-9_-]{0,62}$"
+          description: Account-owned layer preset slug. Mutually exclusive with `layers`.
+          example: client-a
+        - name: layers
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Explicit ordered layer selection starting with `base`, followed by optional `open`, then zero or more `account:<layer_slug>` tokens separated by commas. Mutually exclusive with `layer_preset`. Published layer entries are read at search time up to a per-search limit (5,000 account layer entries across selected layers, newest first, plus 1,000 open-layer enhancements); when a search exceeds a limit, the response includes a `layer_entries_truncated` warning.
+          example: base,open,account:client-a
+      responses:
+        "200":
+          description: Search completed, including zero-result searches.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/XRequestID"
+            X-Quota-Limit:
+              $ref: "#/components/headers/XQuotaLimit"
+            X-Quota-Remaining:
+              $ref: "#/components/headers/XQuotaRemaining"
+            X-Quota-Reset:
+              $ref: "#/components/headers/XQuotaReset"
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "402":
+          $ref: "#/components/responses/QuotaExhausted"
+        "403":
+          $ref: "#/components/responses/LayerNotAvailable"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+        "422":
+          $ref: "#/components/responses/UnsupportedQuery"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+components:
+  securitySchemes:
+    bearerApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: opa_live
+      description: Server-side API key in the `opa_live_<prefix>_<secret>` format.
+  headers:
+    XRequestID:
+      description: Server-generated UUIDv4 request ID.
+      schema:
+        type: string
+        format: uuid
+    XQuotaLimit:
+      description: Current quota period limit.
+      schema:
+        type: integer
+    XQuotaRemaining:
+      description: Remaining searches in the current quota period.
+      schema:
+        type: integer
+    XQuotaReset:
+      description: Current quota period reset time as Unix epoch seconds.
+      schema:
+        type: integer
+    NoStore:
+      description: Authenticated public API responses are not cacheable.
+      schema:
+        type: string
+        const: no-store
+    RetryAfter:
+      description: Seconds until the client should retry.
+      schema:
+        type: integer
+  responses:
+    ValidationError:
+      description: Invalid query parameter shape.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/XRequestID"
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    AuthError:
+      description: Missing or invalid bearer API key.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/XRequestID"
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    QuotaExhausted:
+      description: Monthly quota exhausted.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/XRequestID"
+        X-Quota-Limit:
+          $ref: "#/components/headers/XQuotaLimit"
+        X-Quota-Remaining:
+          $ref: "#/components/headers/XQuotaRemaining"
+        X-Quota-Reset:
+          $ref: "#/components/headers/XQuotaReset"
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    LayerNotAvailable:
+      description: Requested layer selection is well-formed but unavailable to the authenticated account.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/XRequestID"
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    MethodNotAllowed:
+      description: Only GET is supported.
+      headers:
+        Allow:
+          schema:
+            type: string
+            const: GET
+        X-Request-ID:
+          $ref: "#/components/headers/XRequestID"
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    UnsupportedQuery:
+      description: Recognized but unsupported search shape.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/XRequestID"
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RateLimited:
+      description: Burst or auth throttle was exceeded.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/XRequestID"
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServiceUnavailable:
+      description: Coverage or quota gate is temporarily unavailable.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/XRequestID"
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Generic internal error.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/XRequestID"
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    SearchResponse:
+      type: object
+      required: [results, meta]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/Place"
+        meta:
+          $ref: "#/components/schemas/SearchMeta"
+    SearchMeta:
+      type: object
+      required: [request_id, data_source, data_release, data_releases, q, mode, lat, lon, radius_mi, limit, offset, warnings, layer_selection]
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        data_source:
+          type: string
+          const: overture
+          description: Base place dataset provider.
+        data_release:
+          type: string
+          description: Exact Overture release used by the selected base shards, or `mixed` during a bounded rolling data update.
+        data_releases:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+          description: Exact Overture source-release identifiers used by the base shards selected for this request.
+        q:
+          type: string
+          description: Trimmed search text. Empty when the request used category browse without `q`.
+        category:
+          type:
+            - string
+            - "null"
+          description: Category filter used for the request, if any.
+        min_confidence:
+          type:
+            - number
+            - "null"
+          minimum: 0
+          maximum: 1
+          description: Minimum confidence filter used for the request, if any.
+        mode:
+          type: string
+          enum: [all, name, address]
+        lat:
+          type: number
+        lon:
+          type: number
+        radius_mi:
+          type: number
+        limit:
+          type: integer
+        offset:
+          type: integer
+          minimum: 0
+        next_offset:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+          description: Next category-browse offset when another page is available; otherwise `null`.
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchWarning"
+        layer_selection:
+          $ref: "#/components/schemas/LayerSelection"
+    LayerSelection:
+      type: object
+      required: [source, preset, layers]
+      properties:
+        source:
+          type: string
+          enum: [default, api_key_default, preset, explicit]
+        preset:
+          type:
+            - string
+            - "null"
+        layers:
+          type: array
+          items:
+            $ref: "#/components/schemas/LayerSelectionItem"
+    LayerSelectionItem:
+      oneOf:
+        - type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              const: overture_base
+        - type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              const: open
+        - type: object
+          required: [type, slug]
+          properties:
+            type:
+              type: string
+              const: account
+            slug:
+              type: string
+    SearchWarning:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [address_matching_skipped, layer_entries_truncated]
+        message:
+          type: string
+    Place:
+      type: object
+      required: [place_id, name, lat, lon, distance_mi, categories, address, confidence]
+      properties:
+        place_id:
+          type: string
+        name:
+          type: string
+        lat:
+          type: number
+        lon:
+          type: number
+        distance_mi:
+          type: number
+        category:
+          type: string
+          description: Primary category in the taxonomy for the response data release, when available.
+        categories:
+          type: array
+          items:
+            type: string
+          description: Primary category first, followed by alternate categories. Values can evolve between data releases.
+        category_hierarchy:
+          type: array
+          items:
+            type: string
+          description: Broad-to-specific category path, ending in the primary category when available.
+        address:
+          $ref: "#/components/schemas/Address"
+        phone:
+          type: string
+          description: First phone value from the Overture record when present, emitted as stored.
+        website:
+          type: string
+          format: uri
+          description: First HTTP(S) website URL from the Overture record when present.
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Overture confidence score rounded to two decimals. No default confidence filter is applied unless `min_confidence` is supplied.
+        operating_status:
+          type: string
+          description: Overture operating status value when present.
+    Address:
+      type: object
+      properties:
+        formatted:
+          type: string
+        street:
+          type: string
+        locality:
+          type: string
+        region:
+          type: string
+        postal_code:
+          type: string
+        country_code:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code:
+              type: string
+              enum:
+                - validation_error
+                - unauthenticated
+                - invalid_api_key
+                - method_not_allowed
+                - unsupported_query
+                - coverage_not_ready
+                - search_timeout
+                - quota_exhausted
+                - rate_limited
+                - layer_not_available
+                - quota_gate_unavailable
+                - internal_error
+            message:
+              type: string
+            request_id:
+              type: string
+              format: uuid
+            details:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
