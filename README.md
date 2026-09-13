@@ -69,8 +69,10 @@ EATEN_AT_LEXICON_APP_PASSWORD=… just lexicons-publish        # write what diff
 | `/at/{did}/{pub}/{doc}` | One document, with a canonical link to its publication origin. |
 | `/at/{did}/{pub}/tagged/{tag}` | Write-ups in that publication carrying a tag. |
 | `/at/{did}/{pub}/feed.xml` | RSS. |
-| `/img/{did}/{doc}` | The document-image proxy: a `coverImage` another client set, else a generated placeholder. `?size=og` gives a 1200×630 rendition; `?kind=icon` a publication icon. |
+| `/img/{did}/{doc}` | The document-image proxy: the first photo, else a `coverImage` another client set, else a generated placeholder. `?size=og` gives a 1200×630 rendition; `?kind=icon` a publication icon. |
+| `/img/{did}/{doc}/{cid}` | One of the document's photos, `?size=thumb` (a 400px square) or `?size=full`. Only CIDs the document lists. |
 | `/write`, `/write/{doc}` | The editor, for signed-in authors. A new write-up starts by searching for the place near the browser's location. |
+| `/write/{doc}/photos` | Add, caption, reorder, and remove a write-up's photos. A first publish lands here. |
 | `/settings` | Hosted-subdomain settings for the author's publications. |
 | `/healthz` | Liveness. |
 

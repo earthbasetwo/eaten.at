@@ -134,6 +134,15 @@ and the link card follow automatically.
   right.
 - `just check` and `just visual-check` pass.
 
+## As built (2026-09-13)
+
+As planned, with two notes. The inline crosspost still happens at
+publish time, before the photos page, so a card posted then carries the
+placeholder thumbnail rather than a photo; the crosspost page reached
+later (no permission yet, or a retry) does see the photos. And "Save alt
+text" is its own action, but the alt texts as typed are applied to every
+action, so a caption written before "Move up" is not lost.
+
 ## Decisions
 
 Settled 2026-09-13: a cap of 24 photos; `coverImage` derived from the

@@ -7,7 +7,7 @@ use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::at_eaten::{PREFERENCES_NSID, PREFERENCES_RKEY};
 use eaten_at_atproto::lexicon::{
-    BlobRef, Datetime, Document, Visit, DOCUMENT_NSID, PUBLICATION_NSID, VISIT_NSID,
+    BlobRef, Datetime, Document, Photo, Visit, DOCUMENT_NSID, PUBLICATION_NSID, VISIT_NSID,
 };
 use eaten_at_atproto::oauth::{AuthorizedSession, OAuthError};
 use eaten_at_atproto::repo::write::WriteReceipt;
@@ -19,7 +19,7 @@ use unicode_normalization::UnicodeNormalization;
 use crate::cache::Namespace;
 use crate::editor::{DocumentDraft, Target};
 use crate::error::AppError;
-use crate::img::{Size, MAX_COVER_BYTES};
+use crate::img::{Size, MAX_IMAGE_BLOB_BYTES};
 use crate::model::VisitDocument;
 use crate::state::AppState;
 use crate::view;
@@ -137,8 +137,9 @@ pub struct Placement<'a> {
 /// (plan §4.1, §5.4). Fields our editor does not know about survive from
 /// the original; `description` is present only when the author wrote
 /// one; `content` is the visit with the prose inside it, and
-/// `textContent` is its plaintext rendering. `links` and `coverImage`
-/// are not ours and are carried over as found (D32).
+/// `textContent` is its plaintext rendering. `links` is not ours and is
+/// carried over as found; so is `coverImage`, except that a visit with
+/// photos gets its first photo there (D32, D38).
 pub fn build_document(draft: &DocumentDraft, placement: &Placement<'_>) -> Value {
     let mut doc = placement.original.map_or_else(
         || json!({}),
@@ -169,6 +170,7 @@ pub fn build_document(draft: &DocumentDraft, placement: &Placement<'_>) -> Value
         }
     }
     fields.insert("content".into(), content(draft));
+    set_cover_from_photos(fields, &draft.visit.photos);
     fields.insert(
         "textContent".into(),
         json!(text_content(&draft.visit, &draft.markdown)),
@@ -178,6 +180,57 @@ pub fn build_document(draft: &DocumentDraft, placement: &Placement<'_>) -> Value
     } else {
         fields.insert("tags".into(), json!(draft.tags));
     }
+    doc
+}
+
+/// The document's `coverImage` is its first photo, so Standard readers
+/// and unfurlers get a thumbnail (D38). With no photos, whatever was
+/// there stays: not ours to touch.
+fn set_cover_from_photos(fields: &mut serde_json::Map<String, Value>, photos: &[Photo]) {
+    if let Some(first) = photos.first() {
+        fields.insert("coverImage".into(), json!(first.image));
+    }
+}
+
+/// Rewrite a document's photos (plan 07): the visit's `photos`, the
+/// derived `coverImage` (removed with the last photo), and `updatedAt`;
+/// nothing else changes. Then forget the cached document.
+pub async fn save_photos(
+    state: &AppState,
+    identity: &Identity,
+    visit_doc: &VisitDocument,
+    photos: Vec<Photo>,
+) -> Result<(), PublishError> {
+    let did = &identity.did;
+    let session = state.oauth().session(did).await?;
+    let record = photos_record(visit_doc, photos, &Datetime::now());
+    session
+        .put_record(DOCUMENT_NSID, visit_doc.rkey(), &record)
+        .await?;
+    forget_document(state, did, visit_doc.rkey()).await;
+    Ok(())
+}
+
+/// The record [`save_photos`] writes.
+pub fn photos_record(visit_doc: &VisitDocument, photos: Vec<Photo>, now: &Datetime) -> Value {
+    let mut visit = visit_doc.visit.clone();
+    visit.type_ = Some(VISIT_NSID.to_owned());
+    visit.photos = photos;
+    let mut doc = serde_json::to_value(visit_doc.document()).unwrap_or_default();
+    let Value::Object(fields) = &mut doc else {
+        unreachable!("a document serializes to an object")
+    };
+    fields.insert("$type".into(), json!(DOCUMENT_NSID));
+    fields.insert("updatedAt".into(), json!(now));
+    if visit.photos.is_empty() {
+        fields.remove("coverImage");
+    } else {
+        set_cover_from_photos(fields, &visit.photos);
+    }
+    fields.insert(
+        "content".into(),
+        serde_json::to_value(&visit).unwrap_or_default(),
+    );
     doc
 }
 
@@ -533,7 +586,7 @@ async fn link_card(
                 .cover_rendition(identity, visit_doc, Size::Card)
                 .await
                 .jpeg;
-            if jpeg.is_empty() || jpeg.len() > MAX_COVER_BYTES {
+            if jpeg.is_empty() || jpeg.len() > MAX_IMAGE_BLOB_BYTES {
                 None
             } else {
                 Some(session.upload_blob(jpeg, "image/jpeg").await?)

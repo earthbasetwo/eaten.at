@@ -167,6 +167,14 @@ async function main() {
     submit: 'form.editor button[name="action"][value="preview"]',
     expect: '.preview',
   })
+  await check({ name: 'photos', path: `/write/${rkey}/photos`, expect: '.photo-row' })
+  const bare = discovered.documents[discovered.documents.length - 1].split('/').pop()
+  await check({ name: 'photos-empty', path: `/write/${bare}/photos`, expect: '.empty' })
+  await check({
+    name: 'photos-new',
+    path: `/write/${bare}/photos?new=1&then=${encodeURIComponent(discovered.documents[0])}`,
+    expect: 'a.button-link[href="' + discovered.documents[0] + '"]',
+  })
   await check({ name: 'delete', path: `/write/${rkey}/delete` })
   await check({ name: 'crosspost', path: `/write/${rkey}/crosspost` })
 

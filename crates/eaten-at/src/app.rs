@@ -10,8 +10,8 @@ use axum::{
 use crate::editor::MAX_REQUEST_BYTES;
 use crate::hosting;
 use crate::routes::{
-    assets, auth, document, feed, image, interstitial, landing, lookup, publication, settings,
-    write,
+    assets, auth, document, feed, image, interstitial, landing, lookup, photos, publication,
+    settings, write,
 };
 use crate::state::AppState;
 
@@ -43,11 +43,22 @@ fn routes(state: AppState) -> Router {
             get(write::crosspost_form).post(write::crosspost_submit),
         )
         .layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES));
+    // The photos page takes files, so its body cap is its own.
+    let photos = Router::new()
+        .route(
+            "/write/{rkey}/photos",
+            get(photos::photos_form).post(photos::photos_submit),
+        )
+        .layer(DefaultBodyLimit::max(
+            crate::editor::photos::MAX_REQUEST_BYTES,
+        ));
     Router::new()
         .merge(editor)
+        .merge(photos)
         .route("/healthz", get(healthz))
         .route("/static/{file}", get(assets::static_file))
         .route("/img/{did}/{doc_rkey}", get(image::cover))
+        .route("/img/{did}/{doc_rkey}/{cid}", get(image::photo))
         .route("/", get(landing::landing))
         .route("/login", get(auth::login_form).post(auth::login_start))
         .route("/login/bluesky", post(auth::authorize_bluesky))

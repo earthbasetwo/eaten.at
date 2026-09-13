@@ -3,7 +3,9 @@
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use eaten_at_atproto::lexicon::Document;
-use eaten_at_web::components::{comments, tag_links, visit_card, visit_links, CommentsView, Link};
+use eaten_at_web::components::{
+    comments, photo_grid, tag_links, visit_card, visit_links, CommentsView, Link,
+};
 use eaten_at_web::dates::human_date;
 use eaten_at_web::layout::{self, Masthead, Page};
 use eaten_at_web::markdown;
@@ -73,6 +75,10 @@ pub async fn document_page(
     let card = visit_doc
         .as_ref()
         .map(|visit_doc| view::card_for(&visit_doc.visit));
+    let photos = visit_doc
+        .as_ref()
+        .map(|visit_doc| view::photo_views(&did, visit_doc))
+        .unwrap_or_default();
     let thread = comment_thread(&state, &record.value).await;
     let publication_path = paths::publication(&did, &pub_rkey);
     let footer = Footer {
@@ -84,6 +90,8 @@ pub async fn document_page(
         author: view::author_label(&identity),
         // The author, signed in, can edit from the page itself.
         edit_path: (viewer.as_ref() == Some(&did)).then(|| format!("/write/{doc_rkey}")),
+        photos_path: (viewer.as_ref() == Some(&did) && visit_doc.is_some())
+            .then(|| format!("/write/{doc_rkey}/photos")),
     };
 
     Ok(layout::render(&Page {
@@ -104,6 +112,7 @@ pub async fn document_page(
                 @if let Some(card) = &card {
                     (visit_card(card))
                 }
+                (photo_grid(&photos))
                 @if let Some(body) = body {
                     div.prose { (body) }
                 } @else {
@@ -140,6 +149,7 @@ struct Footer<'a> {
     author_path: String,
     author: String,
     edit_path: Option<String>,
+    photos_path: Option<String>,
 }
 
 impl Footer<'_> {
@@ -159,6 +169,9 @@ impl Footer<'_> {
                     div.quiet-links.push {
                         @if let Some(edit) = &self.edit_path {
                             a href=(edit) { "edit" }
+                        }
+                        @if let Some(photos) = &self.photos_path {
+                            a href=(photos) { "photos" }
                         }
                         a href=(self.feed_path) rel="alternate" type="application/rss+xml" { "rss" }
                         a href=(self.author_path) rel="author" { (self.author) }

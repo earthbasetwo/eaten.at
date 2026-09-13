@@ -171,6 +171,7 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                 }
                 button.link-button type="submit" name="action" value=(Action::Preview.value()) { "Preview" }
                 @if page.editing {
+                    a.button-link href=(format!("{}/photos", page.action_path)) { "Photos" }
                     a.button-link href=(format!("{}/delete", page.action_path)) { "Delete" }
                 }
             }

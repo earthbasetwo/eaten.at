@@ -8,6 +8,7 @@ pub mod image;
 pub mod interstitial;
 pub mod landing;
 pub mod lookup;
+pub mod photos;
 pub mod publication;
 pub mod settings;
 pub mod write;

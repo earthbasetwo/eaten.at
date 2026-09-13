@@ -1,16 +1,23 @@
-//! The cover-art proxy: one stable image URL per document.
+//! The image proxy: one stable URL per document image, and one per
+//! photo.
 //!
 //! Every reader's browser and every unfurler hits this endpoint rather
-//! than the author's PDS. Behind it sits a fallback chain (blob, then
-//! a generated placeholder) whose result can change
-//! without the URL changing. Input is treated as hostile: only raster
-//! formats are accepted, dimensions are checked before decoding, and the
-//! output is always a freshly encoded JPEG.
+//! than the author's PDS. Behind the document image sits a fallback
+//! chain (the first photo, a cover another client set, then a generated
+//! placeholder) whose result can change without the URL changing. Input
+//! is treated as hostile: only raster formats are accepted, dimensions
+//! are checked before decoding, and the output is always a freshly
+//! encoded JPEG. Uploads go the same way (plan 07): re-encoded, so no
+//! metadata block, and with it no camera position, reaches the repo.
 
 use std::io::Cursor;
 
+use eaten_at_atproto::lexicon::MAX_PHOTO_BYTES;
 use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView, ImageFormat, ImageReader, Rgb, RgbImage};
+use image::metadata::Orientation;
+use image::{
+    DynamicImage, GenericImageView, ImageDecoder, ImageFormat, ImageReader, Rgb, RgbImage,
+};
 use url::Url;
 
 use crate::cache::Namespace;
@@ -21,8 +28,17 @@ use crate::state::AppState;
 /// Largest source image we will download, in bytes. The lexicon caps
 /// blobs at 1 MB; allow room for a PDS that does not enforce it.
 pub const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
-/// Largest cover blob `site.standard.document` allows, in bytes.
-pub const MAX_COVER_BYTES: usize = 1_000_000;
+/// Largest image blob we write, in bytes: the lexicon caps a photo, and
+/// Standard caps a cover, at the same size.
+pub const MAX_IMAGE_BLOB_BYTES: usize = MAX_PHOTO_BYTES;
+/// Largest photo file accepted for upload, before it is re-encoded.
+pub const MAX_PHOTO_UPLOAD_BYTES: usize = 10 * 1024 * 1024;
+/// Long side a photo is shrunk to on upload.
+const PHOTO_FIT_DIMENSION: u32 = 2048;
+/// Side of a square photo thumbnail.
+const THUMB_SIDE: u32 = 400;
+/// Long side of a photo's full rendition.
+const FULL_FIT_DIMENSION: u32 = 1600;
 /// Largest source dimensions we will decode.
 const MAX_SOURCE_DIMENSION: u32 = 6000;
 /// Decode memory budget handed to the image crate.
@@ -57,9 +73,36 @@ impl Size {
     }
 }
 
-/// Where a cover came from. Reported in a response header for debugging.
+/// Which rendition of a photo is wanted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum PhotoSize {
+    /// A 400px square, centre-cropped: the grid and listings.
+    #[default]
+    Thumb,
+    /// Fitted to 1600px on the long side, its own shape.
+    Full,
+}
+
+impl PhotoSize {
+    pub fn from_query(value: Option<&str>) -> Self {
+        match value {
+            Some("full") => Self::Full,
+            _ => Self::Thumb,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Thumb => "thumb",
+            Self::Full => "full",
+        }
+    }
+}
+
+/// Where a document's image came from. Reported in the log.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
+    Photo,
     Blob,
     Placeholder,
 }
@@ -67,6 +110,7 @@ pub enum Source {
 impl Source {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::Photo => "photo",
             Self::Blob => "blob",
             Self::Placeholder => "placeholder",
         }
@@ -167,6 +211,14 @@ impl AppState {
         identity: &eaten_at_atproto::identity::Identity,
         visit_doc: &VisitDocument,
     ) -> (Source, DynamicImage) {
+        if let Some(photo) = visit_doc.visit.photos.first() {
+            let url = self
+                .repo_for(identity)
+                .blob_url(&identity.did, photo.image.cid());
+            if let Some(image) = self.fetch_and_decode(url).await {
+                return (Source::Photo, image);
+            }
+        }
         if let Some(blob) = &visit_doc.document().cover_image {
             let url = self.repo_for(identity).blob_url(&identity.did, blob.cid());
             if let Some(image) = self.fetch_and_decode(url).await {
@@ -174,6 +226,51 @@ impl AppState {
             }
         }
         (Source::Placeholder, placeholder(visit_doc))
+    }
+
+    /// One of the document's photos at `size`, cached; `None` when the
+    /// document lists no photo with that CID (this is not an open blob
+    /// proxy) or the blob cannot be read.
+    pub async fn photo_rendition(
+        &self,
+        identity: &eaten_at_atproto::identity::Identity,
+        visit_doc: &VisitDocument,
+        cid: &str,
+        size: PhotoSize,
+    ) -> Option<Rendition> {
+        let photo = visit_doc
+            .visit
+            .photos
+            .iter()
+            .find(|p| p.image.cid() == cid)?;
+        let key = format!(
+            "{}/{}/{}/{}",
+            identity.did,
+            visit_doc.rkey(),
+            photo.image.cid(),
+            size.as_str()
+        );
+        let build = || async {
+            let url = self
+                .repo_for(identity)
+                .blob_url(&identity.did, photo.image.cid());
+            let image = self.fetch_and_decode(url).await?;
+            tokio::task::spawn_blocking(move || encode_photo(&image, size))
+                .await
+                .ok()
+                .and_then(Result::ok)
+        };
+        let cached = self
+            .cache()
+            .get_or_fetch_bytes::<AppError, _, _>(Namespace::Image, &key, || async {
+                Ok(build().await)
+            })
+            .await;
+        match cached {
+            Ok(Some(jpeg)) => Some(Rendition { jpeg }),
+            Ok(None) => None,
+            Err(_) => build().await.map(|jpeg| Rendition { jpeg }),
+        }
     }
 
     /// Download and decode an image, or `None` with a log line for any
@@ -225,6 +322,10 @@ fn is_raster_content_type(content_type: &str) -> bool {
 pub enum ImageError {
     #[error("unsupported or unrecognised image format")]
     Format,
+    #[error("file of {0} bytes is over the {1} byte upload limit")]
+    TooBig(usize, usize),
+    #[error("image could not be brought under {0} bytes")]
+    CannotShrink(usize),
     #[error("image dimensions {0}×{1} exceed the limit")]
     TooLarge(u32, u32),
     #[error("image error: {0}")]
@@ -233,8 +334,85 @@ pub enum ImageError {
     Io(#[from] std::io::Error),
 }
 
+/// A photo ready to upload: a fresh JPEG and its dimensions.
+#[derive(Clone, PartialEq, Eq)]
+pub struct PreparedPhoto {
+    pub jpeg: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl std::fmt::Debug for PreparedPhoto {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PreparedPhoto")
+            .field("bytes", &self.jpeg.len())
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .finish()
+    }
+}
+
+/// Prepare an author's photo for the repository: decode it (orientation
+/// applied), fit it to [`PHOTO_FIT_DIMENSION`], and **always** re-encode
+/// it as JPEG under the blob cap. Re-encoding writes no metadata block,
+/// so nothing a camera recorded, the position above all, is published.
+pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
+    if bytes.len() > MAX_PHOTO_UPLOAD_BYTES {
+        return Err(ImageError::TooBig(bytes.len(), MAX_PHOTO_UPLOAD_BYTES));
+    }
+    let image = decode(bytes)?;
+    // Smaller and coarser until it fits. A photograph fits on the first
+    // try; only something like pure noise gets as far as the last.
+    for limit in [PHOTO_FIT_DIMENSION, 1600, 1200, 800] {
+        let (w, h) = image.dimensions();
+        let fitted = if w.max(h) > limit {
+            image.resize(limit, limit, FilterType::Lanczos3)
+        } else {
+            image.clone()
+        };
+        let (width, height) = fitted.dimensions();
+        let rgb = fitted.to_rgb8();
+        for quality in [JPEG_QUALITY, 72, 60] {
+            let mut out = Cursor::new(Vec::new());
+            let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality);
+            rgb.write_with_encoder(encoder)?;
+            let jpeg = out.into_inner();
+            if jpeg.len() <= MAX_IMAGE_BLOB_BYTES {
+                return Ok(PreparedPhoto {
+                    jpeg,
+                    width,
+                    height,
+                });
+            }
+        }
+    }
+    Err(ImageError::CannotShrink(MAX_IMAGE_BLOB_BYTES))
+}
+
+/// A photo at `size`: a centre-cropped square thumbnail, or fitted to
+/// the full rendition's long side, never upscaled.
+pub fn encode_photo(image: &DynamicImage, size: PhotoSize) -> Result<Vec<u8>, ImageError> {
+    let framed = match size {
+        PhotoSize::Thumb => image.resize_to_fill(THUMB_SIDE, THUMB_SIDE, FilterType::Lanczos3),
+        PhotoSize::Full => {
+            let (w, h) = image.dimensions();
+            if w.max(h) > FULL_FIT_DIMENSION {
+                image.resize(FULL_FIT_DIMENSION, FULL_FIT_DIMENSION, FilterType::Lanczos3)
+            } else {
+                image.clone()
+            }
+        }
+    };
+    let mut out = Cursor::new(Vec::new());
+    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY);
+    framed.to_rgb8().write_with_encoder(encoder)?;
+    Ok(out.into_inner())
+}
+
 /// Decode with format sniffed from the bytes (never from the declared
-/// type), dimensions checked before pixels are allocated.
+/// type), dimensions checked before pixels are allocated, and the EXIF
+/// orientation applied so a phone photo comes out the way up it was
+/// taken.
 pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     let reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
     let format = reader.format().ok_or(ImageError::Format)?;
@@ -260,7 +438,11 @@ pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     limits.max_image_height = Some(MAX_SOURCE_DIMENSION);
     limits.max_alloc = Some(MAX_DECODE_BYTES);
     reader.limits(limits);
-    Ok(reader.decode()?)
+    let mut decoder = reader.into_decoder()?;
+    let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
+    let mut image = DynamicImage::from_decoder(decoder)?;
+    image.apply_orientation(orientation);
+    Ok(image)
 }
 
 /// Fit the image to `size` and encode it as JPEG.
@@ -389,6 +571,85 @@ mod tests {
             .write_to(&mut out, ImageFormat::Png)
             .unwrap();
         out.into_inner()
+    }
+
+    /// A JPEG with an EXIF orientation of 6 (rotate 90° clockwise to
+    /// view) wrapped around `image`.
+    fn jpeg_with_orientation_6(image: &RgbImage) -> Vec<u8> {
+        let mut out = Cursor::new(Vec::new());
+        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 90);
+        image.write_with_encoder(encoder).unwrap();
+        let jpeg = out.into_inner();
+        // Minimal EXIF (big-endian): one IFD entry, tag 0x0112, SHORT, 6.
+        let tiff: Vec<u8> = [
+            b"MM\x00\x2a\x00\x00\x00\x08".to_vec(),
+            b"\x00\x01".to_vec(),
+            b"\x01\x12\x00\x03\x00\x00\x00\x01\x00\x06\x00\x00".to_vec(),
+            b"\x00\x00\x00\x00".to_vec(),
+        ]
+        .concat();
+        let mut app1 = b"Exif\x00\x00".to_vec();
+        app1.extend(tiff);
+        let len = u16::try_from(app1.len() + 2).unwrap();
+        let mut with = jpeg[..2].to_vec();
+        with.extend([0xff, 0xe1]);
+        with.extend(len.to_be_bytes());
+        with.extend(app1);
+        with.extend(&jpeg[2..]);
+        with
+    }
+
+    fn has_app1(jpeg: &[u8]) -> bool {
+        jpeg.windows(2).any(|w| w == [0xff, 0xe1])
+    }
+
+    #[test]
+    fn photos_are_re_encoded_upright_and_without_metadata() {
+        // 300 wide by 100 tall, stored with "rotate to view": upright it
+        // is 100 wide by 300 tall.
+        let wide = RgbImage::from_pixel(300, 100, Rgb([200, 30, 30]));
+        let stored = jpeg_with_orientation_6(&wide);
+        assert!(has_app1(&stored));
+        let photo = photo_upload(&stored).unwrap();
+        assert_eq!((photo.width, photo.height), (100, 300));
+        assert!(!has_app1(&photo.jpeg), "no EXIF survives");
+        assert_eq!(decode(&photo.jpeg).unwrap().dimensions(), (100, 300));
+
+        // A PNG comes out as JPEG too, at the same size when small.
+        let photo = photo_upload(&png(64, 48)).unwrap();
+        assert_eq!(&photo.jpeg[..2], &[0xff, 0xd8]);
+        assert_eq!((photo.width, photo.height), (64, 48));
+
+        // A big one is fitted to the long side and under the cap.
+        let big = decode(&png(3000, 2000)).unwrap();
+        let mut out = Cursor::new(Vec::new());
+        big.write_to(&mut out, ImageFormat::Png).unwrap();
+        let photo = photo_upload(&out.into_inner()).unwrap();
+        assert_eq!((photo.width, photo.height), (2048, 1365));
+        assert!(photo.jpeg.len() <= MAX_IMAGE_BLOB_BYTES);
+
+        assert!(matches!(
+            photo_upload(&vec![0; MAX_PHOTO_UPLOAD_BYTES + 1]),
+            Err(ImageError::TooBig(..))
+        ));
+        assert!(matches!(
+            photo_upload(b"not an image"),
+            Err(ImageError::Format)
+        ));
+    }
+
+    #[test]
+    fn photo_renditions_are_a_square_thumb_and_a_fitted_full() {
+        let image = decode(&png(1200, 600)).unwrap();
+        let thumb = decode(&encode_photo(&image, PhotoSize::Thumb).unwrap()).unwrap();
+        assert_eq!(thumb.dimensions(), (400, 400));
+        let full = decode(&encode_photo(&image, PhotoSize::Full).unwrap()).unwrap();
+        assert_eq!(full.dimensions(), (1200, 600), "not upscaled");
+        let large = decode(&png(3200, 1600)).unwrap();
+        let full = decode(&encode_photo(&large, PhotoSize::Full).unwrap()).unwrap();
+        assert_eq!(full.dimensions(), (1600, 800));
+        assert_eq!(PhotoSize::from_query(Some("full")), PhotoSize::Full);
+        assert_eq!(PhotoSize::from_query(None), PhotoSize::Thumb);
     }
 
     #[test]

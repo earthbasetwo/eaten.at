@@ -17,6 +17,7 @@
 import { rm, writeFile } from 'node:fs/promises'
 import http from 'node:http'
 import path from 'node:path'
+import zlib from 'node:zlib'
 import { pathToFileURL } from 'node:url'
 
 const HERE = path.dirname(new URL(import.meta.url).pathname)
@@ -58,6 +59,47 @@ async function account(handle) {
 }
 
 const rgb = (r, g, b) => ({ $type: 'site.standard.theme.color#rgb', r, g, b })
+
+// A plain PNG of one colour, so the seed can carry photos without
+// binary fixtures in the repo. Enough for the proxy to re-encode.
+function png(width, height, [r, g, b]) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    return c >>> 0
+  })
+  const crc = (buf) => {
+    let c = 0xffffffff
+    for (const byte of buf) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8)
+    return (c ^ 0xffffffff) >>> 0
+  }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4)
+    len.writeUInt32BE(data.length)
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
+    const sum = Buffer.alloc(4)
+    sum.writeUInt32BE(crc(body))
+    return Buffer.concat([len, body, sum])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(width, 0)
+  ihdr.writeUInt32BE(height, 4)
+  ihdr[8] = 8 // bit depth
+  ihdr[9] = 2 // colour type: RGB
+  const row = Buffer.concat([Buffer.from([0]), Buffer.from(Array(width).fill([r, g, b]).flat())])
+  const raw = Buffer.concat(Array(height).fill(row))
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', zlib.deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
+async function uploadPhoto(agent, width, height, colour) {
+  const res = await agent.uploadBlob(png(width, height, colour), { encoding: 'image/png' })
+  return res.data.blob
+}
 
 async function createRecord(agent, collection, record) {
   const res = await agent.com.atproto.repo.createRecord({ repo: agent.did, collection, record })
@@ -134,10 +176,17 @@ const textContent = (d) =>
     .filter(Boolean)
     .join('\n\n')
 
+// Two photos for the first visit, so the grid, the listing thumbnail,
+// and the photos page have something to show.
+const photos = [
+  { image: await uploadPhoto(alice.agent, 640, 480, [196, 30, 47]), alt: 'The dining room, mid-service', aspectRatio: { width: 640, height: 480 } },
+  { image: await uploadPhoto(alice.agent, 480, 640, [232, 128, 79]), alt: '', aspectRatio: { width: 480, height: 640 } },
+]
+
 // Placeholder visits. Enough to see a listing with ratings, a document
 // with a description and one whose excerpt is derived, an unrated visit,
-// a comment section, tags, a GERS id, and links out; the prose is invented for
-// the seed.
+// a comment section, tags, a GERS id, links out, and photos; the prose is
+// invented for the seed.
 const docs = [
   {
     title: 'A first write-up',
@@ -161,6 +210,7 @@ const docs = [
     visitedOn: '2026-09-06',
     meal: 'dinner',
     rating: 3,
+    photos,
     bskyPostRef: { uri: postUri, cid: postCid },
     markdown: `# A first write-up
 
@@ -172,6 +222,8 @@ as the excerpt.
 
 - The visit card above this prose: the place's name, then the date, the
   meal, the price band, the address, and the rating as plus signs.
+- Two photos under the card, the first of them the listing's thumbnail
+  and the document's cover for readers that do not know the visit type.
 - Links in the footer: one labelled from its known service, one by its
   host (its \`menu\` service is another client's word, kept but not ours),
   one by the label the author gave it, and a map link to OpenStreetMap
@@ -267,12 +319,14 @@ for (const d of [...docs, ...themedDocs].sort((a, b) => a.publishedAt.localeComp
     tags: d.tags,
     ...(d.description ? { description: d.description } : {}),
     ...(d.bskyPostRef ? { bskyPostRef: d.bskyPostRef } : {}),
+    ...(d.photos?.length ? { coverImage: d.photos[0].image } : {}),
     content: {
       $type: 'at.eaten.visit',
       place: d.place,
       visitedOn: d.visitedOn,
       ...(d.meal ? { meal: d.meal } : {}),
       ...(d.rating ? { rating: d.rating } : {}),
+      ...(d.photos?.length ? { photos: d.photos } : {}),
       body: {
         $type: 'at.markpub.markdown',
         flavor: 'commonmark',

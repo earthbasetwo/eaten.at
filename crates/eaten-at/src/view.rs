@@ -7,7 +7,7 @@ use eaten_at_atproto::lexicon::{
 };
 use eaten_at_atproto::repo::Record;
 use eaten_at_web::components::{
-    CommentView, CommentsView, Link, ListingItem, PublicationView, RatingView, VisitCard,
+    CommentView, CommentsView, Link, ListingItem, PhotoView, PublicationView, RatingView, VisitCard,
 };
 use eaten_at_web::markdown::{excerpt, EXCERPT_TARGET};
 use eaten_at_web::meta::{Kind, PageMeta};
@@ -36,6 +36,20 @@ pub fn card_for(visit: &Visit) -> VisitCard {
         rating: visit.rating.map(rating_view),
         links: place_links(place),
     }
+}
+
+/// A visit's photos through the proxy, in the author's order.
+pub fn photo_views(did: &Did, visit_doc: &VisitDocument) -> Vec<PhotoView> {
+    visit_doc
+        .visit
+        .photos
+        .iter()
+        .map(|photo| PhotoView {
+            thumb_src: paths::photo(did, visit_doc.rkey(), photo.image.cid(), "thumb"),
+            full_src: paths::photo(did, visit_doc.rkey(), photo.image.cid(), "full"),
+            alt: photo.alt.clone().unwrap_or_default(),
+        })
+        .collect()
 }
 
 /// The rating as the page shows it.
@@ -115,6 +129,11 @@ pub fn listing_item(did: &Did, pub_rkey: &str, visit_doc: &VisitDocument) -> Lis
     let title = visit_doc.document().title.clone();
     let place_name = &visit_doc.visit.place.name;
     ListingItem {
+        thumb_src: visit_doc
+            .visit
+            .photos
+            .first()
+            .map(|p| paths::photo(did, visit_doc.rkey(), p.image.cid(), "thumb")),
         href: paths::document(did, pub_rkey, visit_doc.rkey()),
         // The place's name is the default title (D29); saying it twice
         // on one card helps nobody.

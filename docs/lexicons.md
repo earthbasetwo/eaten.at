@@ -49,6 +49,7 @@ Required: `place`, `visitedOn`.
 | `meal` | string | `knownValues`, ≤ 640 bytes | Which meal it was. Unknown values are preserved and shown as written. |
 | `rating` | integer | 1–4 | The author's verdict on the house scale (D4). Absent means the author declined to rate. |
 | `body` | open union | | The prose, keyed by `$type`. We write `at.markpub.markdown` (D12). Readers that know no member fall back to the document's `textContent`. |
+| `photos` | array of [`#photo`](#photo) | ≤ 24 items | Photos of the visit, in the author's order (D37). The first is also written as the document's `coverImage` (D38). |
 
 `meal` known values: `breakfast`, `brunch`, `lunch`, `dinner`, `lateNight`.
 
@@ -65,6 +66,23 @@ It is an integer with a range rather than a string with `knownValues`
 because the scale is ordinal and it is ours: a fifth value would have no
 rendering. The PDS validates the range; a value outside it from another
 client reads as unrated.
+
+#### `#photo`
+
+Required: `image`.
+
+| Field | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `image` | blob | `image/*`, ≤ 1 000 000 bytes | The photo. eaten.at always re-encodes an upload as JPEG, so no camera metadata (the position above all) reaches the repository (D39). |
+| `alt` | string | ≤ 2000 bytes, ≤ 1000 graphemes | Alt text, for people who do not see the image. |
+| `aspectRatio` | [`#aspectRatio`](#aspectratio) | | The image's proportions, so a page can reserve its space. |
+
+#### `#aspectRatio`
+
+`width` and `height`, integers ≥ 1.
+
+A malformed photo entry from another client is dropped on read; the
+visit still renders.
 
 ### `at.eaten.place`
 
@@ -132,7 +150,7 @@ reader gets a complete post:
 | `site` | The publication's AT-URI. |
 | `title` | The author's, or the place's name when they gave none (D29). Standard requires one. |
 | `description`, `tags`, `labels` | The author's own. Tags are free text and stay here, never in the visit (D26). |
-| `coverImage` | Not ours (D32): never written, carried over untouched when another client set it. The image proxy still reads it. |
+| `coverImage` | Derived (D38): the first photo, when the visit has any, so Standard readers and unfurlers get a thumbnail. Never authored; with no photos, one another client set is carried over untouched (D32). |
 | `path`, `publishedAt`, `updatedAt` | Set on publish; the path never changes. |
 | `content` | The `at.eaten.visit`, with the markdown body inside it. |
 | `textContent` | `<place> · <date>[ · <verdict>]`, a blank line, the prose as plaintext. |

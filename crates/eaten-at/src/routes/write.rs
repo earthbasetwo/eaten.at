@@ -332,7 +332,15 @@ async fn submit(
         Ok(published) => {
             let document_path =
                 paths::document(&published.did, &published.pub_rkey, &published.doc_rkey);
-            Ok(after_publish(state, author, &published.doc_rkey, &document_path, &draft).await)
+            Ok(after_publish(
+                state,
+                author,
+                &published.doc_rkey,
+                &document_path,
+                &draft,
+                editing.is_none(),
+            )
+            .await)
         }
         Err(PublishError::SessionExpired) => {
             Ok(Redirect::to("/login?return_to=/write").into_response())
@@ -456,31 +464,40 @@ async fn pick(
 /// The document is published; now the Bluesky side (plan §5.7). With
 /// the toggle on: post inline when the session may, else hand over to
 /// the crosspost page, which asks for permission. A refused post lands
-/// on the same page with the text kept, to retry or skip.
+/// on the same page with the text kept, to retry or skip. A first
+/// publish stops at the photos page on the way (plan 07).
 async fn after_publish(
     state: &AppState,
     author: &Author,
     rkey: &str,
     document_path: &str,
     draft: &editor::DocumentDraft,
+    is_new: bool,
 ) -> Response {
-    let Some(text) = &draft.crosspost else {
-        return Redirect::to(document_path).into_response();
+    let next = match &draft.crosspost {
+        None => document_path.to_owned(),
+        Some(text) if !author.posting.create => crosspost_path(rkey, text, false),
+        Some(text) => match publish::crosspost(state, &author.identity, rkey, text).await {
+            Ok(_) => document_path.to_owned(),
+            Err(PublishError::SessionExpired) => {
+                return Redirect::to(&format!("/login?return_to={}", urlencoding(document_path)))
+                    .into_response()
+            }
+            Err(err) => {
+                tracing::warn!(error = %err, "crosspost failed after publish");
+                crosspost_path(rkey, text, true)
+            }
+        },
     };
-    if !author.posting.create {
-        return Redirect::to(&crosspost_path(rkey, text, false)).into_response();
+    if is_new {
+        return Redirect::to(&photos_first(rkey, &next)).into_response();
     }
-    match publish::crosspost(state, &author.identity, rkey, text).await {
-        Ok(_) => Redirect::to(document_path).into_response(),
-        Err(PublishError::SessionExpired) => {
-            Redirect::to(&format!("/login?return_to={}", urlencoding(document_path)))
-                .into_response()
-        }
-        Err(err) => {
-            tracing::warn!(error = %err, "crosspost failed after publish");
-            Redirect::to(&crosspost_path(rkey, text, true)).into_response()
-        }
-    }
+    Redirect::to(&next).into_response()
+}
+
+/// The photos page for a fresh write-up, and where it continues to.
+fn photos_first(rkey: &str, then: &str) -> String {
+    format!("/write/{rkey}/photos?new=1&then={}", urlencoding(then))
 }
 
 #[derive(Debug, Deserialize)]

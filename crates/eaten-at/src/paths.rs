@@ -38,6 +38,11 @@ pub fn cover_og(did: &Did, doc_rkey: &str) -> String {
     format!("/img/{did}/{doc_rkey}?size=og")
 }
 
+/// One of a document's photos through the proxy, at `thumb` or `full`.
+pub fn photo(did: &Did, doc_rkey: &str, cid: &str, size: &str) -> String {
+    format!("/img/{did}/{doc_rkey}/{cid}?size={size}")
+}
+
 /// The publication-icon proxy.
 pub fn icon(did: &Did, pub_rkey: &str) -> String {
     format!("/img/{did}/{pub_rkey}?kind=icon")
