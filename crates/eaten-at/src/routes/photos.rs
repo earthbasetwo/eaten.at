@@ -228,6 +228,7 @@ pub async fn photos_submit(
         )),
         Err(PublishError::SessionExpired) => Ok(login_redirect(&query.action_path(&rkey))),
         Err(PublishError::App(err)) => Err(err),
+        Err(PublishError::Home(message)) => Err(AppError::Upstream(message)),
         Err(PublishError::Repo(err)) => {
             tracing::warn!(error = %err, "photos write refused");
             Ok(render(

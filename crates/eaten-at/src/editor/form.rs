@@ -38,10 +38,6 @@ pub struct EditorForm {
     pub links: Vec<LinkField>,
     /// Comma-separated, as typed.
     pub tags: String,
-    /// An AT-URI of one of the author's publications, or `new`.
-    pub publication: String,
-    pub new_publication_name: String,
-    pub new_publication_url: String,
     /// Whether to post to Bluesky on publish (plan §5.7).
     pub crosspost: bool,
     /// The post's text, as typed. Blank means the default, the place's
@@ -106,9 +102,6 @@ impl<K: KnownValue> Default for Choice<K> {
 
 /// The link service select, for callers that name the type.
 pub type ServiceChoice = Choice<KnownService>;
-
-/// The publication select value that reveals the new-publication fields.
-pub const PUBLICATION_NEW: &str = "new";
 
 impl<K: KnownValue> Choice<K> {
     /// The choice a posted `<select>` value stands for.
@@ -255,9 +248,8 @@ impl Action {
 
 impl EditorForm {
     /// An empty form for a new write-up dated today, with one link row.
-    pub fn blank(publication: &str) -> Self {
+    pub fn blank() -> Self {
         let mut form = Self {
-            publication: publication.to_owned(),
             visited_on: eaten_at_atproto::lexicon::VisitDate::today().as_string(),
             ..Self::default()
         };
@@ -321,9 +313,6 @@ impl EditorForm {
                 .map(LinkField::from_external_url)
                 .collect(),
             tags: doc.tags.join(", "),
-            publication: doc.site.clone(),
-            new_publication_name: String::new(),
-            new_publication_url: String::new(),
             crosspost: false,
             post_text: String::new(),
         };
@@ -360,9 +349,6 @@ impl EditorForm {
                 "meal" => form.meal = Choice::from_value(&value),
                 "rating" => form.rating = value,
                 "tags" => form.tags = value,
-                "publication" => form.publication = value,
-                "new_publication_name" => form.new_publication_name = value,
-                "new_publication_url" => form.new_publication_url = value,
                 "crosspost" => form.crosspost = matches!(value.trim(), "1" | "on" | "true"),
                 "post_text" => form.post_text = value,
                 "action" => action = Action::parse(&value),
@@ -505,7 +491,7 @@ mod tests {
         assert_eq!(Action::parse("remove_thing:1"), None);
         assert_eq!(Action::parse("publish"), Some(Action::Publish));
 
-        let mut form = EditorForm::blank("new");
+        let mut form = EditorForm::blank();
         assert_eq!(form.visited_on.len(), 10, "dated today");
         assert_eq!(form.links.len(), 1);
         form.apply(&Action::RemoveRow(RowKind::Link, 0));
@@ -532,7 +518,7 @@ mod tests {
             category: Some("coffee shop".into()),
             website: Some("https://www.devocion.com/".into()),
         };
-        let mut form = EditorForm::blank("new");
+        let mut form = EditorForm::blank();
         assert_eq!(form.place_mode, PlaceMode::Choosing);
         form.body = "Good.".into();
         form.pick(&hit);
@@ -561,7 +547,7 @@ mod tests {
 
         // A plain-http website is not offered as a link, and a taken
         // first row is left alone.
-        let mut form = EditorForm::blank("new");
+        let mut form = EditorForm::blank();
         form.pick(&Hit {
             website: Some("http://katzsdelicatessen.com/".into()),
             ..hit.clone()

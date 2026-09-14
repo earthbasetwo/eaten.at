@@ -207,7 +207,7 @@ same order.
 
 **Chooser card** (`.chooser-item`). Name in the display serif at card
 size, description in `ink-secondary`, the publication's URL in the mono
-voice. Settings reuses the same card with its hosting form inside.
+voice. Settings reuses the same card, one of them, with its form inside.
 
 **Place result** (`.result-item`). A card in the editor's choosing
 state: the place's name in the display serif at card size, then the
@@ -318,7 +318,7 @@ one sentence saying what the site is.
 | Photos `/write/{rkey}/photos` | site | page head: "Photos" kicker, h1 "Photos of {place}", lede ("Published. Add photos now, or skip" after a first publish) | the photos as rows on raised cards (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "Skip for now" / "Done" / "← Back to the write-up" |
 | Delete `/write/{rkey}/delete` | site | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
 | Crosspost `/write/{rkey}/crosspost` | site | page head: "Bluesky" kicker, h1 "Post “title” to Bluesky" (or "… is on Bluesky"), lede | the post text field and one primary "Post to Bluesky"; or, before permission, one primary "Allow posting and continue"; secondary "← Skip for now" either way; posted: the thread link and a secondary way back |
-| Settings `/settings` | site | page head: "Settings" kicker, h1 "Your publications", lede | chooser cards: name, current address in the metadata voice, a small form of two radio choices and one primary "Save" |
+| Settings `/settings` | site | page head: "Settings" kicker, h1 "Your publication", lede | one chooser card: the name (linked to the front page) and the current address in the metadata voice, or, before there is one, the name it would get and "Made when you save"; then the form: name, description, the two radio choices for where it lives, one primary "Save" ("Create it" the first time) |
 
 ### The editor
 

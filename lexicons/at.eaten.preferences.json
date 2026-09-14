@@ -13,7 +13,7 @@
           "defaultPublication": {
             "type": "string",
             "format": "at-uri",
-            "description": "AT-URI of the site.standard.publication to show for a bare handle URL and to preselect in the editor. A hint, not a restriction: the user may write documents to any publication in their repo."
+            "description": "AT-URI of the account's eaten.at publication: the site.standard.publication eaten.at writes every document to and shows for a bare handle URL. Absent, or naming a record that no longer exists, means the account has none yet; one is created on the first publish."
           },
           "crosspostToBluesky": {
             "type": "boolean",

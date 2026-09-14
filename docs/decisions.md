@@ -19,7 +19,7 @@ something.
 | D7 | Recommends | Out of scope (`site.standard.graph.recommend`). |
 | D8 | Publication hosting | User's choice: a subdomain on `eaten.at`, or bring your own domain. |
 | D9 | Indexing | No content index. Read-through from PDSes with a TTL cache. |
-| D10 | Routing | Publication-scoped. `/at/<did>/` is the default publication (or a chooser); `/at/<did>/<rkey>/` a specific one. Users may have many. |
+| D10 | Routing | Publication-scoped. `/at/<did>/` is the default publication (or a chooser); `/at/<did>/<rkey>/` a specific one. Users may have many (reading side only since D40: eaten.at itself writes to one). |
 | D11 | Subject identity | Superseded by D33 on 2026-09-13. Was: a place is matched across write-ups by external ids as `knownValues` in `at.eaten.place.ids`. |
 | D12 | Body | `at.markpub.markdown` in the `content` union. `text.markdown` only: no facets, lenses, or rendering rules. |
 | D13 | Internal crates | Two workspace crates, `eaten-at-web` and `eaten-at-atproto`. Local path deps, not published. |
@@ -56,6 +56,8 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | D37 | Photos | Settled 2026-09-13: photos live in the visit as `at.eaten.visit.photos`, at most 24, each a blob ≤ 1 MB with optional alt text and aspect ratio. They are managed on their own page after publish, where every action writes the record at once; a JavaScript-free editor form cannot carry files across its own re-renders. |
 | D38 | Cover from photos | Settled 2026-09-13: `coverImage` is derived, the first photo, so unfurls, the feed, the Bluesky card, and Standard readers get a thumbnail. Removed with the last photo. |
 | D39 | Re-encode every upload | Settled 2026-09-13: a photo is decoded (EXIF orientation applied), fitted to 2048 px, and written as a fresh JPEG under the cap. No metadata block survives, so a phone's position never reaches a public repository. |
+| D40 | One publication per account | Settled 2026-09-13 (plan 08): an account has one eaten.at publication, the `site.standard.publication` its `at.eaten.preferences.defaultPublication` names. Every write-up is written to it; the editor never asks. An edit keeps its document's `site` as found. Other Standard apps may still add publications to the repo, and the reading side (D10) still resolves a foreign repo through the preference, a lone publication, or the chooser. The field keeps its name so more than one stays possible later. |
+| D41 | Publication defaults | Settled 2026-09-13 (plan 08): the publication is created lazily, by the first publish or the first settings save, never at sign-in. Its name is the handle as text (the DID without one); its address a hosted subdomain from the handle's first label, `-2`, `-3`, … appended while taken or reserved, or the publication's own site route where the deployment cannot host. The record key is a TID minted by the app so the address is known before the write. A hosted name is claimed before the write and released if the server refuses. |
 
 ## Stack choices
 

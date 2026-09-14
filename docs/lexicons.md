@@ -136,7 +136,7 @@ repository. All fields are optional; absence means defaults.
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `defaultPublication` | string, format `at-uri` | — | AT-URI of the `site.standard.publication` to show for a bare handle URL and to preselect in the editor. A hint, not a restriction: the user may write documents to any publication in their repo. |
+| `defaultPublication` | string, format `at-uri` | — | AT-URI of the account's eaten.at publication: the `site.standard.publication` every write-up is written to and a bare handle URL shows (D40). Absent, or naming a record that no longer exists, means the account has none yet; one is created on the first publish. The name is kept so more than one stays possible later. |
 | `crosspostToBluesky` | boolean | `false` | Whether to default the Bluesky crosspost toggle on when publishing. A per-document override is always available. |
 | `createdAt` | string, format `datetime` | — | When the record was first written. |
 

@@ -9,6 +9,7 @@ pub mod identity;
 pub mod lexicon;
 pub mod oauth;
 pub mod repo;
+pub mod tid;
 
 /// The NSID authority every lexicon this project publishes shares.
 ///

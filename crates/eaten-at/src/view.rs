@@ -161,6 +161,11 @@ fn theme_from_basic(basic: &ThemeBasic) -> Theme {
     .clamped()
 }
 
+/// A publication's front page here, from its record's address.
+pub fn publication_path_for(uri: &AtUri) -> String {
+    paths::publication(uri.did(), uri.rkey())
+}
+
 pub fn publication_view(did: &Did, record: &Record<Publication>) -> PublicationView {
     PublicationView {
         href: paths::publication(did, record.rkey()),

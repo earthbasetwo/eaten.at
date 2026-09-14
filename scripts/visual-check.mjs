@@ -51,6 +51,7 @@ main()
 
 async function main() {
   const did = requireEnv('EATEN_AT_DEV_ALICE_DID')
+  const bobDid = requireEnv('EATEN_AT_DEV_BOB_DID')
   const themedRkey = requireEnv('EATEN_AT_DEV_ALICE_THEMED_PUBLICATION')
   const pds = requireEnv('EATEN_AT_DEV_PDS')
   if (!process.env.EATEN_AT_DEV_INSECURE) {
@@ -70,6 +71,8 @@ async function main() {
 
   const cookie = run(path.join(ROOT, 'target', 'debug', 'dev-session'), [did], appEnv).trim()
   const [cookieName, cookieValue] = splitOnce(cookie, '=')
+  const bobCookie = run(path.join(ROOT, 'target', 'debug', 'dev-session'), [bobDid], appEnv).trim()
+  const [, bobCookieValue] = splitOnce(bobCookie, '=')
 
   const browser = await Browser.launch()
   await rm(OUT, { recursive: true, force: true })
@@ -125,7 +128,7 @@ async function main() {
   await browser.setCookie(cookieName, cookieValue)
   const rkey = discovered.documents[0].split('/').pop()
   await check({ name: 'landing-signed-in', path: '/', expect: '.account a[href="/write"]' })
-  await check({ name: 'settings', path: '/settings' })
+  await check({ name: 'settings', path: '/settings', expect: '.chooser-item' })
   // The editor starts by choosing a place (plan 06). Headless Chrome
   // grants no location, so the point is typed into the hidden fields the
   // island would fill.
@@ -177,6 +180,12 @@ async function main() {
   })
   await check({ name: 'delete', path: `/write/${rkey}/delete` })
   await check({ name: 'crosspost', path: `/write/${rkey}/crosspost` })
+
+  // An author with no publication yet (plan 08): settings offers to make
+  // it, and the editor does not ask.
+  await browser.setCookie(cookieName, bobCookieValue)
+  await check({ name: 'settings-none', path: '/settings', expect: '.chooser-item.not-yet' })
+  await check({ name: 'write-none', path: '/write', expect: '#place_query' })
 
   await browser.close()
   const total = failures.reduce((n, f) => n + f.problems.length, 0)

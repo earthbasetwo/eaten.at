@@ -65,8 +65,7 @@ fn routes(state: AppState) -> Router {
         .route("/oauth/callback", get(auth::callback))
         .route("/logout", post(auth::logout))
         .route("/client-metadata.json", get(auth::client_metadata))
-        .route("/settings", get(settings::settings))
-        .route("/settings/{pub_rkey}/hosting", post(settings::hosting))
+        .route("/settings", get(settings::settings).post(settings::save))
         .route(
             "/at/{did}/{pub_rkey}/publication.json",
             get(publication::publication_json),

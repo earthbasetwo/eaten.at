@@ -64,7 +64,7 @@ EATEN_AT_LEXICON_APP_PASSWORD=… just lexicons-publish        # write what diff
 |---|---|
 | `/` | Landing page with the handle lookup form. |
 | `/@{handle}` | Resolves the handle now and redirects to the DID form. Never rendered. |
-| `/at/{did}/` | The account's default publication, or a chooser. |
+| `/at/{did}/` | The account's eaten.at publication (the one its preferences name); for a repository without one, a lone publication or a chooser. |
 | `/at/{did}/{pub}/` | A publication's write-ups, newest first. |
 | `/at/{did}/{pub}/{doc}` | One document, with a canonical link to its publication origin. |
 | `/at/{did}/{pub}/tagged/{tag}` | Write-ups in that publication carrying a tag. |
@@ -73,7 +73,7 @@ EATEN_AT_LEXICON_APP_PASSWORD=… just lexicons-publish        # write what diff
 | `/img/{did}/{doc}/{cid}` | One of the document's photos, `?size=thumb` (a 400px square) or `?size=full`. Only CIDs the document lists. |
 | `/write`, `/write/{doc}` | The editor, for signed-in authors. A new write-up starts by searching for the place near the browser's location. |
 | `/write/{doc}/photos` | Add, caption, reorder, and remove a write-up's photos. A first publish lands here. |
-| `/settings` | Hosted-subdomain settings for the author's publications. |
+| `/settings` | The author's one publication: its name, description, and address (a hosted subdomain or their own domain). Creates it on the first save if a publish has not already. |
 | `/healthz` | Liveness. |
 
 ## Layout

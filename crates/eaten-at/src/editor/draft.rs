@@ -4,13 +4,12 @@
 
 use std::collections::BTreeMap;
 
-use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::lexicon::{
     ExternalUrl, LatE6, LonE6, Place, PriceBand, Rating, Visit, VisitDate, PLACE_NSID, VISIT_NSID,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::form::{EditorForm, PlaceMode, PUBLICATION_NEW};
+use super::form::{EditorForm, PlaceMode};
 use super::{MAX_BODY_BYTES, MAX_LINKS, MAX_TAGS};
 use crate::publish::MAX_POST_GRAPHEMES;
 use crate::tags;
@@ -25,7 +24,6 @@ const MAX_SERVICE_BYTES: usize = 640;
 const MAX_LABEL_GRAPHEMES: usize = 64;
 const MAX_TAG_GRAPHEMES: usize = 128;
 const MAX_TAG_BYTES: usize = 1280;
-const MAX_PUBLICATION_NAME_GRAPHEMES: usize = 500;
 const MAX_URL_BYTES: usize = 2048;
 
 /// Problems found in a form, keyed by field name (`title`,
@@ -55,15 +53,6 @@ impl FieldErrors {
     }
 }
 
-/// Where the document goes.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Target {
-    /// One of the author's existing publications.
-    Existing(AtUri),
-    /// A publication to create first.
-    New { name: String, url: String },
-}
-
 /// A validated write-up, ready to become records.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocumentDraft {
@@ -75,7 +64,6 @@ pub struct DocumentDraft {
     /// The visit, without its body (the markdown is beside it), with any
     /// unknown fields of the original carried over.
     pub visit: Visit,
-    pub target: Target,
     /// The text of a Bluesky post to make on publish, when the author
     /// asked for one (plan §5.7).
     pub crosspost: Option<String>,
@@ -86,11 +74,11 @@ pub fn default_post_text(place_name: &str) -> String {
     place_name.trim().to_owned()
 }
 
-/// What validation needs to know beyond the form.
+/// What validation needs to know beyond the form. The publication is
+/// not part of it: every write-up goes to the account's one publication
+/// (plan 08).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Context<'a> {
-    /// The author's publications, by AT-URI.
-    pub publications: &'a [AtUri],
     /// The visit being edited, whose unknown fields are preserved.
     pub original: Option<&'a Visit>,
 }
@@ -276,40 +264,6 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         }
     };
 
-    let target = if form.publication.trim() == PUBLICATION_NEW {
-        let name = form.new_publication_name.trim();
-        if name.is_empty() {
-            errors.add("new_publication_name", "Name the publication.");
-        } else if graphemes(name) > MAX_PUBLICATION_NAME_GRAPHEMES {
-            errors.add(
-                "new_publication_name",
-                format!("Keep the name under {MAX_PUBLICATION_NAME_GRAPHEMES} characters."),
-            );
-        }
-        let url = match checked_https_url(form.new_publication_url.trim()) {
-            Ok(url) => url,
-            Err(message) => {
-                errors.add("new_publication_url", message);
-                String::new()
-            }
-        };
-        Target::New {
-            name: name.to_owned(),
-            url,
-        }
-    } else {
-        match AtUri::parse(form.publication.trim()) {
-            Ok(uri) if ctx.publications.contains(&uri) => Target::Existing(uri),
-            _ => {
-                errors.add("publication", "Choose a publication.");
-                Target::New {
-                    name: String::new(),
-                    url: String::new(),
-                }
-            }
-        }
-    };
-
     // A missing date is already an error, so this only passes with one.
     let Some(visited_on) = visited_on.filter(|_| errors.is_empty()) else {
         return Err(errors);
@@ -352,7 +306,6 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         description: (!description.is_empty()).then(|| description.to_owned()),
         tags,
         visit,
-        target,
         crosspost,
     })
 }
@@ -427,11 +380,6 @@ mod tests {
     use crate::editor::form::{Choice, LinkField};
     use eaten_at_atproto::lexicon::{KnownService, Meal};
 
-    fn publication() -> AtUri {
-        AtUri::parse("at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1")
-            .unwrap()
-    }
-
     fn good_form() -> EditorForm {
         EditorForm {
             title: "A room with the lights off".into(),
@@ -464,28 +412,21 @@ mod tests {
                 LinkField::default(),
             ],
             tags: "#notes, Short, notes, one long sit".into(),
-            publication: publication().as_str().to_owned(),
-            new_publication_name: String::new(),
-            new_publication_url: String::new(),
             crosspost: false,
             post_text: String::new(),
         }
     }
 
-    fn ctx(pubs: &[AtUri]) -> Context<'_> {
-        Context {
-            publications: pubs,
-            original: None,
-        }
+    fn ctx() -> Context<'static> {
+        Context { original: None }
     }
 
     #[test]
     fn crosspost_text_defaults_and_is_bounded() {
-        let pubs = [publication()];
         let mut form = good_form();
-        assert_eq!(validate(&form, &ctx(&pubs)).unwrap().crosspost, None);
+        assert_eq!(validate(&form, &ctx()).unwrap().crosspost, None);
         form.crosspost = true;
-        let draft = validate(&form, &ctx(&pubs)).unwrap();
+        let draft = validate(&form, &ctx()).unwrap();
         assert_eq!(
             draft.crosspost.as_deref(),
             Some("Promises"),
@@ -493,19 +434,18 @@ mod tests {
         );
         form.post_text = "  New one from me  ".into();
         assert_eq!(
-            validate(&form, &ctx(&pubs)).unwrap().crosspost.as_deref(),
+            validate(&form, &ctx()).unwrap().crosspost.as_deref(),
             Some("New one from me")
         );
         form.post_text = "x".repeat(301);
-        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        let errors = validate(&form, &ctx()).unwrap_err();
         assert!(errors.get("post_text").unwrap().contains("300"));
         assert_eq!(default_post_text("  Promises "), "Promises");
     }
 
     #[test]
     fn a_complete_form_becomes_a_draft() {
-        let pubs = [publication()];
-        let draft = validate(&good_form(), &ctx(&pubs)).unwrap();
+        let draft = validate(&good_form(), &ctx()).unwrap();
         assert_eq!(draft.title, "A room with the lights off");
         assert_eq!(draft.markdown, "Forty-six minutes.");
         assert_eq!(draft.description, None);
@@ -528,12 +468,10 @@ mod tests {
         assert_eq!(visit.place.urls[0].service.as_deref(), Some("officialSite"));
         assert_eq!(visit.place.urls[1].service.as_deref(), Some("shop"));
         assert_eq!(visit.place.urls[1].label.as_deref(), Some("Buy the LP"));
-        assert_eq!(draft.target, Target::Existing(publication()));
     }
 
     #[test]
     fn every_problem_is_reported_beside_its_field() {
-        let pubs = [publication()];
         let mut form = good_form();
         form.title = "  ".into();
         form.body = String::new();
@@ -545,8 +483,7 @@ mod tests {
         form.links[0].url = "http://insecure.example/page".into();
         form.links[1].label = "x".repeat(65);
         form.tags = "a, ".to_owned() + &"y".repeat(129);
-        form.publication = "at://did:plc:other/site.standard.publication/x".into();
-        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        let errors = validate(&form, &ctx()).unwrap_err();
         let expected = [
             ("body", "Write something."),
             ("place_name", "Name the place."),
@@ -556,7 +493,6 @@ mod tests {
             ("gers_id", "An id has no spaces in it."),
             ("link_url_0", "Links must be https."),
             ("link_label_1", "Keep the label under 64 characters."),
-            ("publication", "Choose a publication."),
         ];
         for (field, message) in expected {
             assert_eq!(errors.get(field), Some(message), "{field}: {errors:?}");
@@ -569,7 +505,7 @@ mod tests {
 
         let mut form = good_form();
         form.visited_on = String::new();
-        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        let errors = validate(&form, &ctx()).unwrap_err();
         assert_eq!(
             errors.get("visited_on"),
             Some("Give the date of the visit.")
@@ -578,57 +514,54 @@ mod tests {
 
     #[test]
     fn a_form_still_choosing_a_place_cannot_be_published() {
-        let pubs = [publication()];
         let mut form = good_form();
         form.place_mode = PlaceMode::Choosing;
-        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        let errors = validate(&form, &ctx()).unwrap_err();
         assert_eq!(errors.get("place_name"), Some("Choose a place first."));
         form.place_mode = PlaceMode::Manual;
         form.gers_id = String::new();
-        let draft = validate(&form, &ctx(&pubs)).unwrap();
+        let draft = validate(&form, &ctx()).unwrap();
         assert_eq!(draft.visit.place.gers_id, None, "by hand means no id");
     }
 
     #[test]
     fn coordinates_are_checked_one_half_at_a_time() {
-        let pubs = [publication()];
         let mut form = good_form();
         form.gers_id = String::new();
         form.lat_e6 = String::new();
         form.lon_e6 = String::new();
-        let draft = validate(&form, &ctx(&pubs)).unwrap();
+        let draft = validate(&form, &ctx()).unwrap();
         assert_eq!(draft.visit.place.gers_id, None);
         assert_eq!(draft.visit.place.coordinates(), None);
         // One half alone is kept (a foreign record may have it) but is
         // not a position.
         form.lat_e6 = "40688838".into();
-        let draft = validate(&form, &ctx(&pubs)).unwrap();
+        let draft = validate(&form, &ctx()).unwrap();
         assert_eq!(draft.visit.place.lat_e6.map(LatE6::value), Some(40_688_838));
         assert_eq!(draft.visit.place.coordinates(), None);
         form.lon_e6 = "180000001".into();
-        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        let errors = validate(&form, &ctx()).unwrap_err();
         assert_eq!(
             errors.get("gers_id"),
             Some("The place's position could not be read.")
         );
         form.lon_e6 = "x".into();
-        assert!(validate(&form, &ctx(&pubs)).is_err());
+        assert!(validate(&form, &ctx()).is_err());
     }
 
     #[test]
     fn a_blank_title_is_the_place_name() {
-        let pubs = [publication()];
         let mut form = good_form();
         form.title = "  ".into();
-        let draft = validate(&form, &ctx(&pubs)).unwrap();
+        let draft = validate(&form, &ctx()).unwrap();
         assert_eq!(draft.title, "Promises");
         form.title = "x".repeat(501);
-        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        let errors = validate(&form, &ctx()).unwrap_err();
         assert!(errors.get("title").unwrap().contains("500"), "{errors:?}");
         // A blank title and a blank place name are one problem, not two.
         form.title = String::new();
         form.place_name = String::new();
-        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
+        let errors = validate(&form, &ctx()).unwrap_err();
         assert_eq!(errors.get("title"), None);
         assert_eq!(errors.get("place_name"), Some("Name the place."));
     }
@@ -652,36 +585,6 @@ mod tests {
         assert_eq!(
             EditorForm::from_document(&make("Late at Promises"), &visit).title,
             "Late at Promises"
-        );
-    }
-
-    #[test]
-    fn new_publication_rules() {
-        let pubs = [publication()];
-        let mut form = good_form();
-        form.publication = "new".into();
-        form.new_publication_url = "ftp://x".into();
-        let errors = validate(&form, &ctx(&pubs)).unwrap_err();
-        assert_eq!(
-            errors.get("new_publication_name"),
-            Some("Name the publication.")
-        );
-        assert_eq!(
-            errors.get("new_publication_url"),
-            Some("That doesn't look like a URL.")
-        );
-
-        let mut form = good_form();
-        form.publication = "new".into();
-        form.new_publication_name = "Liner Notes".into();
-        form.new_publication_url = "https://notes.alice.test".into();
-        let draft = validate(&form, &ctx(&[])).unwrap();
-        assert_eq!(
-            draft.target,
-            Target::New {
-                name: "Liner Notes".into(),
-                url: "https://notes.alice.test/".into()
-            }
         );
     }
 
@@ -726,11 +629,9 @@ mod tests {
         assert_eq!(form.links[1].service, Choice::None);
         assert_eq!(form.rating, "");
         assert_eq!(form.place_price, "");
-        let pubs = [publication()];
         let draft = validate(
             &form,
             &Context {
-                publications: &pubs,
                 original: Some(&original),
             },
         )
