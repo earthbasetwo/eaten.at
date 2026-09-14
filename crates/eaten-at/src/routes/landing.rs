@@ -3,34 +3,46 @@
 //! line (plan 11 makes it the author's home).
 
 use axum::extract::State;
+use axum::response::{IntoResponse, Response};
+use eaten_at_web::assets::{COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
 use eaten_at_web::components::{lookup_form, LookupForm};
 use eaten_at_web::layout::{self, Page};
 use maud::{html, Markup};
 
 use crate::auth::CurrentUser;
 use crate::paths;
+use crate::security::{self, Nonce};
 use crate::state::AppState;
 use crate::view;
 
-pub async fn landing(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> Markup {
-    match user {
-        Some(did) => {
-            // The signed-in author, named by handle when it resolves.
-            let label = match state.identity_for(&did).await {
-                Ok(Some(identity)) => view::author_label(&identity),
-                _ => did.to_string(),
-            };
-            signed_in(&paths::repo(&did), &label)
-        }
-        None => signed_out(),
+pub async fn landing(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    nonce: Nonce,
+) -> Response {
+    if let Some(did) = user {
+        // The signed-in author, named by handle when it resolves.
+        let label = match state.identity_for(&did).await {
+            Ok(Some(identity)) => view::author_label(&identity),
+            _ => did.to_string(),
+        };
+        return signed_in(&paths::repo(&did), &label).into_response();
     }
+    // The handle island calls the AppView from the browser (plan 10),
+    // which this page's policy alone allows.
+    let appview = state.appview_origin();
+    let mut response = signed_out(&nonce, &appview).into_response();
+    security::allow_connect(&mut response, &nonce, &appview);
+    response
 }
 
 /// The pitch, one primary "Sign in", and the lookup form beneath a
 /// hairline as the way to read without signing in.
-fn signed_out() -> Markup {
+fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
     layout::render(&Page {
         title: &[],
+        nonce: Some(nonce.0.clone()),
+        scripts: vec![COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT],
         main: html! {
             div.page-head {
                 h1 { "AT where you ate." }
@@ -48,6 +60,7 @@ fn signed_out() -> Markup {
                 label: "Or read someone's reviews",
                 button: "Read",
                 primary: false,
+                typeahead: Some(appview),
                 ..LookupForm::default()
             }))
             p.meta.landing-note {

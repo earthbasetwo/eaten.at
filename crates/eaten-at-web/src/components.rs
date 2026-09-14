@@ -217,6 +217,10 @@ pub struct LookupForm<'a> {
     /// Whether the button is the page's primary action. The landing
     /// page's is not (sign-in is); the lookup error page's is.
     pub primary: bool,
+    /// The `AppView` origin the handle island suggests from (plan 10),
+    /// carried on the input as `data-typeahead`. `None` means no
+    /// suggestions, and the placeholder says so.
+    pub typeahead: Option<&'a str>,
 }
 
 impl Default for LookupForm<'_> {
@@ -227,9 +231,15 @@ impl Default for LookupForm<'_> {
             label: "Read someone's write-ups by handle",
             button: "Go",
             primary: true,
+            typeahead: None,
         }
     }
 }
+
+/// The hint under a handle field with suggestions. Served in the HTML,
+/// so the second sentence is true with JavaScript off too.
+pub const HANDLE_HINT: &str =
+    "Suggestions from Bluesky appear as you type. Any AT Protocol handle works typed in full, and so does a DID.";
 
 /// The handle lookup form.
 pub fn lookup_form(form: &LookupForm<'_>) -> Markup {
@@ -238,9 +248,13 @@ pub fn lookup_form(form: &LookupForm<'_>) -> Markup {
             label.kicker.lookup-label for="handle" { (form.label) }
             div.lookup-row {
                 input #handle name="handle" type="text" inputmode="url" autocomplete="off"
-                    placeholder="alice.bsky.social" value=(form.value)
+                    placeholder=(if form.typeahead.is_some() { "Start typing a handle…" } else { "alice.bsky.social" })
+                    value=(form.value) data-typeahead=[form.typeahead]
                     aria-describedby=[form.error.map(|_| "handle-error")] required;
                 button.button-secondary[!form.primary] type="submit" { (form.button) }
+            }
+            @if form.typeahead.is_some() {
+                p.meta.field-hint { (HANDLE_HINT) }
             }
             @if let Some(error) = form.error {
                 p.form-error #handle-error role="alert" { (error) }

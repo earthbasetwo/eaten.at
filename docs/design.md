@@ -40,12 +40,16 @@ a class in that file.
    replaces ground, ink, and accent; layout, type, spacing, and shape are
    fixed.
 7. **Server-rendered, no script.** Nothing here needs JavaScript, with
-   one exception: the editor's place search needs a point and only the
-   browser has one, so a small island asks for the location (D35).
-   Without it the search runs near the author's last visit, and a place
-   can always be entered by hand. Fonts are self-hosted and
-   content-hashed, so no page makes a third-party request and the
-   strict CSP holds.
+   two exceptions: the editor's place search needs a point and only the
+   browser has one, so a small island asks for the location (D35); and
+   the sign-in and landing pages suggest handles as you type, from the
+   Bluesky AppView, which only the browser can do without a round trip
+   (D42). Without either, the search runs near the author's last visit,
+   a place can always be entered by hand, and a handle typed in full
+   works as it did. Fonts are self-hosted and content-hashed, so no
+   page makes a third-party request except those two pages' one call
+   to the AppView, which their policy alone allows; the strict CSP
+   holds everywhere else.
 8. **Light only.** Campari is one palette. The site does not follow the
    system's dark preference.
 
@@ -281,6 +285,13 @@ radius, placeholder in `ink-faint`. The border darkens on hover and takes
 the accent when invalid. The text is never smaller than 16px, so mobile
 browsers do not zoom on focus. Checkboxes and radios take the accent.
 
+**Combobox** (`.combobox-list`, `.combobox-option`). A listbox an island
+puts under a text field: a raised panel with the card's border, radius,
+and shadow, one option per row with the name in the sans and a detail
+(the handle) in the mono voice. The active option fills with `sunken`.
+It appears only with JavaScript on and only while there are matches;
+the field it sits under works without it.
+
 **Notice** (`.notice`). A sunken panel, 12px radius, the sans at small
 size in `ink-muted`. Its links and link buttons are `ink` and underlined,
 never the accent.
@@ -301,7 +312,7 @@ one sentence saying what the site is.
 
 | Page | Masthead | Opens with | Then |
 |---|---|---|---|
-| Landing `/`, signed out | site | page head: h1 pitch, lede | one primary "Sign in" with a small aside on its baseline; a hairline; the lookup form with a secondary "Read" pill; a note in the metadata voice |
+| Landing `/`, signed out | site | page head: h1 pitch, lede | one primary "Sign in" with a small aside on its baseline; a hairline; the lookup form with a secondary "Read" pill, its hint, and handle suggestions as you type; a note in the metadata voice |
 | Landing `/`, signed in | site | page head: h1 pitch, lede | lookup form, note, the account line (until plan 11) |
 | Publication front page | site | nameplate | listing, notice if truncated, pagination |
 | Tag page | publication | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
@@ -310,7 +321,7 @@ one sentence saying what the site is.
 | No publications | site | page head: "Publications" kicker, h1 author | empty state |
 | Interstitial | site | page head: "Content warning" kicker, h1 | the labels, note, actions |
 | Lookup error | site | page head: "Lookup" kicker, h1 | the form with its error |
-| Sign in | site | page head: "Sign in" kicker, h1, lede | handle form (the lookup form's shape); errors in place |
+| Sign in | site | page head: "Sign in" kicker, h1, lede | handle form (the lookup form's shape) with "Start typing your handle…" and a served hint under it; suggestions from Bluesky as you type; errors in place |
 | Signing in | site | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
 | Sign-in failed | site | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
 | Status page | site | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
@@ -377,8 +388,9 @@ action is "Sign in" (plan 09).
 - Fonts are subset to Latin and Latin Extended, use `font-display: swap`,
   and fall back to Georgia, the system sans, and the system mono. The
   licences are in `static/fonts/OFL.txt`.
-- No page makes a third-party request and there are no iframes; the CSP
-  allows no external origin. Campari's handoff names Google Fonts; the
+- No page makes a third-party request and there are no iframes, except
+  that the sign-in and landing pages call the Bluesky AppView for handle
+  suggestions and their policy alone allows that origin (D42). Campari's handoff names Google Fonts; the
   same files are served from `/static/` instead.
 - Nothing scrolls horizontally at a 390px viewport.
 

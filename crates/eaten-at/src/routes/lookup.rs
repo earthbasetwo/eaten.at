@@ -5,6 +5,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use eaten_at_atproto::identity::Handle;
+use eaten_at_web::assets::{COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
 use eaten_at_web::components::{lookup_form, LookupForm};
 use eaten_at_web::layout::{self, Page};
 use maud::html;
@@ -12,6 +13,7 @@ use serde::Deserialize;
 
 use crate::error::AppError;
 use crate::paths;
+use crate::security::{self, Nonce};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -21,12 +23,19 @@ pub struct LookupQuery {
 }
 
 /// `GET /lookup?handle=` — validate and bounce to `/@{handle}`.
-pub async fn lookup(Query(query): Query<LookupQuery>) -> Response {
+pub async fn lookup(
+    State(state): State<AppState>,
+    Query(query): Query<LookupQuery>,
+    nonce: Nonce,
+) -> Response {
     match Handle::parse(&query.handle) {
         Ok(handle) => Redirect::to(&paths::handle_lookup(&handle)).into_response(),
         Err(err) => {
+            let appview = state.appview_origin();
             let page = layout::render(&Page {
                 title: &["Lookup"],
+                nonce: Some(nonce.0.clone()),
+                scripts: vec![COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT],
                 main: html! {
                     div.page-head {
                         p.kicker { "Lookup" }
@@ -35,12 +44,15 @@ pub async fn lookup(Query(query): Query<LookupQuery>) -> Response {
                     (lookup_form(&LookupForm {
                         value: &query.handle,
                         error: Some(&err.to_string()),
+                        typeahead: Some(&appview),
                         ..LookupForm::default()
                     }))
                 },
                 ..Page::default()
             });
-            (StatusCode::BAD_REQUEST, page).into_response()
+            let mut response = (StatusCode::BAD_REQUEST, page).into_response();
+            security::allow_connect(&mut response, &nonce, &appview);
+            response
         }
     }
 }

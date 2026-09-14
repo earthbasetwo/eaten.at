@@ -146,6 +146,27 @@ page logs no CSP violation (the runner already fails on those).
 - The CSP on every other page is unchanged.
 - `just check` and `just visual-check` pass.
 
+## As built (2026-09-13)
+
+As planned, with these notes.
+
+- The combobox came out at 3.5 KB, not 1.6 KB: the ARIA bookkeeping
+  and the abort-on-newer-query logic are most of it. The page set is
+  4.7 KB against the 7 KB per-page cap and everything ships at 9.4 KB
+  against the 10 KB total; plan 12 replaces the 1 KB location island
+  with a suggestion adapter of about the same size.
+- The connecting policy is set by the handler through
+  `security::allow_connect`, on the landing page (signed out), the
+  sign-in page in every state, and the lookup-error page.
+- The listbox is inserted after the `.lookup-row`, not after the input,
+  so it sits under the row rather than inside the flex row.
+- The visual check gained a `type` step (an `input` event, then a wait
+  for a selector) for pages whose change is not a navigation; it checks
+  suggestions on both the sign-in and the landing page.
+- The stub in `dev-env.mjs` now also answers the typeahead, and
+  `.env.dev` points `EATEN_AT_BSKY_APPVIEW` at it, so comment threads
+  read as not found on the local network (noted in `docs/local-dev.md`).
+
 ## Decisions
 
 Settled 2026-09-13:

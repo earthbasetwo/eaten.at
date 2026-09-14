@@ -307,6 +307,82 @@ async fn landing_page_leads_with_sign_in_and_keeps_the_lookup_form() {
 }
 
 #[tokio::test]
+async fn handle_fields_suggest_from_the_configured_appview_and_only_those_pages_may_connect() {
+    let server = mount(&Repo::default()).await;
+    let state = state_for(&server, StaticDns::new());
+    let appview = server.uri();
+    for uri in ["/", "/login", "/lookup?handle=not%20a%20handle"] {
+        let response = router(state.clone())
+            .oneshot(Request::get(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let csp = response.headers()[header::CONTENT_SECURITY_POLICY]
+            .to_str()
+            .unwrap()
+            .to_owned();
+        assert!(
+            csp.contains(&format!("connect-src 'self' {appview}; ")),
+            "{uri}: {csp}"
+        );
+        assert!(
+            csp.starts_with("default-src 'self'; script-src 'nonce-"),
+            "{uri}: {csp}"
+        );
+        let nonce = csp
+            .split("'nonce-")
+            .nth(1)
+            .unwrap()
+            .split('\'')
+            .next()
+            .unwrap()
+            .to_owned();
+        let body =
+            String::from_utf8_lossy(&response.into_body().collect().await.unwrap().to_bytes())
+                .into_owned();
+        assert!(
+            body.contains(&format!("data-typeahead=\"{appview}\"")),
+            "{uri}: {body}"
+        );
+        assert!(
+            body.contains("Suggestions from Bluesky appear as you type."),
+            "{uri}: {body}"
+        );
+        assert_eq!(body.matches("<script").count(), 2, "{uri}: {body}");
+        assert_eq!(
+            body.matches(&format!("<script nonce=\"{nonce}\">")).count(),
+            2,
+            "{uri}: {body}"
+        );
+        assert!(
+            body.contains("window.eaCombobox = function"),
+            "{uri}: the combobox comes first"
+        );
+        // The form itself is unchanged: a plain submit still works.
+        assert!(
+            body.contains("id=\"handle\" name=\"handle\""),
+            "{uri}: {body}"
+        );
+    }
+    // Nowhere else.
+    let server = mount(&one_publication()).await;
+    let state = state_for(&server, StaticDns::new());
+    for uri in [format!("/at/{DID}/pub1/"), format!("/at/{DID}/pub1/d3")] {
+        let response = router(state.clone())
+            .oneshot(Request::get(&uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let csp = response.headers()[header::CONTENT_SECURITY_POLICY]
+            .to_str()
+            .unwrap()
+            .to_owned();
+        assert!(!csp.contains("connect-src"), "{uri}: {csp}");
+    }
+    let cookie = signed_in(&state).await;
+    let (_, _, home) = get_signed(&state, "/", &cookie).await;
+    assert!(!home.contains("data-typeahead"), "{home}");
+}
+
+#[tokio::test]
 async fn lookup_form_redirects_to_handle_route_or_rejects_garbage() {
     let server = mount(&Repo::default()).await;
     let state = state_for(&server, StaticDns::new());
@@ -1322,9 +1398,9 @@ async fn security_headers_on_every_route_family() {
             }
         }
     }
-    // The document page really did carry the themed style block. No page
-    // ships a script until the editor island (C3.5); the loop above will
-    // cover it when it does.
+    // The document page really did carry the themed style block. It ships
+    // no script; the editor and the handle pages do, and the loop above
+    // checked that each of theirs carries the nonce.
     let (_, _, doc) = get(&state, &format!("/at/{DID}/pub1/d3")).await;
     assert!(doc.contains("<style nonce="), "{doc}");
     assert!(!doc.contains("<script"), "{doc}");

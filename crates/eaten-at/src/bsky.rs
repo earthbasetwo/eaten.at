@@ -276,6 +276,16 @@ fn clean_text(raw: &str) -> String {
 }
 
 impl AppState {
+    /// The `AppView`'s origin, for a page whose script calls it directly
+    /// (plan 10) and for the policy that lets it.
+    pub fn appview_origin(&self) -> String {
+        self.bsky()
+            .appview
+            .as_str()
+            .trim_end_matches('/')
+            .to_owned()
+    }
+
     /// The comment thread under a document's Bluesky post, cached for
     /// five minutes. `None` when the post is gone, blocked, or unreadable;
     /// the page then shows only its link to the thread.

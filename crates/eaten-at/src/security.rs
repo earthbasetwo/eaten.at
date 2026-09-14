@@ -26,11 +26,27 @@ impl Nonce {
 
     /// The policy for a page carrying this nonce.
     pub fn csp(&self) -> String {
+        self.policy(None)
+    }
+
+    /// The policy for a page whose script fetches from `origin` as well
+    /// as from us (plan 10, D42: the handle suggestions). Everything
+    /// else stays as strict as [`csp`](Self::csp).
+    pub fn csp_connecting(&self, origin: &str) -> String {
+        self.policy(Some(origin))
+    }
+
+    fn policy(&self, connect: Option<&str>) -> String {
+        let connect_src = match connect {
+            Some(origin) => format!("connect-src 'self' {origin}; "),
+            None => String::new(),
+        };
         format!(
             "default-src 'self'; \
              script-src 'nonce-{n}'; \
              style-src 'self' 'nonce-{n}'; \
              img-src 'self' data:; \
+             {connect_src}\
              frame-src 'none'; \
              frame-ancestors 'none'; \
              base-uri 'none'; \
@@ -38,6 +54,16 @@ impl Nonce {
              object-src 'none'",
             n = self.0
         )
+    }
+}
+
+/// Set a page's policy to one that may connect to `origin`. The
+/// middleware leaves a header a handler set alone.
+pub fn allow_connect(response: &mut Response, nonce: &Nonce, origin: &str) {
+    if let Ok(value) = HeaderValue::from_str(&nonce.csp_connecting(origin)) {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_SECURITY_POLICY, value);
     }
 }
 
@@ -107,5 +133,22 @@ mod tests {
         assert!(csp.contains("style-src 'self' 'nonce-abc'"));
         assert!(csp.contains("frame-src 'none'"));
         assert!(csp.contains("frame-ancestors 'none'"));
+        assert!(!csp.contains("connect-src"), "{csp}");
+    }
+
+    #[test]
+    fn a_connecting_policy_adds_exactly_one_origin() {
+        let nonce = Nonce("abc".into());
+        let strict = nonce.csp();
+        let open = nonce.csp_connecting("https://public.api.bsky.app");
+        assert!(
+            open.contains("connect-src 'self' https://public.api.bsky.app; "),
+            "{open}"
+        );
+        assert_eq!(
+            open.replace("connect-src 'self' https://public.api.bsky.app; ", ""),
+            strict,
+            "nothing else changes"
+        );
     }
 }
