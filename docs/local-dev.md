@@ -158,7 +158,7 @@ for a day, handle lookups for an hour) and every page would fail with
 | `EATEN_AT_DB=.dev-cache.db` | A separate database for dev runs (cache, OAuth state, sessions), wiped by the runner on every start. |
 | `EATEN_AT_PLACES_API_URL`, `EATEN_AT_PLACES_API_KEY` | The stub above and its fixed key, so the real key in `.env` is never spent on the local network. |
 
-Not overridden: `EATEN_AT_BSKY_APPVIEW`. The local network has no AppView, so comment threads are read from the public one; a seeded document gets a thread by adding a `bskyPostRef` naming a real Bluesky post to its record (`putRecord` on the local PDS).
+| `EATEN_AT_BSKY_APPVIEW` | The same stub, which answers the handle typeahead (plan 10) and nothing else the AppView would: a seeded document's comment thread reads as not found on the local network. To see a real thread, unset it in `.env.dev` so the public AppView is used, and give a document a `bskyPostRef` naming a real Bluesky post (`putRecord` on the local PDS). |
 
 Not set in `.env.dev`: `EATEN_AT_OAUTH_KEY_FILE`. In production it names
 the private JWK that makes the app a confidential OAuth client; the app

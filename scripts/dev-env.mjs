@@ -354,6 +354,15 @@ await createRecord(alice.agent, 'site.standard.document', {
 // places whatever the query, at the shape the real API answers with. A
 // query containing "nothing" finds nothing; one containing "quota" is
 // refused as over quota, so the editor's unavailable state can be seen.
+// The same server stands in for the Bluesky AppView's handle typeahead
+// (plan 10), answering three actors for any query, with CORS open as
+// the real one is. It answers nothing else the AppView would (a comment
+// thread reads as not found), which is the trade for an offline check.
+const ACTORS = [
+  { did: 'did:plc:alicealicealicealiceali', handle: 'alice.test', displayName: 'Alice Example' },
+  { did: 'did:plc:bobbobbobbobbobbobbobbob', handle: 'bob.test' },
+  { did: 'did:plc:carolcarolcarolcarolcaro', handle: 'carol.bsky.social', displayName: 'Carol' },
+]
 const PLACES = [
   {
     place_id: 'overture:76f1250d-8e38-40b3-a021-bfe1c16b4e1c',
@@ -382,6 +391,11 @@ const places = http.createServer((req, res) => {
   const reply = (status, body) => {
     res.writeHead(status, { 'content-type': 'application/json', 'x-request-id': 'dev', 'cache-control': 'no-store' })
     res.end(JSON.stringify(body))
+  }
+  if (req.method === 'GET' && url.pathname === '/xrpc/app.bsky.actor.searchActorsTypeahead') {
+    res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' })
+    const q = (url.searchParams.get('q') ?? '').toLowerCase()
+    return res.end(JSON.stringify({ actors: q.includes('nothing') ? [] : ACTORS }))
   }
   if (req.method !== 'GET' || url.pathname !== '/v1/places') {
     return reply(404, { error: { code: 'not_found', message: 'No such endpoint.' } })
@@ -420,6 +434,9 @@ const envDev = [
   // never used against the local network.
   `EATEN_AT_PLACES_API_URL=http://localhost:${PLACES_PORT}`,
   'EATEN_AT_PLACES_API_KEY=dev-key',
+  // The same stub answers the handle typeahead (plan 10); comment threads
+  // then read as not found on the local network.
+  `EATEN_AT_BSKY_APPVIEW=http://localhost:${PLACES_PORT}`,
   '',
 ].join('\n')
 await writeFile(path.join(ROOT, '.env.dev'), envDev)
@@ -430,6 +447,7 @@ Local atproto network is up (in memory; Ctrl-C to stop).
   PLC   http://localhost:${PLC_PORT}
   PDS   http://localhost:${PDS_PORT}
   Open Places stub  http://localhost:${PLACES_PORT}   (any search finds three places; "nothing" finds none; "quota" is refused)
+  AppView stub      http://localhost:${PLACES_PORT}   (handle typeahead only: any query finds three actors)
 
   eaten.test  ${publisher.did}   lexicon publisher (app password in .env.dev)
   alice.test  ${alice.did}   author, password "${PASSWORD}"

@@ -12,12 +12,15 @@ use axum::response::{IntoResponse, Json, Redirect, Response};
 use axum::Form;
 use eaten_at_atproto::identity::{Did, Handle};
 use eaten_at_atproto::oauth::{CallbackParams, OAuthError, METADATA_PATH};
+use eaten_at_web::assets::{COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
+use eaten_at_web::components::HANDLE_HINT;
 use eaten_at_web::layout::{self, Page};
 use maud::{html, Markup};
 use serde::Deserialize;
 use url::Url;
 
 use crate::auth::{CurrentUser, RequireUser, SessionCookie};
+use crate::security::{self, Nonce};
 use crate::state::AppState;
 
 /// Where a sign-in should land afterwards. Only site-local paths are
@@ -43,9 +46,21 @@ fn to_bare_origin(state: &AppState, path: &str) -> Response {
 }
 
 /// The sign-in form, with an optional error and the handle as typed.
-fn login_page(handle: &str, return_to: &str, error: Option<&str>) -> Markup {
+/// The handle island suggests from the `AppView` as the author types
+/// (plan 10); the response's policy has to allow that, which
+/// [`login_response`] does.
+fn login_page(
+    state: &AppState,
+    nonce: &Nonce,
+    handle: &str,
+    return_to: &str,
+    error: Option<&str>,
+) -> Markup {
+    let appview = state.appview_origin();
     layout::render(&Page {
         title: &["Sign in"],
+        nonce: Some(nonce.0.clone()),
+        scripts: vec![COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT],
         main: html! {
             div.page-head {
                 p.kicker { "Sign in" }
@@ -59,10 +74,12 @@ fn login_page(handle: &str, return_to: &str, error: Option<&str>) -> Markup {
                 label.kicker.lookup-label for="handle" { "Your handle" }
                 div.lookup-row {
                     input #handle name="handle" type="text" inputmode="url" autocomplete="username"
-                        placeholder="alice.bsky.social" value=(handle)
+                        placeholder="Start typing your handle…" value=(handle)
+                        data-typeahead=(appview)
                         aria-describedby=[error.map(|_| "handle-error")] required;
                     button type="submit" { "Continue" }
                 }
+                p.meta.field-hint { (HANDLE_HINT) }
                 @if !return_to.is_empty() {
                     input type="hidden" name="return_to" value=(return_to);
                 }
@@ -73,6 +90,22 @@ fn login_page(handle: &str, return_to: &str, error: Option<&str>) -> Markup {
         },
         ..Page::default()
     })
+}
+
+/// The sign-in page as a response whose policy lets the island reach
+/// the `AppView`.
+fn login_response(
+    state: &AppState,
+    nonce: &Nonce,
+    status: StatusCode,
+    handle: &str,
+    return_to: &str,
+    error: Option<&str>,
+) -> Response {
+    let page = login_page(state, nonce, handle, return_to, error);
+    let mut response = (status, page).into_response();
+    security::allow_connect(&mut response, nonce, &state.appview_origin());
+    response
 }
 
 /// A page that immediately moves on to the authorization server.
@@ -128,6 +161,7 @@ pub async fn login_form(
     headers: HeaderMap,
     Query(query): Query<LoginQuery>,
     CurrentUser(user): CurrentUser,
+    nonce: Nonce,
 ) -> Response {
     if !is_bare_origin(&state, &headers) {
         return to_bare_origin(&state, "/login");
@@ -135,12 +169,14 @@ pub async fn login_form(
     if user.is_some() {
         return Redirect::to("/").into_response();
     }
-    login_page(
+    login_response(
+        &state,
+        &nonce,
+        StatusCode::OK,
         "",
         site_local(&query.return_to).as_deref().unwrap_or(""),
         None,
     )
-    .into_response()
 }
 
 #[derive(Debug, Deserialize)]
@@ -155,6 +191,7 @@ pub struct LoginForm {
 pub async fn login_start(
     State(state): State<AppState>,
     headers: HeaderMap,
+    nonce: Nonce,
     Form(form): Form<LoginForm>,
 ) -> Response {
     if !is_bare_origin(&state, &headers) {
@@ -186,15 +223,14 @@ pub async fn login_start(
                     )
                 }
             };
-            (
+            login_response(
+                &state,
+                &nonce,
                 status,
-                login_page(
-                    &form.handle,
-                    return_to.as_deref().unwrap_or(""),
-                    Some(message),
-                ),
+                &form.handle,
+                return_to.as_deref().unwrap_or(""),
+                Some(message),
             )
-                .into_response()
         }
     }
 }

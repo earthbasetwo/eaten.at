@@ -478,6 +478,25 @@
   .landing-actions { margin-block-start: 0; align-items: baseline; }
   .landing-aside { font-size: var(--text-small); color: var(--color-ink-muted); }
   .landing-divider { margin-block: var(--section-gap); }
+  .lookup .field-hint { margin-block-start: var(--space-s); }
+
+  /* Combobox (plan 10): the listbox an island puts under a field. A
+     raised panel like a card; the active option fills with sunken. */
+  .combobox-list {
+    list-style: none; margin: var(--space-xs) 0 0; padding: var(--space-xs);
+    background: var(--color-raised); border: 1px solid var(--color-border);
+    border-radius: var(--radius); box-shadow: var(--shadow-card);
+  }
+  .combobox-option {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs) var(--space-s);
+    padding: var(--space-s) var(--space-sm); border-radius: var(--radius-nested); cursor: pointer;
+  }
+  .combobox-option:hover, .combobox-option[aria-selected="true"] { background: var(--color-sunken); }
+  .combobox-label { color: var(--color-ink); }
+  .combobox-detail {
+    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.02em;
+    color: var(--color-ink-faint);
+  }
   .account { margin-block-start: var(--space-m); display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: baseline; }
   .inline-form { display: inline; }
   /* A button that reads as a link, for actions that must be a POST. */

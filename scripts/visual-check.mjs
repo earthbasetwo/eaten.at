@@ -107,7 +107,21 @@ async function main() {
 
   await check({ name: 'landing', path: '/', expect: 'a.button[href="/login"]' })
   await check({ name: 'lookup-error', path: '/lookup?handle=nobody.invalid', status: 400 })
-  await check({ name: 'login', path: '/login' })
+  await check({ name: 'login', path: '/login', expect: 'input[data-typeahead]' })
+  // The handle island (plan 10): typing shows suggestions from the stub
+  // AppView; the page's policy allows that one origin.
+  await check({
+    name: 'login-typeahead',
+    path: '/login',
+    steps: [{ type: { '#handle': 'ali' }, wait: '[role="option"]' }],
+    expect: '[role="listbox"] [role="option"]',
+  })
+  await check({
+    name: 'landing-typeahead',
+    path: '/',
+    steps: [{ type: { '#handle': 'ali' }, wait: '[role="option"]' }],
+    expect: '[role="listbox"] [role="option"]',
+  })
   await check({ name: 'handle-redirect', path: '/@alice.test', finalPath: front })
   await check({ name: 'account', path: account, finalPath: front })
   const publicationPages = async (prefix, pub, frontPath, themeSelector) => {
@@ -270,6 +284,25 @@ class Browser {
     // page under test. `submit` is the one-click shorthand.
     const steps = page.steps ?? (page.submit ? [{ click: page.submit }] : [])
     for (const step of steps) {
+      // A `type` step types into a field (an input event, so an island
+      // reacts) and waits for `wait` to appear; no navigation follows.
+      if (step.type) {
+        for (const [selector, value] of Object.entries(step.type)) {
+          const typed = await this.evaluate(
+            `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; el.focus(); el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event('input', { bubbles: true })); return true })()`,
+          )
+          if (!typed) problems.push(`no element matches ${selector}`)
+        }
+        const appeared = await this.evaluate(`(async () => {
+          for (let i = 0; i < 40; i++) {
+            if (document.querySelector(${JSON.stringify(step.wait)})) return true
+            await new Promise(r => setTimeout(r, 100))
+          }
+          return false
+        })()`)
+        if (!appeared) problems.push(`nothing matched ${step.wait} after typing`)
+        continue
+      }
       for (const [selector, value] of Object.entries(step.fill ?? {})) {
         const set = await this.evaluate(
           `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; el.value = ${JSON.stringify(value)}; return true })()`,

@@ -40,7 +40,7 @@ Everything is an environment variable; a `.env` file is loaded by `just`.
 | `EATEN_AT_DB` | `eaten-at.db` | SQLite file for the cache, OAuth state, sessions, and hosting claims. |
 | `EATEN_AT_PUBLIC_URL` | `http://<listen address>` | Our public origin, used for absolute URLs in meta tags and feeds. Set to `https://eaten.at` in production. |
 | `EATEN_AT_OAUTH_KEY_FILE` | unset | Path of the private JWK that makes the app a confidential OAuth client; created on first start. Unset, the app is a public client. |
-| `EATEN_AT_BSKY_APPVIEW` | `https://public.api.bsky.app` | The Bluesky AppView that comment threads are read from (unauthenticated `getPostThread`, cached five minutes). |
+| `EATEN_AT_BSKY_APPVIEW` | `https://public.api.bsky.app` | The Bluesky AppView that comment threads are read from (unauthenticated `getPostThread`, cached five minutes) and that the sign-in and landing pages ask for handle suggestions from the browser (`searchActorsTypeahead`; their CSP allows this one origin). |
 | `EATEN_AT_PLACES_API_URL` | `https://api.openplacesapi.com` | The Open Places API, which serves Overture Maps places for the editor's place search. |
 | `EATEN_AT_PLACES_API_KEY` | unset | The Open Places API key. Unset, place search is disabled and the editor takes places by hand. Never used from a browser. |
 | `RUST_LOG` | `info` | Log filter. `debug` shows cache misses, skipped records, and upstream fallbacks. |

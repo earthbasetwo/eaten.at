@@ -21,11 +21,36 @@ pub const EDITOR_SCRIPT: &str = include_str!("../static/editor.js");
 /// author's last visit.
 pub const LOCATE_SCRIPT: &str = include_str!("../static/locate.js");
 
-/// Every inline script the site ships, all counted against the budget.
-pub const INLINE_SCRIPTS: &[&str] = &[EDITOR_SCRIPT, LOCATE_SCRIPT];
+/// The combobox (plan 10): a listbox under a text field, fed by a source
+/// the page names. Shared by the handle and place suggestions.
+pub const COMBOBOX_SCRIPT: &str = include_str!("../static/combobox.js");
 
-/// Hard cap on all inline JavaScript combined, in bytes (plan §6.3).
-pub const JS_BUDGET_BYTES: usize = 5 * 1024;
+/// Handle suggestions from the Bluesky `AppView`, on the sign-in and
+/// landing pages (plan 10, D42). Needs [`COMBOBOX_SCRIPT`] before it.
+pub const HANDLE_TYPEAHEAD_SCRIPT: &str = include_str!("../static/handle-typeahead.js");
+
+/// Every inline script the site ships, all counted against the budget.
+pub const INLINE_SCRIPTS: &[&str] = &[
+    EDITOR_SCRIPT,
+    LOCATE_SCRIPT,
+    COMBOBOX_SCRIPT,
+    HANDLE_TYPEAHEAD_SCRIPT,
+];
+
+/// The sets of scripts a page ships together, each within
+/// [`PAGE_JS_BUDGET_BYTES`].
+pub const PAGE_SCRIPTS: &[&[&str]] = &[
+    &[EDITOR_SCRIPT, LOCATE_SCRIPT],
+    &[COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT],
+];
+
+/// Hard cap on all inline JavaScript combined, in bytes (plan §6.3,
+/// restated by D43). The point was never the number: every page works
+/// without any of it, which each page's no-JS test keeps proving.
+pub const JS_BUDGET_BYTES: usize = 10 * 1024;
+
+/// Hard cap on the inline JavaScript any one page ships, in bytes (D43).
+pub const PAGE_JS_BUDGET_BYTES: usize = 7 * 1024;
 
 /// Self-hosted web fonts (`static/fonts/OFL.txt` has the licences).
 /// Latin and latin-ext subsets of each face; the stylesheet's
@@ -256,6 +281,19 @@ mod tests {
             total <= JS_BUDGET_BYTES,
             "{total} bytes of JS exceeds the {JS_BUDGET_BYTES} byte budget"
         );
+        for set in PAGE_SCRIPTS {
+            let page: usize = set.iter().map(|s| s.len()).sum();
+            assert!(
+                page <= PAGE_JS_BUDGET_BYTES,
+                "{page} bytes on one page exceeds the {PAGE_JS_BUDGET_BYTES} byte budget"
+            );
+            for script in *set {
+                assert!(
+                    INLINE_SCRIPTS.contains(script),
+                    "every page script is counted"
+                );
+            }
+        }
         for script in INLINE_SCRIPTS {
             assert!(
                 !script.contains("</script"),
