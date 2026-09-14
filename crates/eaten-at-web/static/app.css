@@ -5,15 +5,14 @@
 /* ---------- fonts ----------
    Self-hosted so no page makes a third-party request. Paths are rewritten
    to their content-hashed form when the stylesheet is built (assets.rs).
-   Evantic Italic is the logotype and nothing else; its one file is drawn
-   italic, so it is declared as the family's normal face and never asked
-   for in italic. */
+   Evantic Regular is the logotype and nothing else; it is the family's
+   one face. */
 @font-face {
   font-family: "Evantic";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("/static/evantic-italic.woff2") format("woff2");
+  src: url("/static/evantic-regular.woff2") format("woff2");
 }
 @font-face {
   font-family: "Newsreader";

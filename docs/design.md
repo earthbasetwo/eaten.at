@@ -121,7 +121,7 @@ not, which is how its vermilion stays as the handoff drew it.
 
 | Face | Weights | Role |
 |---|---|---|
-| Evantic Italic | one face, bundled | the logotype `eaten.at`, lowercase, and nothing else |
+| Evantic Regular | one face, bundled | the logotype `eaten.at`, lowercase, and nothing else |
 | Newsreader | 200–800 variable with optical sizes, roman and italic; 500 and 400 used | titles, names, and the running head at 500; text, ledes, hints, notices, comment text, and fields at 400 |
 | JetBrains Mono | 400–500 | metadata, kickers, labels, buttons, chips, the rating, the document footer |
 

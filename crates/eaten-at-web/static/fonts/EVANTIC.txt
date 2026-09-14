@@ -1,10 +1,10 @@
-Evantic Italic (evantic-italic.woff2)
+Evantic Regular (evantic-regular.woff2)
 
   Evantic Typeface (c) Sign Studio, 2026. All rights reserved.
   Evantic is a trademark of Sign Studio.
 
 Bundled with the "Masthead" design handoff (docs/design-handoff/masthead/)
-as Evantic-Italic.ttf and converted to woff2 here without other changes.
+as Evantic-Regular.ttf and converted to woff2 here without other changes.
 The handoff records it as a personal-use licence, judged fine for this
 non-commercial site. It is used for the eaten.at logotype only, always
 lowercase, and never for any other text.

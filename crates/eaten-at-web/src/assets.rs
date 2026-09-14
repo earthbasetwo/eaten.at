@@ -51,7 +51,7 @@ pub const JS_BUDGET_BYTES: usize = 20 * 1024;
 /// Self-hosted web fonts. Newsreader and the mono face are OFL
 /// (`static/fonts/OFL.txt`), as latin and latin-ext subsets that the
 /// stylesheet's `unicode-range` descriptors choose between; Evantic
-/// Italic is the logotype face bundled with the design handoff
+/// Regular is the logotype face bundled with the design handoff
 /// (`static/fonts/EVANTIC.txt`), one file.
 const FONT_FILES: &[(&str, &[u8])] = &[
     (
@@ -79,8 +79,8 @@ const FONT_FILES: &[(&str, &[u8])] = &[
         include_bytes!("../static/fonts/jetbrains-mono-latin-ext.woff2"),
     ),
     (
-        "evantic-italic.woff2",
-        include_bytes!("../static/fonts/evantic-italic.woff2"),
+        "evantic-regular.woff2",
+        include_bytes!("../static/fonts/evantic-regular.woff2"),
     ),
 ];
 

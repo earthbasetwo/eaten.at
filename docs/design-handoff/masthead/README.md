@@ -31,7 +31,7 @@ Rules:
 ### Typography
 | Role | Font | Notes |
 |---|---|---|
-| Logotype ONLY | **Evantic Italic** (`Evantic-Italic.ttf`, bundled) | `eaten.at`, always lowercase. Never for anything else. Personal-use license — fine here (non-commercial). |
+| Logotype ONLY | **Evantic Regular** (`Evantic-Regular.ttf`, bundled) | `eaten.at`, always lowercase. Never for anything else. Personal-use license — fine here (non-commercial). |
 | Headlines, restaurant names, titles | **Newsreader** 500 (Google Fonts) | Serif; line-height 1.1–1.2 |
 | Body / review text | **Newsreader** 400 | 14–16px, line-height 1.55–1.6 |
 | UI labels, buttons, metadata, handles, DIDs, ratings | **JetBrains Mono** 400 (Google Fonts) | 10–12px; letter-spacing 0.08–0.22em on ALL-CAPS labels |
@@ -71,9 +71,9 @@ Vermilion, no underline at rest, underline on hover.
 Color/border transitions only, 150–200ms ease-out. No motion, lifts, or scales. Focus: 2px vermilion outline, 2px offset.
 
 ## Assets
-- `Evantic-Italic.ttf` — bundled; load via `@font-face { font-family:'Evantic'; src:url(...) format('truetype'); }`
+- `Evantic-Regular.ttf` — bundled; load via `@font-face { font-family:'Evantic'; src:url(...) format('truetype'); }`
 - Google Fonts: `https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap`
 
 ## Files
 - `Masthead Reference.dc.html` — visual specimen (open in browser)
-- `Evantic-Italic.ttf` — logotype font
+- `Evantic-Regular.ttf` — logotype font
