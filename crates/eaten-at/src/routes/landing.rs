@@ -1,39 +1,53 @@
 //! `GET /` — signed out, the pitch and the way in, with a handle lookup
-//! as the secondary action (plan 09); signed in, the author's account
-//! line (plan 11 makes it the author's home).
+//! as the secondary action (plan 09); signed in, the author's home:
+//! one primary "Write a new visit", their publication with its recent
+//! write-ups and a way to find one, and settings last (plan 11).
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Response};
+use eaten_at_atproto::identity::{Did, Identity};
+use eaten_at_atproto::lexicon::Publication;
+use eaten_at_atproto::repo::Record;
 use eaten_at_web::assets::{COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
-use eaten_at_web::components::{lookup_form, LookupForm};
+use eaten_at_web::components::{listing, lookup_form, tag_links, LookupForm};
 use eaten_at_web::layout::{self, Page};
 use maud::{html, Markup};
+use serde::Deserialize;
 
 use crate::auth::CurrentUser;
+use crate::error::AppError;
 use crate::paths;
+use crate::publish::{self, Home};
 use crate::security::{self, Nonce};
 use crate::state::AppState;
 use crate::view;
 
+/// How many recent write-ups the author's home shows.
+pub const RECENT: usize = 8;
+
+#[derive(Debug, Deserialize)]
+pub struct LandingQuery {
+    /// A find over the author's own write-ups (plan 11). Ignored signed
+    /// out.
+    #[serde(default)]
+    q: String,
+}
+
 pub async fn landing(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
+    Query(query): Query<LandingQuery>,
     nonce: Nonce,
-) -> Response {
+) -> Result<Response, AppError> {
     if let Some(did) = user {
-        // The signed-in author, named by handle when it resolves.
-        let label = match state.identity_for(&did).await {
-            Ok(Some(identity)) => view::author_label(&identity),
-            _ => did.to_string(),
-        };
-        return signed_in(&paths::repo(&did), &label).into_response();
+        return signed_in(&state, &did, query.q.trim()).await;
     }
     // The handle island calls the AppView from the browser (plan 10),
     // which this page's policy alone allows.
     let appview = state.appview_origin();
     let mut response = signed_out(&nonce, &appview).into_response();
     security::allow_connect(&mut response, &nonce, &appview);
-    response
+    Ok(response)
 }
 
 /// The pitch, one primary "Sign in", and the lookup form beneath a
@@ -71,27 +85,43 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
     })
 }
 
-/// The page as it was, for a signed-in author, until plan 11.
-fn signed_in(repo_path: &str, label: &str) -> Markup {
-    layout::render(&Page {
+/// The author's publication as the home page shows it.
+struct Own<'a> {
+    publication: &'a Record<Publication>,
+    /// Where it is read: the hosted host, or the author's own domain.
+    address: String,
+    /// What the list is: the recent write-ups, or the matches for `q`.
+    query: &'a str,
+    items: Vec<eaten_at_web::components::ListingItem>,
+    /// Whether the publication has more than the list shows.
+    more: bool,
+    truncated: bool,
+    tags: Vec<eaten_at_web::components::Link>,
+}
+
+/// The author's home.
+async fn signed_in(state: &AppState, did: &Did, query: &str) -> Result<Response, AppError> {
+    let identity = state.require_identity(did).await?;
+    let label = view::author_label(&identity);
+    let section = match state.own_publication(&identity).await? {
+        Some(publication) => {
+            let own = own(state, &identity, &publication, query).await?;
+            own_section(did, &own)
+        }
+        None => not_yet(state, &identity),
+    };
+    let page = layout::render(&Page {
         title: &[],
         main: html! {
             div.page-head {
-                h1 { "Write-ups, published on the AT Protocol." }
-                p.lede {
-                    "Authors keep their write-ups in their own repositories. "
-                    "This site reads them and sets each publication as a small journal: "
-                    "the place, the visit, and the words."
-                }
+                p.meta.handle { (label) }
+                h1 { "Where did you eat?" }
             }
-            (lookup_form(&LookupForm::default()))
-            p.meta.landing-note {
-                "Any AT Protocol handle works, Bluesky handles included. "
-                "Every write-up stays in its author's repository; this site only reads."
+            div.actions.landing-actions {
+                a.button href="/write" { "Write a new visit" }
             }
-            div.meta.account {
-                span { "Signed in as " a href=(repo_path) { (label) } }
-                a href="/write" { "Write" }
+            (section)
+            div.meta.tertiary {
                 a href="/settings" { "Settings" }
                 form.inline-form method="post" action="/logout" {
                     button.link-button type="submit" { "Sign out" }
@@ -99,5 +129,142 @@ fn signed_in(repo_path: &str, label: &str) -> Markup {
             }
         },
         ..Page::default()
+    });
+    Ok(page.into_response())
+}
+
+async fn own<'a>(
+    state: &AppState,
+    identity: &Identity,
+    publication: &'a Record<Publication>,
+    query: &'a str,
+) -> Result<Own<'a>, AppError> {
+    let did = &identity.did;
+    let pub_rkey = publication.rkey();
+    let claim = state
+        .claims()
+        .for_publication(&publication.uri)
+        .await
+        .map_err(|e| AppError::Upstream(e.to_string()))?;
+    let address = match claim {
+        Some(claim) => state.hosted_host(&claim.name),
+        None => view::display_url(&publication.value.url),
+    };
+    // The recent list is the first page's newest eight; a find shows
+    // its whole page. Both come through the same cached scan the front
+    // page uses, so a fresh publish shows here at once.
+    let listing = if query.is_empty() {
+        state.visit_listing(identity, publication, None).await?
+    } else {
+        state
+            .find_visits(identity, publication, query, None)
+            .await?
+    };
+    let shown = if query.is_empty() {
+        RECENT
+    } else {
+        listing.items.len()
+    };
+    let more = listing.items.len() > shown || listing.next_cursor.is_some();
+    let tags = view::tag_links(
+        did,
+        pub_rkey,
+        &crate::tags::distinct(
+            listing
+                .items
+                .iter()
+                .flat_map(|a| a.document().tags.iter().map(String::as_str)),
+        ),
+    );
+    let items = listing
+        .items
+        .iter()
+        .take(shown)
+        .map(|visit_doc| view::listing_item(did, pub_rkey, visit_doc))
+        .collect();
+    Ok(Own {
+        publication,
+        address,
+        query,
+        items,
+        more,
+        truncated: listing.truncated,
+        tags,
     })
+}
+
+/// The publication: a small nameplate, the find form with the tag
+/// chips under it, then the list.
+fn own_section(did: &Did, own: &Own<'_>) -> Markup {
+    let pub_rkey = own.publication.rkey();
+    let front = paths::publication(did, pub_rkey);
+    let finding = !own.query.is_empty();
+    html! {
+        section.own-publication aria-labelledby="own-heading" {
+            p.kicker #own-heading { "Your publication" }
+            div.own-nameplate {
+                p.own-name { a href=(front) { (own.publication.value.name) } }
+                p.meta.own-address {
+                    (own.address) " · "
+                    a href=(paths::feed(did, pub_rkey)) rel="alternate" type="application/rss+xml" { "rss" }
+                }
+            }
+            form.lookup.find action="/" method="get" {
+                label.kicker.lookup-label for="q" { "Find a write-up" }
+                div.lookup-row {
+                    input #q name="q" type="search" value=(own.query) autocomplete="off"
+                        placeholder="A place, a title, a street";
+                    button.button-secondary type="submit" { "Find" }
+                }
+            }
+            (tag_links(&own.tags, None))
+            div.list-head {
+                p.kicker {
+                    @if finding { "Matching “" (own.query) "”" } @else { "Recent write-ups" }
+                }
+                @if finding {
+                    a.button-link href="/" { "Clear" }
+                }
+            }
+            @if own.items.is_empty() {
+                @if finding {
+                    p.empty { "Nothing called “" (own.query) "” among your write-ups." }
+                } @else {
+                    p.empty { "No write-ups yet." }
+                }
+            } @else {
+                (listing(&own.items))
+            }
+            @if own.truncated {
+                p.notice { "Showing recent write-ups; this publication also has many other documents." }
+            }
+            @if own.more && !finding {
+                div.actions {
+                    a.button-link href=(front) { "All write-ups →" }
+                }
+            }
+        }
+    }
+}
+
+/// No publication yet: what it will be, and where to change that.
+fn not_yet(state: &AppState, identity: &Identity) -> Markup {
+    let spec = publish::default_spec(state, identity);
+    let address = match &spec.home {
+        Home::Hosted(label) | Home::HostedOrNext(label) => {
+            format!("at {}", state.hosted_host(label))
+        }
+        Home::Own(url) => format!("at {}", view::display_url(url)),
+        Home::SiteRoute => "at its own page on this site".to_owned(),
+    };
+    html! {
+        section.own-publication.own-none aria-labelledby="own-heading" {
+            p.kicker #own-heading { "Your publication" }
+            p.lede {
+                "Your publication is made when you publish your first write-up. "
+                "It will be called " (spec.name) ", " (address) "; "
+                a href="/settings" { "change that in settings" } "."
+            }
+        }
+    }
 }

@@ -18,6 +18,7 @@ pub mod places;
 pub mod publish;
 pub mod read;
 pub mod routes;
+pub mod search;
 pub mod security;
 pub mod settings;
 pub mod state;

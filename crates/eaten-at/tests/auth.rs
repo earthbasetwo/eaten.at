@@ -246,12 +246,13 @@ async fn sign_in_sets_a_session_and_sign_out_clears_it() {
     let cookie = cookie_pair(&set_cookie);
 
     let home = get(&state, "/", Some(&cookie)).await;
-    assert!(home.body.contains("Signed in as"), "{}", home.body);
     assert!(
-        home.body.contains(&format!(">@{HANDLE}</a>")),
+        home.body
+            .contains(&format!("<p class=\"meta handle\">@{HANDLE}</p>")),
         "{}",
         home.body
     );
+    assert!(home.body.contains("Write a new visit"), "{}", home.body);
     assert!(home.body.contains("action=\"/logout\""), "{}", home.body);
     let anonymous = get(&state, "/", None).await;
     assert!(

@@ -324,6 +324,24 @@ impl AppState {
         .await
     }
 
+    /// [`visit_listing`](Self::visit_listing) restricted to write-ups
+    /// matching `query` by place name, title, or address (plan 11). The
+    /// query is normalized here; one too short to search for matches
+    /// nothing.
+    pub async fn find_visits(
+        &self,
+        identity: &Identity,
+        publication: &Record<Publication>,
+        query: &str,
+        cursor: Option<&str>,
+    ) -> Result<VisitListing, AppError> {
+        let normalized = crate::search::normalize(query);
+        self.scan_visits(identity, publication, cursor, |visit_doc| {
+            crate::search::matches(visit_doc, &normalized)
+        })
+        .await
+    }
+
     async fn scan_visits(
         &self,
         identity: &Identity,
