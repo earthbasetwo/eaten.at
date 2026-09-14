@@ -301,7 +301,8 @@ one sentence saying what the site is.
 
 | Page | Masthead | Opens with | Then |
 |---|---|---|---|
-| Landing `/` | site | page head: h1 pitch, lede | lookup form, note in metadata voice |
+| Landing `/`, signed out | site | page head: h1 pitch, lede | one primary "Sign in" with a small aside on its baseline; a hairline; the lookup form with a secondary "Read" pill; a note in the metadata voice |
+| Landing `/`, signed in | site | page head: h1 pitch, lede | lookup form, note, the account line (until plan 11) |
 | Publication front page | site | nameplate | listing, notice if truncated, pagination |
 | Tag page | publication | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
 | Document | publication | kicker date, h1 title | visit card, prose, comments (when the document names a Bluesky post), footer |
@@ -358,9 +359,10 @@ panes need the room.
   back in a `.notice.restore` banner at the top of the form. It is one
   line and two link buttons, "Restore it" and "Discard it".
 
-The landing page also carries an **account line** under the lookup form, in
-the metadata voice: "Signed in as @handle" with a sign-out link button, or
-a sign-in link.
+Signed in, the landing page also carries an **account line** under the
+lookup form, in the metadata voice: "Signed in as @handle" with a
+sign-out link button. Signed out there is none: the page's primary
+action is "Sign in" (plan 09).
 
 ## Accessibility and constraints
 

@@ -276,12 +276,34 @@ fn one_publication() -> Repo {
 }
 
 #[tokio::test]
-async fn landing_page_has_lookup_form() {
+async fn landing_page_leads_with_sign_in_and_keeps_the_lookup_form() {
     let server = mount(&Repo::default()).await;
     let (status, _, body) = get(&state_for(&server, StaticDns::new()), "/").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.contains("action=\"/lookup\""), "{body}");
     assert!(body.contains("<main id=\"main\">"), "{body}");
+    // One primary action, and it is sign-in (plan 09).
+    assert_eq!(
+        body.matches("class=\"button\"").count(),
+        1,
+        "one primary: {body}"
+    );
+    assert!(
+        body.contains("<a class=\"button\" href=\"/login\">Sign in</a>"),
+        "{body}"
+    );
+    let sign_in = body.find("href=\"/login\"").unwrap();
+    let lookup = body.find("action=\"/lookup\"").unwrap();
+    assert!(sign_in < lookup, "sign-in comes first: {body}");
+    // The lookup form is still there, secondary, and a plain GET form.
+    assert!(
+        body.contains("<button class=\"button-secondary\" type=\"submit\">Read</button>"),
+        "{body}"
+    );
+    assert!(body.contains("Or read someone"), "{body}");
+    assert!(
+        !body.contains("class=\"meta account\""),
+        "no account line signed out: {body}"
+    );
 }
 
 #[tokio::test]

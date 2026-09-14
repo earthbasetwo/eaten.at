@@ -69,6 +69,13 @@ Signed in, the page is plan 11's.
   form is present, secondary, and works with JavaScript off.
 - `just check` and `just visual-check` pass.
 
+## As built (2026-09-13)
+
+As planned. The signed-in branch of the landing page is untouched and
+keeps its old copy, lookup form, and account line until plan 11
+replaces it. The lookup-error page keeps its primary "Go" button and
+its old label through `LookupForm::default()`.
+
 ## Decisions
 
 Settled 2026-09-13:

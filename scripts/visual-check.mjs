@@ -105,7 +105,7 @@ async function main() {
   const themed = await browser.discover(themedFront)
   if (themed.documents.length === 0) throw new Error(`no documents listed on ${themedFront}`)
 
-  await check({ name: 'landing', path: '/' })
+  await check({ name: 'landing', path: '/', expect: 'a.button[href="/login"]' })
   await check({ name: 'lookup-error', path: '/lookup?handle=nobody.invalid', status: 400 })
   await check({ name: 'login', path: '/login' })
   await check({ name: 'handle-redirect', path: '/@alice.test', finalPath: front })
