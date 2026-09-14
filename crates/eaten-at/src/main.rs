@@ -1,5 +1,6 @@
 //! eaten.at web application binary.
 
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -29,10 +30,14 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(db = %settings.db.display(), "cache database open");
     tokio::spawn(purge_loop(state.clone()));
 
-    axum::serve(listener, app::router(state))
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .context("server error")
+    // The peer address is the fallback for locating a request (plan 12).
+    axum::serve(
+        listener,
+        app::router(state).into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .context("server error")
 }
 
 /// Sweep expired cache rows on an interval for the life of the process.

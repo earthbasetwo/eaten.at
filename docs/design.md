@@ -39,17 +39,18 @@ a class in that file.
 6. **A publication recolours, never restructures.** An author's theme
    replaces ground, ink, and accent; layout, type, spacing, and shape are
    fixed.
-7. **Server-rendered, no script.** Nothing here needs JavaScript, with
-   two exceptions: the editor's place search needs a point and only the
-   browser has one, so a small island asks for the location (D35); and
-   the sign-in and landing pages suggest handles as you type, from the
-   Bluesky AppView, which only the browser can do without a round trip
-   (D42). Without either, the search runs near the author's last visit,
-   a place can always be entered by hand, and a handle typed in full
-   works as it did. Fonts are self-hosted and content-hashed, so no
-   page makes a third-party request except those two pages' one call
-   to the AppView, which their policy alone allows; the strict CSP
-   holds everywhere else.
+7. **Server-rendered, no script.** Nothing here needs JavaScript. A
+   few islands make pages quicker: the sign-in and landing pages
+   suggest handles as you type from the Bluesky AppView (D42), the
+   editor suggests places as you type through this site's own endpoint
+   (D45), the author's home applies its find as you type, and the
+   editor keeps a draft. Without any of them, a handle typed in full, a
+   Search button, a Find button, and a plain form do the same work.
+   Nothing asks the browser for its location: the search looks near
+   where the request is from (D44). Fonts are self-hosted and
+   content-hashed, so no page makes a third-party request except the
+   two handle pages' one call to the AppView, which their policy alone
+   allows; the strict CSP holds everywhere else.
 8. **Light only.** Campari is one palette. The site does not follow the
    system's dark preference.
 
@@ -330,7 +331,7 @@ one sentence saying what the site is.
 | Signing in | site | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
 | Sign-in failed | site | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
 | Status page | site | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
-| Editor `/write`, choosing | site | page head: "Write" kicker, h1 "Where did you eat?" | the search box with one primary "Search", a status line for where the search looks, the results as place cards, "Not listed? Enter it by hand", and the Overture attribution |
+| Editor `/write`, choosing | site | page head: "Write" kicker, h1 "Where did you eat?" | the search box ("Start typing…") with suggestions as you type and one primary "Search" for the plain path, a status line for where the search looks ("Searching near Brooklyn"), the results as place cards; or, with no location, a notice that search is off; then, under a hairline, "Or enter it yourself": Name, Address (optional), and a secondary "Continue with this place"; last, the Overture and DB-IP attribution |
 | Editor `/write`, writing | site | page head: "Write" kicker and the place's name (new), or "Edit" kicker and the write-up's title; a form-error summary when needed | optional preview (the document as readers see it, on a raised panel under a "Preview" kicker); then the form: write-up pane left, visit pane right (Place, Visit, Links, Details, Bluesky groups), stacked under 56rem |
 | Photos `/write/{rkey}/photos` | site | page head: "Photos" kicker, h1 "Photos of {place}", lede ("Published. Add photos now, or skip" after a first publish) | the photos as rows on raised cards (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "Skip for now" / "Done" / "← Back to the write-up" |
 | Delete `/write/{rkey}/delete` | site | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
@@ -348,11 +349,12 @@ panes need the room.
 - **Hints** are the sans at small size in `ink-muted`.
 - **Problems** are a `.field-error` line in the accent directly under the
   control, and the control's border takes the accent too.
-- **Choosing a place** comes first for a new write-up. The Place group
-  of the writing state opens with a mono line saying where the place
-  came from ("Matched to an Overture Maps listing." or "Entered by
-  hand") and a "Change place" link button that returns to choosing with
-  everything else kept.
+- **Choosing a place** comes first for a new write-up: suggestions as
+  you type, the plain search, or a name and address by hand, all on
+  one page. The Place group of the writing state opens with a mono
+  line saying where the place came from ("Matched to an Overture Maps
+  listing." or "Entered by hand") and a "Change place" link button
+  that returns to choosing with everything else kept.
 - **Repeated fields** (links) are rows separated by hairlines, each
   ending in a "Remove" link button. Adding a row is a "+ Add a link"
   link button.

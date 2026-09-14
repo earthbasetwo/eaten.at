@@ -38,12 +38,15 @@ pub enum SearchState {
     Failed(String),
 }
 
-/// Where the search point came from, for the status line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Where the search point came from, for the status line (plan 12).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Located {
+    /// No point at all: the search is off and only manual entry shows.
     #[default]
     Unknown,
-    Browser,
+    /// The request's IP, with the city when the database names one.
+    Ip(Option<String>),
+    /// The author's most recent visit with coordinates.
     LastVisit,
 }
 
@@ -67,6 +70,9 @@ pub struct EditorPage<'a> {
     pub crosspost: CrosspostState,
     /// Whether the site has a place search at all.
     pub search_enabled: bool,
+    /// Whether requests are located by IP, so the database gets its
+    /// credit.
+    pub geoip: bool,
     pub search: SearchState,
     pub located: Located,
 }
@@ -125,8 +131,6 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                         input type="hidden" name="gers_id" value=(form.gers_id);
                         input type="hidden" name="lat_e6" value=(form.lat_e6);
                         input type="hidden" name="lon_e6" value=(form.lon_e6);
-                        input type="hidden" name="near_lat" value=(form.near_lat);
-                        input type="hidden" name="near_lon" value=(form.near_lon);
                     }
                     fieldset.editor-group {
                         legend.kicker { "Visit" }
@@ -202,45 +206,47 @@ fn place_source(form: &EditorForm) -> Markup {
     }
 }
 
-/// The choosing state: a search box over a point the browser supplies,
-/// the results as cards, and the way out by hand. Everything else the
-/// form holds rides along as hidden fields so changing the place on an
-/// edit loses nothing.
+/// The choosing state (plan 12): a search box over the point the
+/// request is located at, suggesting as the author types, the results
+/// as cards for a plain submit, and the place by hand beneath a
+/// hairline. Everything else the form holds rides along as hidden
+/// fields so changing the place on an edit loses nothing.
 fn choosing(page: &EditorPage<'_>) -> Markup {
     let form = page.form;
+    let errors = page.errors;
     let query = form.place_query.trim();
+    let searching = page.search_enabled && page.located != Located::Unknown;
     html! {
         div.page-head {
             p.kicker { @if page.editing { "Edit" } @else { "Write" } }
             h1 { "Where did you eat?" }
             (alerts(page))
         }
-        form.editor.editor-choosing method="post" action=(page.action_path) novalidate
-            data-locate[page.search_enabled] {
+        form.editor.editor-choosing method="post" action=(page.action_path) novalidate {
             (carried(form))
             input type="hidden" name="place_mode" value=(PlaceMode::Choosing.value());
-            @if page.search_enabled {
+            @if searching {
                 div.field.search-field {
                     label.kicker for="place_query" { "Name of the place" }
                     div.lookup-row {
                         input #place_query name="place_query" type="search" value=(form.place_query)
+                            placeholder="Start typing…" data-suggest="/write/suggest"
                             autocomplete="off" autofocus;
                         button type="submit" name="action" value=(Action::Search.value()) { "Search" }
                     }
                 }
-                input type="hidden" name="near_lat" value=(form.near_lat);
-                input type="hidden" name="near_lon" value=(form.near_lon);
                 p.meta.locate-status {
-                    @match page.located {
-                        Located::Browser => "Searching near you."
-                        Located::LastVisit => "Searching near your last visit."
-                        Located::Unknown => ""
+                    @match &page.located {
+                        Located::Ip(Some(city)) => { "Searching near " (city) "." }
+                        Located::Ip(None) => { "Searching near you." }
+                        Located::LastVisit => { "Searching near your last visit." }
+                        Located::Unknown => {}
                     }
                 }
                 @match &page.search {
                     SearchState::Idle => {}
                     SearchState::NoPoint => {
-                        p.notice { "Turn on location to search for the place, or enter it by hand." }
+                        p.notice { "Location unknown, so search is off; enter the place below." }
                     }
                     SearchState::Failed(message) => { p.form-error role="alert" { (message) } }
                     SearchState::Results(hits) => {
@@ -251,17 +257,34 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                         }
                     }
                 }
-                p.meta.field-hint.manual-entry {
-                    "Not listed? "
-                    button.link-button type="submit" name="action" value=(Action::Manual.value()) { "Enter it by hand" }
-                }
-                p.meta.attribution {
-                    "Places from " a href="https://overturemaps.org/" rel="noopener" { "Overture Maps" } "."
-                }
+            } @else if page.search_enabled {
+                p.notice { "Location unknown, so search is off; enter the place below." }
             } @else {
                 p.notice { "Place search is not set up on this site." }
+            }
+            div.manual-entry {
+                p.kicker { "Or enter it yourself" }
+                (field("place_name", "Name", errors, &html! {
+                    input #place_name name="place_name" type="text" value=(form.place_name)
+                        aria-describedby=[described(errors, "place_name")];
+                }))
+                (field("place_address", "Address (optional)", errors, &html! {
+                    input #place_address name="place_address" type="text" value=(form.place_address)
+                        autocomplete="off" aria-describedby=[described(errors, "place_address")];
+                }))
                 div.actions {
-                    button type="submit" name="action" value=(Action::Manual.value()) { "Enter the place by hand" }
+                    button.button-secondary type="submit" name="action" value=(Action::Manual.value()) {
+                        "Continue with this place"
+                    }
+                }
+            }
+            @if page.search_enabled {
+                p.meta.attribution {
+                    "Places from " a href="https://overturemaps.org/" rel="noopener" { "Overture Maps" }
+                    @if page.geoip {
+                        " · Location by " a href="https://db-ip.com/" rel="noopener" { "DB-IP" }
+                    }
+                    "."
                 }
             }
         }
@@ -300,8 +323,6 @@ fn carried(form: &EditorForm) -> Markup {
         (hidden("title", &form.title))
         (hidden("body", &form.body))
         (hidden("description", &form.description))
-        (hidden("place_name", &form.place_name))
-        (hidden("place_address", &form.place_address))
         (hidden("place_price", &form.place_price))
         (hidden("visited_on", &form.visited_on))
         (hidden("meal", form.meal.value()))

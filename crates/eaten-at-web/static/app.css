@@ -594,6 +594,14 @@
   .editor-choosing { max-inline-size: var(--column); }
   .editor-choosing > * + * { margin-block-start: var(--space-m); }
   .search-field .lookup-row { align-items: center; }
+  .editor-choosing .search-field, .editor-choosing .locate-status, .editor-choosing .results { max-inline-size: 34rem; }
+  /* With suggestions on, the Search button is the no-JS path only. */
+  .js-suggesting .search-field button { display: none; }
+  /* The place by hand, under a hairline (plan 12). */
+  .manual-entry { margin-block-start: var(--space-xl); padding-block-start: var(--space-l); border-top: 1px solid var(--color-border); max-inline-size: 34rem; }
+  .manual-entry > .kicker { margin-block-end: var(--space-m); }
+  .manual-entry .field + .field { margin-block-start: var(--space-m); }
+  .manual-entry .actions { margin-block-start: var(--space-m); }
   .locate-status { min-block-size: 1.2em; }
   .results { list-style: none; padding: 0; margin: var(--space-l) 0 0; display: flex; flex-direction: column; gap: var(--space-m); }
   .result-item {

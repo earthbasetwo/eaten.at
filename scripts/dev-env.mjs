@@ -437,6 +437,9 @@ const envDev = [
   // The same stub answers the handle typeahead (plan 10); comment threads
   // then read as not found on the local network.
   `EATEN_AT_BSKY_APPVIEW=http://localhost:${PLACES_PORT}`,
+  // Loopback addresses locate to nothing, so every request is in Brooklyn
+  // (plan 12); the stub's places are near there.
+  'EATEN_AT_DEV_LOCATION=40.6888,-73.9799',
   '',
 ].join('\n')
 await writeFile(path.join(ROOT, '.env.dev'), envDev)

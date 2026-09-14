@@ -99,7 +99,7 @@ pub async fn headers(mut request: Request, next: Next) -> Response {
         (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
         (
             header::HeaderName::from_static("permissions-policy"),
-            "camera=(), microphone=(), geolocation=(self), payment=()",
+            "camera=(), microphone=(), geolocation=(), payment=()",
         ),
         (header::X_FRAME_OPTIONS, "DENY"),
     ];

@@ -32,6 +32,20 @@ lexicons-check:
 lexicons-publish:
     cargo run -q -p eaten-at --bin publish-lexicons -- --verify
 
+# Fetch this month's DB-IP IP-to-City Lite database (CC BY 4.0) into the
+# path EATEN_AT_GEOIP_DB names, atomically. Run monthly; the app reads the
+# file at startup, so restart it afterwards.
+geoip-refresh:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${EATEN_AT_GEOIP_DB:?set EATEN_AT_GEOIP_DB to the path the database should live at}"
+    month="$(date -u +%Y-%m)"
+    url="https://download.db-ip.com/free/dbip-city-lite-${month}.mmdb.gz"
+    echo "fetching ${url}"
+    curl -fsSL "${url}" | gunzip > "${EATEN_AT_GEOIP_DB}.tmp"
+    mv "${EATEN_AT_GEOIP_DB}.tmp" "${EATEN_AT_GEOIP_DB}"
+    ls -la "${EATEN_AT_GEOIP_DB}"
+
 # ---- local atproto network (see docs/local-dev.md) ----
 
 # Start the in-memory PLC + PDS from the sibling atproto checkout and seed it.

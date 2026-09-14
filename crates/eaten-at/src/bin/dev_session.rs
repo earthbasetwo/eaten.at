@@ -100,10 +100,12 @@ mod tests {
             oauth_key_file: None,
             bsky_appview: None,
             places: eaten_at::places::PlacesConfig::default(),
+            geoip_db: None,
             dev: insecure.map(|insecure| Dev {
                 insecure,
                 hosts: StaticHosts::default(),
                 dns: StaticDns::default(),
+                location: None,
             }),
         }
     }

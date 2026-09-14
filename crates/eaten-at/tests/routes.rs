@@ -22,6 +22,8 @@ const DID: &str = "did:plc:re3ebnp5v7ffagz6rb6xfei4";
 const OTHER_DID: &str = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
 const HANDLE: &str = "alice.test";
 const PAGE: usize = 20;
+/// An address the test IP database places in London (51.5142, -0.0931).
+const LONDON_IP: &str = "81.2.69.160";
 
 /// Declarative description of a mock repo.
 #[derive(Default)]
@@ -217,6 +219,12 @@ fn state_for(server: &MockServer, dns: StaticDns) -> AppState {
                 base_url: Url::parse(&server.uri()).unwrap(),
                 api_key: Some("test-key".into()),
             },
+            // MaxMind's test database: LONDON_IP locates to London.
+            geoip: eaten_at::geoip::GeoIp::open(std::path::Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/fixtures/GeoIP2-City-Test.mmdb"
+            )))
+            .unwrap(),
         },
         Cache::in_memory(Arc::new(SystemClock)).unwrap(),
     )
@@ -1511,8 +1519,8 @@ async fn security_headers_on_every_route_family() {
             headers["permissions-policy"]
                 .to_str()
                 .unwrap()
-                .contains("geolocation=(self)"),
-            "the editor may ask for location: {uri}"
+                .contains("geolocation=()"),
+            "nothing asks for location (D44): {uri}"
         );
 
         let nonce = csp
@@ -1584,13 +1592,24 @@ async fn signed_in(state: &AppState) -> String {
     format!("ea_session={token}")
 }
 
-/// A multipart body with text fields and, optionally, one file.
-/// A URL-encoded POST of the editor form with the session cookie.
+/// A URL-encoded POST of the editor form with the session cookie, from
+/// no address in particular (the search then looks near the last visit).
 async fn post_editor(
     state: &AppState,
     uri: &str,
     cookie: &str,
     fields: &[(&str, &str)],
+) -> (StatusCode, String) {
+    post_editor_from(state, uri, cookie, fields, None).await
+}
+
+/// [`post_editor`] from a client address, as a reverse proxy reports it.
+async fn post_editor_from(
+    state: &AppState,
+    uri: &str,
+    cookie: &str,
+    fields: &[(&str, &str)],
+    ip: Option<&str>,
 ) -> (StatusCode, String) {
     let content_type = "application/x-www-form-urlencoded";
     let body = fields
@@ -1604,14 +1623,14 @@ async fn post_editor(
         })
         .collect::<Vec<_>>()
         .join("&");
+    let mut request = Request::post(uri)
+        .header(header::COOKIE, cookie)
+        .header(header::CONTENT_TYPE, content_type);
+    if let Some(ip) = ip {
+        request = request.header("x-forwarded-for", ip);
+    }
     let response = router(state.clone())
-        .oneshot(
-            Request::post(uri)
-                .header(header::COOKIE, cookie)
-                .header(header::CONTENT_TYPE, content_type)
-                .body(Body::from(body))
-                .unwrap(),
-        )
+        .oneshot(request.body(Body::from(body)).unwrap())
         .await
         .unwrap();
     let status = response.status();
@@ -1646,6 +1665,11 @@ async fn get_signed(
     )
 }
 
+/// The shortest way into the writing state: a place by hand.
+fn by_hand<'a>() -> [(&'a str, &'a str); 2] {
+    [("place_name", "Cart"), ("action", "manual")]
+}
+
 fn good_fields<'a>() -> Vec<(&'a str, &'a str)> {
     vec![
         ("title", "A room with the lights off"),
@@ -1677,16 +1701,28 @@ async fn editor_requires_sign_in_and_starts_by_choosing_a_place() {
     let (status, _, body) = get_signed(&state, "/write", &cookie).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(!body.contains("enctype="), "a plain form: {body}");
-    // A new write-up starts by choosing the place (plan 06): the search
-    // box, the location island's hook, and the way out by hand.
+    // A new write-up starts by choosing the place (plans 06, 12): the
+    // search box with its suggestion hook, and the place by hand.
     assert!(body.contains("<h1>Where did you eat?</h1>"), "{body}");
-    assert!(body.contains("id=\"place_query\""), "{body}");
+    assert!(
+        body.contains("id=\"place_query\" name=\"place_query\" type=\"search\" value=\"\" placeholder=\"Start typing…\" data-suggest=\"/write/suggest\""),
+        "{body}"
+    );
     assert!(
         body.contains("name=\"place_mode\" value=\"choosing\""),
         "{body}"
     );
-    assert!(body.contains("data-locate"), "{body}");
+    // No address to locate: the search looks near the last visit.
+    assert!(body.contains("Searching near your last visit."), "{body}");
+    assert!(!body.contains("near_lat"), "no browser point (D44): {body}");
+    assert!(body.contains("Or enter it yourself"), "{body}");
+    assert!(body.contains("id=\"place_name\""), "{body}");
+    assert!(body.contains("id=\"place_address\""), "{body}");
     assert!(body.contains("value=\"manual\""), "{body}");
+    assert!(
+        body.contains("Location by <a href=\"https://db-ip.com/\""),
+        "{body}"
+    );
     assert!(!body.contains("id=\"title\""), "the form waits: {body}");
     // The rest of the form rides along hidden. There is no publication
     // to choose: every write-up goes to the account's one (plan 08).
@@ -1731,22 +1767,28 @@ async fn a_new_write_up_starts_with_a_search_and_a_pick_fills_the_place() {
     .await;
     let state = state_for(&server, dns_for_handle());
     let cookie = signed_in(&state).await;
-    let pub_uri = format!("at://{DID}/site.standard.publication/pub1");
     let mut fields = vec![
         ("place_query", "Devocion"),
-        ("near_lat", "40.6888"),
-        ("near_lon", "-73.9799"),
         ("body", "Great coffee."),
-        ("publication", pub_uri.as_str()),
         ("action", "search"),
     ];
-    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    let (status, body) =
+        post_editor_from(&state, "/write", &cookie, &fields, Some(LONDON_IP)).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body.matches("class=\"result-item\"").count(), 2, "{body}");
     assert!(body.contains("105 York St, Brooklyn, NY 11201"), "{body}");
     assert!(body.contains("0.9 mi"), "{body}");
     assert!(body.contains("coffee shop"), "{body}");
-    assert!(body.contains("Searching near you."), "{body}");
+    assert!(body.contains("Searching near London."), "{body}");
+    let request = server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|r| r.url.path() == "/v1/places")
+        .expect("the search ran");
+    let query: std::collections::HashMap<_, _> = request.url.query_pairs().into_owned().collect();
+    assert_eq!(query["lat"], "51.5142", "where the address is");
     assert!(body.contains("value=\"pick:0\""), "{body}");
     assert!(
         body.contains("name=\"body\" value=\"Great coffee.\""),
@@ -1756,7 +1798,8 @@ async fn a_new_write_up_starts_with_a_search_and_a_pick_fills_the_place() {
 
     fields.retain(|(k, _)| *k != "action");
     fields.push(("action", "pick:0"));
-    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    let (status, body) =
+        post_editor_from(&state, "/write", &cookie, &fields, Some(LONDON_IP)).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("<h1>Devocion</h1>"), "{body}");
     assert!(
@@ -1851,8 +1894,16 @@ async fn a_search_without_a_point_uses_the_last_visit_or_asks_for_location() {
     let cookie = signed_in(&state).await;
     let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("Turn on location"), "{body}");
+    assert!(
+        body.contains("Location unknown, so search is off; enter the place below."),
+        "{body}"
+    );
+    assert!(!body.contains("id=\"place_query\""), "{body}");
     assert!(!body.contains("result-item"), "{body}");
+    assert!(
+        body.contains("id=\"place_name\""),
+        "by hand is still there: {body}"
+    );
 }
 
 #[tokio::test]
@@ -1867,16 +1918,12 @@ async fn a_failed_search_offers_manual_entry_and_a_place_can_be_changed() {
     .await;
     let state = state_for(&server, dns_for_handle());
     let cookie = signed_in(&state).await;
-    let (status, body) = post_editor(
+    let (status, body) = post_editor_from(
         &state,
         "/write",
         &cookie,
-        &[
-            ("place_query", "Katz"),
-            ("near_lat", "40.72"),
-            ("near_lon", "-73.98"),
-            ("action", "search"),
-        ],
+        &[("place_query", "Katz"), ("action", "search")],
+        Some(LONDON_IP),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -1887,12 +1934,30 @@ async fn a_failed_search_offers_manual_entry_and_a_place_can_be_changed() {
     );
     assert!(body.contains("value=\"manual\""), "{body}");
 
-    // By hand: the form, no listing behind it.
+    // By hand needs a name: the one error the choosing page shows.
     let (status, body) = post_editor(
         &state,
         "/write",
         &cookie,
         &[("body", "A cart."), ("action", "manual")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(body.contains("<h1>Where did you eat?</h1>"), "{body}");
+    assert!(body.contains("id=\"place_name-error\""), "{body}");
+    assert!(body.contains("A cart."), "the prose rides along: {body}");
+
+    // With a name: the form, no listing behind it.
+    let (status, body) = post_editor(
+        &state,
+        "/write",
+        &cookie,
+        &[
+            ("body", "A cart."),
+            ("place_name", "A cart"),
+            ("place_address", "On the corner"),
+            ("action", "manual"),
+        ],
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -1901,6 +1966,7 @@ async fn a_failed_search_offers_manual_entry_and_a_place_can_be_changed() {
         body.contains("name=\"place_mode\" value=\"manual\""),
         "{body}"
     );
+    assert!(body.contains("value=\"On the corner\""), "{body}");
     assert!(body.contains("Entered by hand"), "{body}");
     assert!(body.contains("A cart."), "{body}");
 
@@ -1915,6 +1981,10 @@ async fn a_failed_search_offers_manual_entry_and_a_place_can_be_changed() {
     assert!(
         body.contains("id=\"place_query\" name=\"place_query\" type=\"search\" value=\"Promises\""),
         "{body}"
+    );
+    assert!(
+        body.contains("id=\"place_name\" name=\"place_name\" type=\"text\" value=\"Promises\""),
+        "the name is offered by hand too: {body}"
     );
     assert!(!body.contains("value=\"g1\""), "the id is dropped: {body}");
     assert!(
@@ -2756,10 +2826,28 @@ async fn the_tags_field_offers_no_suggestions_of_its_own() {
 // ---- the editor island (C3.5) ----
 
 #[tokio::test]
-async fn the_editor_carries_one_nonced_script_and_nothing_else_changes() {
+async fn each_editor_state_carries_its_own_nonced_scripts_and_nothing_else_changes() {
     let server = mount(&one_publication()).await;
     let state = state_for(&server, dns_for_handle());
     let cookie = signed_in(&state).await;
+    let nonce_and_body = |response: axum::response::Response| async move {
+        let csp = response.headers()[header::CONTENT_SECURITY_POLICY]
+            .to_str()
+            .unwrap()
+            .to_owned();
+        let nonce = csp
+            .split("script-src 'nonce-")
+            .nth(1)
+            .and_then(|rest| rest.split('\'').next())
+            .unwrap()
+            .to_owned();
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        (nonce, String::from_utf8_lossy(&body).into_owned())
+    };
+    let inlined =
+        |nonce: &str, script: &str| format!("<script nonce=\"{nonce}\">{script}</script>");
+
+    // Choosing: the combobox and the suggestion adapter, in that order.
     let response = router(state.clone())
         .oneshot(
             Request::get("/write")
@@ -2769,41 +2857,205 @@ async fn the_editor_carries_one_nonced_script_and_nothing_else_changes() {
         )
         .await
         .unwrap();
-    let csp = response.headers()[header::CONTENT_SECURITY_POLICY]
-        .to_str()
-        .unwrap()
-        .to_owned();
-    let nonce = csp
-        .split("script-src 'nonce-")
-        .nth(1)
-        .and_then(|rest| rest.split('\'').next())
-        .unwrap()
-        .to_owned();
-    let body = response.into_body().collect().await.unwrap().to_bytes();
-    let body = String::from_utf8_lossy(&body).into_owned();
-    let script = format!(
-        "<script nonce=\"{nonce}\">{}</script>",
-        eaten_at_web::assets::EDITOR_SCRIPT
-    );
-    let locate = format!(
-        "<script nonce=\"{nonce}\">{}</script>",
-        eaten_at_web::assets::LOCATE_SCRIPT
-    );
+    let (nonce, body) = nonce_and_body(response).await;
+    let combobox = inlined(&nonce, eaten_at_web::assets::COMBOBOX_SCRIPT);
+    let suggest = inlined(&nonce, eaten_at_web::assets::PLACE_SUGGEST_SCRIPT);
     assert_eq!(body.matches("<script").count(), 2, "{body}");
     assert!(
-        body.contains(&script) && body.contains(&locate),
-        "both islands are inlined under the page's nonce"
+        body.contains(&combobox) && body.contains(&suggest),
+        "{body}"
     );
-    let without = body.replace(&script, "").replace(&locate, "");
+    assert!(
+        body.find(&combobox) < body.find(&suggest),
+        "the combobox comes first"
+    );
+    assert!(
+        !body.contains("navigator.geolocation"),
+        "no location island (D44): {body}"
+    );
+    let without = body.replace(&combobox, "").replace(&suggest, "");
     assert!(!without.contains("<script"));
     assert!(
         without.contains("<form class=\"editor editor-choosing\""),
         "the form stands on its own"
     );
+
+    // Writing: the draft island alone.
+    let response = router(state.clone())
+        .oneshot(
+            Request::post("/write")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from("place_name=Cart&action=manual"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let (nonce, body) = nonce_and_body(response).await;
+    let editor = inlined(&nonce, eaten_at_web::assets::EDITOR_SCRIPT);
+    assert_eq!(body.matches("<script").count(), 1, "{body}");
+    assert!(body.contains(&editor), "{body}");
+    let without = body.replace(&editor, "");
+    assert!(!without.contains("<script"));
     assert!(
         !without.contains("class=\"notice restore\""),
         "the banner is the script's to add"
     );
+}
+
+#[tokio::test]
+async fn suggestions_come_from_the_same_search_a_pick_reads() {
+    let server = mount(&one_publication()).await;
+    mount_places(
+        &server,
+        ResponseTemplate::new(200).set_body_json(places_results()),
+    )
+    .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let suggest = |ip: Option<&'static str>, q: &'static str| {
+        let state = state.clone();
+        let cookie = cookie.clone();
+        async move {
+            let mut request =
+                Request::get(format!("/write/suggest?q={q}")).header(header::COOKIE, &cookie);
+            if let Some(ip) = ip {
+                request = request.header("x-forwarded-for", ip);
+            }
+            let response = router(state)
+                .oneshot(request.body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            let status = response.status();
+            let cache = response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .map(|v| v.to_str().unwrap().to_owned());
+            let body = response.into_body().collect().await.unwrap().to_bytes();
+            let json: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+            (status, cache, json)
+        }
+    };
+
+    // Signed out: the redirect, like the editor's.
+    let (status, location, _) = get(&state, "/write/suggest?q=dev").await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert!(location.unwrap().starts_with("/login"));
+
+    let (status, cache, json) = suggest(Some(LONDON_IP), "Devocion").await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(cache.as_deref(), Some("private, no-store"));
+    assert_eq!(json["q"], "Devocion");
+    assert_eq!(json["near"], "London");
+    assert_eq!(json["hits"].as_array().unwrap().len(), 2, "{json}");
+    assert_eq!(json["hits"][0]["i"], 0);
+    assert_eq!(json["hits"][0]["name"], "Devocion");
+    assert_eq!(
+        json["hits"][0]["detail"],
+        "105 York St, Brooklyn, NY 11201 · 0.9 mi"
+    );
+    assert_eq!(
+        json["hits"][1]["detail"], "3.5 mi",
+        "no address: the distance alone"
+    );
+    assert!(json.get("error").is_none(), "{json}");
+
+    // The pick reads the suggestion's index from the same cached search.
+    let (status, body) = post_editor_from(
+        &state,
+        "/write",
+        &cookie,
+        &[("place_query", "Devocion"), ("action", "pick:1")],
+        Some(LONDON_IP),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("<h1>Devocion Flatiron</h1>"), "{body}");
+    let searches = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/v1/places")
+        .count();
+    assert_eq!(searches, 1, "one upstream search for both");
+
+    // A prefix too short to search is no error; no location is said so.
+    let (status, _, json) = suggest(Some(LONDON_IP), "d").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["hits"], json!([]));
+    assert!(json.get("error").is_none(), "{json}");
+    let (_, _, json) = suggest(None, "Devocion").await;
+    assert_eq!(json["near"], Value::Null, "the last visit names no city");
+    assert_eq!(json["hits"].as_array().unwrap().len(), 2);
+
+    // The bucket: thirty a minute, then 429 until it refills.
+    let mut refused = 0;
+    for _ in 0..40 {
+        let (status, _, json) = suggest(Some(LONDON_IP), "Devocion").await;
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            assert_eq!(json["error"], "rate_limited");
+            refused += 1;
+        }
+    }
+    assert!(refused >= 10, "{refused} refused");
+}
+
+#[tokio::test]
+async fn suggestions_say_when_search_is_off_and_never_fail_loudly() {
+    // Unavailable upstream: said calmly, never a 500.
+    let server = mount(&one_publication()).await;
+    mount_places(
+        &server,
+        ResponseTemplate::new(402).set_body_json(json!({
+            "error": {"code": "quota_exhausted", "message": "Monthly quota exhausted."}
+        })),
+    )
+    .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let response = router(state.clone())
+        .oneshot(
+            Request::get("/write/suggest?q=Katz")
+                .header(header::COOKIE, &cookie)
+                .header("x-forwarded-for", LONDON_IP)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["error"], "unavailable");
+    assert!(
+        !body.windows(5).any(|w| w == b"quota"),
+        "no upstream detail"
+    );
+
+    // No location and no visit with coordinates: nothing to search near.
+    let mut repo = one_publication();
+    for (_, doc) in &mut repo.documents {
+        if let Some(place) = doc["content"]["place"].as_object_mut() {
+            place.remove("latE6");
+            place.remove("lonE6");
+        }
+    }
+    let server = mount(&repo).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let response = router(state.clone())
+        .oneshot(
+            Request::get("/write/suggest?q=Katz")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["error"], "no_location");
 }
 
 // ---- settings and hosted subdomains (C3.6) ----
@@ -3767,7 +4019,11 @@ async fn crosspost_toggle_defaults_from_preferences() {
         &state,
         "/write",
         &cookie,
-        &[("crosspost", "1"), ("action", "manual")],
+        &[
+            ("crosspost", "1"),
+            ("place_name", "Cart"),
+            ("action", "manual"),
+        ],
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -3775,13 +4031,16 @@ async fn crosspost_toggle_defaults_from_preferences() {
         page.contains("name=\"crosspost\" type=\"checkbox\" value=\"1\" checked"),
         "{page}"
     );
-    assert!(page.contains("placeholder=\"\""), "no place yet: {page}");
+    assert!(
+        page.contains("placeholder=\"Cart\""),
+        "the post text defaults to the place: {page}"
+    );
 
     let server = mount(&one_publication()).await;
     mount_writes(&server).await;
     let state = state_for(&server, dns_for_handle());
     let cookie = posting_author_session(&state, &server).await;
-    let (_, page) = post_editor(&state, "/write", &cookie, &[("action", "manual")]).await;
+    let (_, page) = post_editor(&state, "/write", &cookie, &by_hand()).await;
     assert!(
         page.contains("name=\"crosspost\" type=\"checkbox\" value=\"1\">"),
         "{page}"
@@ -3850,7 +4109,7 @@ async fn without_permission_publish_hands_over_to_the_crosspost_page_which_asks(
     let state = state_for(&server, dns_for_handle());
     // The sign-in grant only.
     let cookie = author_session(&state, &server).await;
-    let (_, editor) = post_editor(&state, "/write", &cookie, &[("action", "manual")]).await;
+    let (_, editor) = post_editor(&state, "/write", &cookie, &by_hand()).await;
     assert!(editor.contains("ask you to allow posting"), "{editor}");
 
     let (status, body) = post_editor(

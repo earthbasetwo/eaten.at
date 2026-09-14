@@ -242,6 +242,31 @@ combobox on the choosing state only.
 - No geolocation prompt anywhere; no key in the browser.
 - `just check` and `just visual-check` pass.
 
+## As built (2026-09-13)
+
+As planned, with these notes.
+
+- The peer address reaches handlers through `ClientIp`, an extractor
+  that reads the first `X-Forwarded-For` hop, else the connection's
+  address (`main.rs` now serves with connect info). A request with
+  neither, as a test's, locates to nothing and falls back to the last
+  visit.
+- The manual fields are the writing state's own `place_name` and
+  `place_address`, shown on the choosing page instead of carried
+  hidden, so "Change place" on an edit offers the current name by hand
+  too and the only new validation is a blank name on `action=manual`.
+- The choosing state ships the combobox and the suggestion adapter;
+  the writing state ships the draft island alone. The location island
+  is gone.
+- The suggest endpoint is rate-limited per author DID, not per session
+  token, which is the same thing for one person and simpler to key.
+- `write-no-location` was not added to the visual check: the runner
+  starts one app with one environment. The route tests cover the
+  search-off state instead.
+- MaxMind's small test database is checked in as the fixture (its
+  README in `tests/fixtures/` names the licence and known addresses);
+  the production file is DB-IP's and is fetched by `just geoip-refresh`.
+
 ## Decisions
 
 Settled 2026-09-13:

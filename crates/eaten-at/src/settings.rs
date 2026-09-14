@@ -13,7 +13,8 @@ use url::Url;
 
 use crate::bsky::BskyConfig;
 use crate::cache::{Cache, SystemClock};
-use crate::places::PlacesConfig;
+use crate::geoip::GeoIp;
+use crate::places::{PlacesConfig, Point};
 use crate::state::{AppConfig, AppState, USER_AGENT};
 
 /// Names of every environment variable the app reads.
@@ -38,6 +39,13 @@ pub mod env {
     pub const PLACES_API_URL: &str = "EATEN_AT_PLACES_API_URL";
     /// The Open Places API key. Without it, place search is disabled.
     pub const PLACES_API_KEY: &str = "EATEN_AT_PLACES_API_KEY";
+    /// Path of an IP-to-city database in the `MaxMind` DB format with the
+    /// `GeoIP2` City layout (DB-IP's IP-to-City Lite). Without it, the
+    /// place search looks near the author's last visit only (plan 12).
+    pub const GEOIP_DB: &str = "EATEN_AT_GEOIP_DB";
+    /// `lat,lon`: where every request is, on the local network, whose
+    /// loopback addresses locate to nothing.
+    pub const DEV_LOCATION: &str = "EATEN_AT_DEV_LOCATION";
 }
 
 /// Everything the process needs to start.
@@ -50,6 +58,7 @@ pub struct Settings {
     pub oauth_key_file: Option<PathBuf>,
     pub bsky_appview: Option<Url>,
     pub places: PlacesConfig,
+    pub geoip_db: Option<PathBuf>,
     pub dev: Option<Dev>,
 }
 
@@ -60,6 +69,8 @@ pub struct Dev {
     pub insecure: bool,
     pub hosts: StaticHosts,
     pub dns: StaticDns,
+    /// Where every request is located, instead of by its IP.
+    pub location: Option<Point>,
 }
 
 impl Settings {
@@ -115,11 +126,23 @@ impl Settings {
             Some(spec) => Some(StaticDns::parse_overrides(&spec).map_err(anyhow::Error::msg)?),
             None => None,
         };
-        let dev = if insecure || hosts.is_some() || dns.is_some() {
+        let location = match var(env::DEV_LOCATION) {
+            Some(raw) => {
+                let (lat, lon) = raw
+                    .split_once(',')
+                    .with_context(|| format!("{}={raw:?} is not lat,lon", env::DEV_LOCATION))?;
+                Some(Point::parse(lat, lon).with_context(|| {
+                    format!("{}={raw:?} is not a point on the map", env::DEV_LOCATION)
+                })?)
+            }
+            None => None,
+        };
+        let dev = if insecure || hosts.is_some() || dns.is_some() || location.is_some() {
             Some(Dev {
                 insecure,
                 hosts: hosts.unwrap_or_default(),
                 dns: dns.unwrap_or_default(),
+                location,
             })
         } else {
             None
@@ -132,8 +155,25 @@ impl Settings {
             oauth_key_file: var(env::OAUTH_KEY_FILE).map(PathBuf::from),
             bsky_appview,
             places,
+            geoip_db: var(env::GEOIP_DB).map(PathBuf::from),
             dev,
         })
+    }
+
+    /// The IP locator: the fixed development point, the configured
+    /// database, or nothing.
+    pub fn geoip(&self) -> anyhow::Result<GeoIp> {
+        if let Some(point) = self.dev.as_ref().and_then(|d| d.location) {
+            return Ok(GeoIp::fixed(point));
+        }
+        if let Some(path) = &self.geoip_db {
+            return GeoIp::open(path);
+        }
+        tracing::warn!(
+            "{} is not set: the place search looks near the author's last visit only",
+            env::GEOIP_DB
+        );
+        Ok(GeoIp::none())
     }
 
     /// The outbound HTTP policy: production unless dev mode says otherwise.
@@ -205,6 +245,7 @@ impl Settings {
                 None => BskyConfig::default(),
             },
             places: self.places.clone(),
+            geoip: self.geoip()?,
         };
         AppState::new(self.http()?, self.dns()?, config, cache)
     }
