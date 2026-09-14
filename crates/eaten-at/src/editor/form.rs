@@ -20,10 +20,6 @@ pub struct EditorForm {
     pub place_mode: PlaceMode,
     /// The search box on the choosing state.
     pub place_query: String,
-    /// The searcher's point in decimal degrees, from the browser, carried
-    /// between posts so a second search need not ask again.
-    pub near_lat: String,
-    pub near_lon: String,
     /// The Overture GERS id of the picked place; blank by hand.
     pub gers_id: String,
     /// The place's coordinates in microdegrees, hidden fields filled by a
@@ -287,8 +283,6 @@ impl EditorForm {
                 PlaceMode::Manual
             },
             place_query: String::new(),
-            near_lat: String::new(),
-            near_lon: String::new(),
             gers_id: visit.place.gers_id.clone().unwrap_or_default(),
             lat_e6: visit
                 .place
@@ -340,8 +334,6 @@ impl EditorForm {
                 "place_price" => form.place_price = value,
                 "place_mode" => form.place_mode = PlaceMode::parse(&value),
                 "place_query" => form.place_query = value,
-                "near_lat" => form.near_lat = value,
-                "near_lon" => form.near_lon = value,
                 "gers_id" => form.gers_id = value,
                 "lat_e6" => form.lat_e6 = value,
                 "lon_e6" => form.lon_e6 = value,

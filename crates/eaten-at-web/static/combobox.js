@@ -59,6 +59,7 @@ window.eaCombobox = function (input, opts) {
         row.appendChild(detail);
       }
       row.addEventListener("mousedown", function (e) { e.preventDefault(); pick(i); });
+      row.addEventListener("click", function () { pick(i); });
       list.appendChild(row);
     });
     active = -1;

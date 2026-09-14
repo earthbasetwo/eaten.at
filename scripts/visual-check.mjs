@@ -152,17 +152,30 @@ async function main() {
     expect: '.find-results .listing-item',
   })
   await check({ name: 'settings', path: '/settings', expect: '.chooser-item' })
-  // The editor starts by choosing a place (plan 06). Headless Chrome
-  // grants no location, so the point is typed into the hidden fields the
-  // island would fill.
-  const point = { 'input[name="near_lat"]': '40.6888', 'input[name="near_lon"]': '-73.9799' }
-  const search = (q) => ({ fill: { '#place_query': q, ...point }, click: 'button[name="action"][value="search"]' })
-  await check({ name: 'write', path: '/write', expect: '#place_query' })
+  // The editor starts by choosing a place (plans 06, 12). The request is
+  // located by EATEN_AT_DEV_LOCATION, so the search is on; the Search
+  // button is the no-JS path and is clicked directly here.
+  const search = (q) => ({ fill: { '#place_query': q }, click: 'button[name="action"][value="search"]' })
+  const byHand = (name) => ({ fill: { '#place_name': name }, click: 'button[name="action"][value="manual"]' })
+  await check({ name: 'write', path: '/write', expect: 'input[data-suggest]' })
   await check({ name: 'write-search', path: '/write', steps: [search('Noodle')], expect: '.result-item' })
   await check({ name: 'write-search-empty', path: '/write', steps: [search('nothing here')], expect: '.empty' })
   await check({ name: 'write-search-unavailable', path: '/write', steps: [search('quota')], expect: '.form-error' })
+  // Suggestions as you type, and a pick through the listbox.
+  await check({
+    name: 'write-suggest',
+    path: '/write',
+    steps: [{ type: { '#place_query': 'noo' }, wait: '[role="option"]' }],
+    expect: '[role="listbox"] [role="option"]',
+  })
   await check({
     name: 'write-pick',
+    path: '/write',
+    steps: [{ type: { '#place_query': 'noo' }, wait: '[role="option"]' }, { click: '[role="option"]' }],
+    expect: 'input[name="place_mode"][value="picked"]',
+  })
+  await check({
+    name: 'write-pick-plain',
     path: '/write',
     steps: [search('Noodle'), { click: 'button[name="action"][value="pick:0"]' }],
     expect: 'input[name="place_mode"][value="picked"]',
@@ -170,13 +183,20 @@ async function main() {
   await check({
     name: 'write-manual',
     path: '/write',
-    steps: [{ click: 'button[name="action"][value="manual"]' }],
+    steps: [byHand('The Cart')],
     expect: 'input[name="place_mode"][value="manual"]',
+  })
+  await check({
+    name: 'write-manual-blank',
+    path: '/write',
+    steps: [{ click: 'button[name="action"][value="manual"]' }],
+    status: 422,
+    expect: '#place_name-error',
   })
   await check({
     name: 'write-errors',
     path: '/write',
-    steps: [{ click: 'button[name="action"][value="manual"]' }, { click: 'form.editor button[name="action"][value="publish"]' }],
+    steps: [byHand('The Cart'), { click: 'form.editor button[name="action"][value="publish"]' }],
     status: 422,
     expect: '.field-error',
   })

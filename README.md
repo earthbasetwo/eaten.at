@@ -43,6 +43,7 @@ Everything is an environment variable; a `.env` file is loaded by `just`.
 | `EATEN_AT_BSKY_APPVIEW` | `https://public.api.bsky.app` | The Bluesky AppView that comment threads are read from (unauthenticated `getPostThread`, cached five minutes) and that the sign-in and landing pages ask for handle suggestions from the browser (`searchActorsTypeahead`; their CSP allows this one origin). |
 | `EATEN_AT_PLACES_API_URL` | `https://api.openplacesapi.com` | The Open Places API, which serves Overture Maps places for the editor's place search. |
 | `EATEN_AT_PLACES_API_KEY` | unset | The Open Places API key. Unset, place search is disabled and the editor takes places by hand. Never used from a browser. |
+| `EATEN_AT_GEOIP_DB` | unset | Path of an IP-to-city database in the MaxMind DB format with the GeoIP2 City layout: DB-IP's IP-to-City Lite (CC BY 4.0), fetched by `just geoip-refresh`. The editor's place search looks near where the request's IP is. Unset, it looks near the author's last visit only. Read into memory at startup; refresh monthly and restart. |
 | `RUST_LOG` | `info` | Log filter. `debug` shows cache misses, skipped records, and upstream fallbacks. |
 
 The app expects to sit behind a TLS-terminating reverse proxy that sets
@@ -71,7 +72,8 @@ EATEN_AT_LEXICON_APP_PASSWORD=… just lexicons-publish        # write what diff
 | `/at/{did}/{pub}/feed.xml` | RSS. |
 | `/img/{did}/{doc}` | The document-image proxy: the first photo, else a `coverImage` another client set, else a generated placeholder. `?size=og` gives a 1200×630 rendition; `?kind=icon` a publication icon. |
 | `/img/{did}/{doc}/{cid}` | One of the document's photos, `?size=thumb` (a 400px square) or `?size=full`. Only CIDs the document lists. |
-| `/write`, `/write/{doc}` | The editor, for signed-in authors. A new write-up starts by searching for the place near the browser's location. |
+| `/write`, `/write/{doc}` | The editor, for signed-in authors. A new write-up starts by choosing the place: suggestions as you type near where the request is from, or a name and address by hand. |
+| `/write/suggest` | Place suggestions for the editor's search box (JSON, signed-in only, rate-limited). |
 | `/write/{doc}/photos` | Add, caption, reorder, and remove a write-up's photos. A first publish lands here. |
 | `/settings` | The author's one publication: its name, description, and address (a hosted subdomain or their own domain). Creates it on the first save if a publish has not already. |
 | `/healthz` | Liveness. |

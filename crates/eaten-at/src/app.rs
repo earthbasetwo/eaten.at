@@ -30,6 +30,7 @@ fn routes(state: AppState) -> Router {
     // The editor accepts a long write-up, so its body cap is its own.
     let editor = Router::new()
         .route("/write", get(write::new_form).post(write::submit_new))
+        .route("/write/suggest", get(write::suggest))
         .route(
             "/write/{rkey}",
             get(write::edit_form).post(write::submit_edit),

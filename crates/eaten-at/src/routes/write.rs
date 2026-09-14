@@ -8,29 +8,36 @@
 
 use axum::extract::rejection::FormRejection;
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::http::{header, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Json, Redirect, Response};
 use axum::Form;
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::at_eaten::Preferences;
-use eaten_at_web::assets::{EDITOR_SCRIPT, LOCATE_SCRIPT};
+use eaten_at_web::assets::{COMBOBOX_SCRIPT, EDITOR_SCRIPT, PLACE_SUGGEST_SCRIPT};
 use eaten_at_web::layout::{self, urlencoding, Page, Width};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::auth::{PostPermission, RequireUser};
 use crate::editor::view::{
     self, CrosspostPage, CrosspostState, DeletePage, DeletePost, EditorPage, Located, SearchState,
 };
-use crate::editor::{self, Action, Context, EditorForm, FieldErrors};
+use crate::editor::{self, Action, Context, EditorForm, FieldErrors, PlaceMode};
 use crate::error::AppError;
+use crate::geoip::ClientIp;
 use crate::model::VisitDocument;
 use crate::paths;
-use crate::places::Point;
+use crate::places::{Point, SearchError};
 use crate::publish::{self, PublishError, MAX_POST_GRAPHEMES};
 use crate::security::Nonce;
 use crate::state::AppState;
+
+/// Suggestion requests one session may make per minute (plan 12, D45).
+pub const SUGGESTS_PER_MINUTE: u32 = 30;
+/// Suggestions the listbox shows; the results page shows the search's
+/// full ten.
+const SUGGEST_LIMIT: usize = 6;
 
 /// Who is writing. The publication is not part of it: every write-up
 /// goes to the account's one publication, made on the first publish if
@@ -135,11 +142,18 @@ fn render(
     let heading = editing
         .map(|e| e.visit_doc.document().title.as_str())
         .or_else(|| Some(form.place_name.trim()).filter(|name| !name.is_empty()));
+    // The choosing state suggests places; the writing state keeps a
+    // draft and grows its textareas. Each ships only its own island.
+    let scripts = if form.place_mode == PlaceMode::Choosing {
+        vec![COMBOBOX_SCRIPT, PLACE_SUGGEST_SCRIPT]
+    } else {
+        vec![EDITOR_SCRIPT]
+    };
     let page = layout::render(&Page {
         title: &[if editing.is_some() { "Edit" } else { "Write" }],
         width: Width::Wide,
         nonce: Some(nonce.to_owned()),
-        scripts: vec![EDITOR_SCRIPT, LOCATE_SCRIPT],
+        scripts,
         main: view::page(&EditorPage {
             form,
             errors: &outcome.errors,
@@ -150,25 +164,30 @@ fn render(
             publish_error: outcome.publish_error,
             crosspost,
             search_enabled: state.places_enabled(),
+            geoip: state.geoip().enabled(),
             search: outcome.search.clone(),
-            located: outcome.located,
+            located: outcome.located.clone(),
         }),
         ..Page::default()
     });
     (status, page).into_response()
 }
 
-/// `GET /write` — a blank editor.
+/// `GET /write` — a blank editor, choosing the place first.
 pub async fn new_form(
     State(state): State<AppState>,
     RequireUser(did): RequireUser,
+    ip: ClientIp,
     nonce: Nonce,
 ) -> Result<Response, AppError> {
     let nonce = nonce.0.as_str();
     let author = author(&state, &did).await?;
     let mut form = EditorForm::blank();
     form.crosspost = author.preferences.crosspost_default();
-    let outcome = Outcome::default();
+    let outcome = Outcome {
+        located: locate(&state, &author.identity, ip).await.1,
+        ..Outcome::default()
+    };
     Ok(render(
         &state,
         nonce,
@@ -207,11 +226,12 @@ pub async fn edit_form(
 pub async fn submit_new(
     State(state): State<AppState>,
     RequireUser(did): RequireUser,
+    ip: ClientIp,
     nonce: Nonce,
     form: Result<Form<Vec<(String, String)>>, FormRejection>,
 ) -> Result<Response, AppError> {
     let author = author(&state, &did).await?;
-    submit(&state, &author, None, &nonce.0, form).await
+    submit(&state, &author, None, ip, &nonce.0, form).await
 }
 
 /// `POST /write/{rkey}` — a submission for an existing write-up.
@@ -219,18 +239,20 @@ pub async fn submit_edit(
     State(state): State<AppState>,
     RequireUser(did): RequireUser,
     Path(rkey): Path<String>,
+    ip: ClientIp,
     nonce: Nonce,
     form: Result<Form<Vec<(String, String)>>, FormRejection>,
 ) -> Result<Response, AppError> {
     let author = author(&state, &did).await?;
     let editing = editing(&state, &author, &rkey).await?;
-    submit(&state, &author, Some(&editing), &nonce.0, form).await
+    submit(&state, &author, Some(&editing), ip, &nonce.0, form).await
 }
 
 async fn submit(
     state: &AppState,
     author: &Author,
     editing: Option<&Editing>,
+    ip: ClientIp,
     nonce: &str,
     form: Result<Form<Vec<(String, String)>>, FormRejection>,
 ) -> Result<Response, AppError> {
@@ -239,11 +261,39 @@ async fn submit(
     let (mut form, action) = EditorForm::from_pairs(pairs);
     let action = action.unwrap_or(Action::Preview);
     match action {
-        Action::Search => return Ok(search(state, nonce, author, editing, form).await),
-        Action::Pick(index) => return Ok(pick(state, nonce, author, editing, form, index).await),
+        Action::Search => return Ok(search(state, nonce, author, editing, ip, form).await),
+        Action::Pick(index) => {
+            return Ok(pick(state, nonce, author, editing, ip, form, index).await)
+        }
         Action::Preview | Action::Publish => {}
+        Action::Manual if form.place_name.trim().is_empty() => {
+            // The one error the choosing page can show: a place by hand
+            // needs a name.
+            let mut errors = FieldErrors::default();
+            errors.add("place_name", "Name the place.");
+            let located = locate(state, &author.identity, ip).await.1;
+            return Ok(render(
+                state,
+                nonce,
+                StatusCode::UNPROCESSABLE_ENTITY,
+                author,
+                editing,
+                &form,
+                &Outcome {
+                    errors,
+                    located,
+                    ..Outcome::default()
+                },
+            ));
+        }
         _ => {
             form.apply(&action);
+            // Back to choosing needs to know where the search would look.
+            let located = if form.place_mode == PlaceMode::Choosing {
+                locate(state, &author.identity, ip).await.1
+            } else {
+                Located::Unknown
+            };
             return Ok(render(
                 state,
                 nonce,
@@ -251,7 +301,10 @@ async fn submit(
                 author,
                 editing,
                 &form,
-                &Outcome::default(),
+                &Outcome {
+                    located,
+                    ..Outcome::default()
+                },
             ));
         }
     }
@@ -362,13 +415,13 @@ async fn publish_and_continue(
     }
 }
 
-/// The point to search near: the browser's, carried in the form, else
-/// the author's most recent visit with coordinates.
-async fn locate(state: &AppState, author: &Author, form: &EditorForm) -> (Option<Point>, Located) {
-    if let Some(point) = Point::parse(&form.near_lat, &form.near_lon) {
-        return (Some(point), Located::Browser);
+/// The point to search near (plan 12, D44): where the request's IP is,
+/// else the author's most recent visit with coordinates.
+async fn locate(state: &AppState, identity: &Identity, ip: ClientIp) -> (Option<Point>, Located) {
+    if let Some(here) = ip.0.and_then(|ip| state.geoip().locate(ip)) {
+        return (Some(here.point), Located::Ip(here.city));
     }
-    match last_visit_point(state, &author.identity).await {
+    match last_visit_point(state, identity).await {
         Some(point) => (Some(point), Located::LastVisit),
         None => (None, Located::Unknown),
     }
@@ -393,9 +446,10 @@ async fn search(
     nonce: &str,
     author: &Author,
     editing: Option<&Editing>,
+    ip: ClientIp,
     form: EditorForm,
 ) -> Response {
-    let (point, located) = locate(state, author, &form).await;
+    let (point, located) = locate(state, &author.identity, ip).await;
     let search = match point {
         None => SearchState::NoPoint,
         Some(point) => match state.search_places(&form.place_query, point).await {
@@ -425,10 +479,11 @@ async fn pick(
     nonce: &str,
     author: &Author,
     editing: Option<&Editing>,
+    ip: ClientIp,
     mut form: EditorForm,
     index: usize,
 ) -> Response {
-    let (point, located) = locate(state, author, &form).await;
+    let (point, located) = locate(state, &author.identity, ip).await;
     let hit = match point {
         Some(point) => state
             .search_places(&form.place_query, point)
@@ -457,6 +512,100 @@ async fn pick(
         &form,
         &outcome,
     )
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SuggestQuery {
+    #[serde(default)]
+    q: String,
+}
+
+/// One place the listbox offers: its index into the same cached search
+/// a pick re-reads, and what to show.
+#[derive(Debug, Serialize)]
+struct Suggestion {
+    i: usize,
+    name: String,
+    detail: String,
+}
+
+#[derive(Debug, Serialize)]
+struct Suggestions {
+    q: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    near: Option<String>,
+    hits: Vec<Suggestion>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<&'static str>,
+}
+
+/// `GET /write/suggest?q=…` — places called `q` near the request, for
+/// the choosing state's combobox (plan 12, D45). The same search the
+/// page's Search button runs and a pick re-reads, so a suggestion's
+/// index is a pick's index. Signed-in only, and no more than
+/// [`SUGGESTS_PER_MINUTE`] a minute per author, since every uncached
+/// call spends Open Places quota.
+pub async fn suggest(
+    State(state): State<AppState>,
+    RequireUser(did): RequireUser,
+    ip: ClientIp,
+    Query(query): Query<SuggestQuery>,
+) -> Result<Response, AppError> {
+    let q = query.q.trim().to_owned();
+    let reply = |status: StatusCode, body: Suggestions| {
+        let mut response = (status, Json(body)).into_response();
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("private, no-store"),
+        );
+        Ok(response)
+    };
+    let empty = |error: Option<&'static str>| Suggestions {
+        q: q.clone(),
+        near: None,
+        hits: Vec::new(),
+        error,
+    };
+    if !state.suggest_limit().allow(did.as_str()) {
+        return reply(StatusCode::TOO_MANY_REQUESTS, empty(Some("rate_limited")));
+    }
+    let identity = state.require_identity(&did).await?;
+    let (point, located) = locate(&state, &identity, ip).await;
+    let Some(point) = point else {
+        return reply(StatusCode::OK, empty(Some("no_location")));
+    };
+    let near = match located {
+        Located::Ip(city) => city,
+        Located::LastVisit | Located::Unknown => None,
+    };
+    match state.search_places(&q, point).await {
+        Ok(hits) => reply(
+            StatusCode::OK,
+            Suggestions {
+                q: q.clone(),
+                near,
+                hits: hits
+                    .iter()
+                    .take(SUGGEST_LIMIT)
+                    .enumerate()
+                    .map(|(i, hit)| Suggestion {
+                        i,
+                        name: hit.name.clone(),
+                        detail: match &hit.address {
+                            Some(address) => format!("{address} · {:.1} mi", hit.distance_mi),
+                            None => format!("{:.1} mi", hit.distance_mi),
+                        },
+                    })
+                    .collect(),
+                error: None,
+            },
+        ),
+        // A prefix the API will not search yet is not an error worth a word.
+        Err(SearchError::Query(_)) => reply(StatusCode::OK, empty(None)),
+        Err(SearchError::Disabled | SearchError::Unavailable) => {
+            reply(StatusCode::OK, empty(Some("unavailable")))
+        }
+    }
 }
 
 /// The document is published; now the Bluesky side (plan §5.7). With

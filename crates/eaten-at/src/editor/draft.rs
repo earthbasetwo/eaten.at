@@ -48,7 +48,7 @@ impl FieldErrors {
         self.0.iter().map(|(k, v)| (k.as_str(), v.as_str()))
     }
 
-    fn add(&mut self, field: impl Into<String>, message: impl Into<String>) {
+    pub fn add(&mut self, field: impl Into<String>, message: impl Into<String>) {
         self.0.entry(field.into()).or_insert_with(|| message.into());
     }
 }
@@ -390,8 +390,6 @@ mod tests {
             place_price: "2".into(),
             place_mode: PlaceMode::Picked,
             place_query: String::new(),
-            near_lat: String::new(),
-            near_lon: String::new(),
             gers_id: " 08f2a5b6c7d8e9f0a1b2c3d4e5f60718 ".into(),
             lat_e6: "40688838".into(),
             lon_e6: "-73979914".into(),

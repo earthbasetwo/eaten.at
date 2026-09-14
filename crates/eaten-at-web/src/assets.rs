@@ -15,11 +15,10 @@ const CSS_SOURCE: &str = include_str!("../static/app.css");
 /// A convenience on top of a form that works without it (plan §6.3).
 pub const EDITOR_SCRIPT: &str = include_str!("../static/editor.js");
 
-/// The location island: fills the editor's search point from the
-/// browser's geolocation (plan 06). The one script a function needs
-/// rather than a nicety; without it the search still runs near the
-/// author's last visit.
-pub const LOCATE_SCRIPT: &str = include_str!("../static/locate.js");
+/// Place suggestions in the editor's choosing state (plan 12): the
+/// search box as a combobox over this site's suggest endpoint. Needs
+/// [`COMBOBOX_SCRIPT`] before it.
+pub const PLACE_SUGGEST_SCRIPT: &str = include_str!("../static/place-suggest.js");
 
 /// The combobox (plan 10): a listbox under a text field, fed by a source
 /// the page names. Shared by the handle and place suggestions.
@@ -36,9 +35,9 @@ pub const FIND_SCRIPT: &str = include_str!("../static/find.js");
 /// Every inline script the site ships, all counted against the tripwire.
 pub const INLINE_SCRIPTS: &[&str] = &[
     EDITOR_SCRIPT,
-    LOCATE_SCRIPT,
     COMBOBOX_SCRIPT,
     HANDLE_TYPEAHEAD_SCRIPT,
+    PLACE_SUGGEST_SCRIPT,
     FIND_SCRIPT,
 ];
 

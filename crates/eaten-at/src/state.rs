@@ -14,8 +14,10 @@ use eaten_at_web::APP_NAME;
 use crate::auth::{self, SessionCookie, SqliteOAuthStore, WebSessions};
 use crate::bsky::BskyConfig;
 use crate::cache::{Cache, SystemClock};
+use crate::geoip::GeoIp;
 use crate::hosting::Claims;
 use crate::places::PlacesConfig;
+use crate::ratelimit::RateLimiter;
 
 /// `User-Agent` sent to every upstream.
 pub const USER_AGENT: &str = concat!(
@@ -43,6 +45,9 @@ struct Inner {
     cookie: SessionCookie,
     claims: Claims,
     places: PlacesConfig,
+    geoip: GeoIp,
+    /// Place suggestions per session (plan 12).
+    suggest_limit: RateLimiter,
 }
 
 /// Where upstreams live and where we are. Defaults are production;
@@ -60,6 +65,8 @@ pub struct AppConfig {
     pub oauth_signing_key: Option<SigningKey>,
     /// Where place search goes, and the key that enables it.
     pub places: PlacesConfig,
+    /// Where a request is, by its IP (plan 12).
+    pub geoip: GeoIp,
 }
 
 impl Default for AppConfig {
@@ -70,6 +77,7 @@ impl Default for AppConfig {
             public_url: url::Url::parse("https://eaten.at").expect("constant"),
             oauth_signing_key: None,
             places: PlacesConfig::default(),
+            geoip: GeoIp::none(),
         }
     }
 }
@@ -111,6 +119,8 @@ impl AppState {
                 claims: Claims::new(db.clone(), Arc::clone(&clock)),
                 sessions: WebSessions::new(db, clock),
                 places: config.places,
+                geoip: config.geoip,
+                suggest_limit: RateLimiter::per_minute(crate::routes::write::SUGGESTS_PER_MINUTE),
             }),
         })
     }
@@ -190,6 +200,14 @@ impl AppState {
     /// Place search configuration.
     pub(crate) fn places(&self) -> &PlacesConfig {
         &self.inner.places
+    }
+
+    pub fn geoip(&self) -> &GeoIp {
+        &self.inner.geoip
+    }
+
+    pub(crate) fn suggest_limit(&self) -> &RateLimiter {
+        &self.inner.suggest_limit
     }
 
     /// A repo client for the PDS of a resolved identity.

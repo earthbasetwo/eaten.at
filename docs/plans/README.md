@@ -66,8 +66,8 @@ carrying two image models at once).
 ## Second round (2026-09-13, after walking through the UI)
 
 `docs/feedback.md` collected eleven more items (12–22). Six plans, same
-working agreement as above. Plans 08–11 were implemented on
-2026-09-13 (D40–D43); 12 and 13 are not yet. Each plan's "Decisions" section records what
+working agreement as above. Plans 08–12 were implemented on
+2026-09-13 (D40–D45); 13 is not yet. Each plan's "Decisions" section records what
 was settled.
 
 | # | Plan | Feedback items | Size | Depends on |
@@ -103,7 +103,7 @@ its own branch.
 
 - The JavaScript budget restated as a rule, be judicious, with one
   20 KB tripwire and no per-page cap (D43 as amended), and two more
-  functions that need script: handle suggestions from the Bluesky
+  functions that script makes quicker: handle suggestions from the Bluesky
   AppView (10) and place suggestions through our server (12). The
   browser geolocation island from plan 06 goes; the point comes from
   the request's IP (12).
