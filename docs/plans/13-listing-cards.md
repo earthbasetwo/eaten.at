@@ -116,6 +116,26 @@ are untouched (they use the cover rendition).
   cached like the others.
 - `just check` and `just visual-check` pass.
 
+## As built (2026-09-13)
+
+As planned, with these notes.
+
+- The `card` rendition is the largest 3:2 frame inside the image, at
+  most 960 wide, never upscaled: a wide image loses its sides, a tall
+  one its top and bottom, a small one is cropped at its own size.
+- The card always reserves 960×640 (the crop is always 3:2, whatever
+  the source), so the record's `aspectRatio` is not consulted; the
+  `ListingPhoto` view model carries the source, the alt text, and the
+  count of further photos.
+- The photo is its own link to the same page as the title, with
+  `tabindex="-1"` so a keyboard user meets one stop per card.
+- The visual check now decodes every card photo on every page it
+  renders and fails if one does not load, rather than one page's
+  assertion.
+- The seed's second visit gained a single portrait photo, so a card
+  without the count chip and the 3:2 crop of a tall image are both in
+  the screenshots; the third visit stays a text card.
+
 ## Decisions
 
 Settled 2026-09-13, as recommended:

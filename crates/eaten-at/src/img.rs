@@ -39,6 +39,8 @@ const PHOTO_FIT_DIMENSION: u32 = 2048;
 const THUMB_SIDE: u32 = 400;
 /// Long side of a photo's full rendition.
 const FULL_FIT_DIMENSION: u32 = 1600;
+/// Widest a listing card's photo is served (plan 13), cropped to 3:2.
+const CARD_WIDTH: u32 = 960;
 /// Largest source dimensions we will decode.
 const MAX_SOURCE_DIMENSION: u32 = 6000;
 /// Decode memory budget handed to the image crate.
@@ -76,17 +78,21 @@ impl Size {
 /// Which rendition of a photo is wanted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum PhotoSize {
-    /// A 400px square, centre-cropped: the grid and listings.
+    /// A 400px square, centre-cropped: the photo grid and the photos page.
     #[default]
     Thumb,
     /// Fitted to 1600px on the long side, its own shape.
     Full,
+    /// Up to 960px wide, centre-cropped to 3:2, never upscaled: the
+    /// listing card (plan 13).
+    Card,
 }
 
 impl PhotoSize {
     pub fn from_query(value: Option<&str>) -> Self {
         match value {
             Some("full") => Self::Full,
+            Some("card") => Self::Card,
             _ => Self::Thumb,
         }
     }
@@ -95,6 +101,7 @@ impl PhotoSize {
         match self {
             Self::Thumb => "thumb",
             Self::Full => "full",
+            Self::Card => "card",
         }
     }
 }
@@ -389,8 +396,9 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
     Err(ImageError::CannotShrink(MAX_IMAGE_BLOB_BYTES))
 }
 
-/// A photo at `size`: a centre-cropped square thumbnail, or fitted to
-/// the full rendition's long side, never upscaled.
+/// A photo at `size`: a centre-cropped square thumbnail, the full
+/// rendition fitted to its long side, or the card's 3:2 crop, none of
+/// them upscaled.
 pub fn encode_photo(image: &DynamicImage, size: PhotoSize) -> Result<Vec<u8>, ImageError> {
     let framed = match size {
         PhotoSize::Thumb => image.resize_to_fill(THUMB_SIDE, THUMB_SIDE, FilterType::Lanczos3),
@@ -402,11 +410,29 @@ pub fn encode_photo(image: &DynamicImage, size: PhotoSize) -> Result<Vec<u8>, Im
                 image.clone()
             }
         }
+        PhotoSize::Card => {
+            let (w, h) = card_dimensions(image.dimensions());
+            image.resize_to_fill(w, h, FilterType::Lanczos3)
+        }
     };
     let mut out = Cursor::new(Vec::new());
     let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY);
     framed.to_rgb8().write_with_encoder(encoder)?;
     Ok(out.into_inner())
+}
+
+/// The largest 3:2 frame that fits inside an image, at most
+/// [`CARD_WIDTH`] wide: a wide image loses its sides, a tall one its
+/// top and bottom, and a small one is cropped at its own size rather
+/// than blown up.
+fn card_dimensions((w, h): (u32, u32)) -> (u32, u32) {
+    let mut width = w.min(CARD_WIDTH);
+    let mut height = width * 2 / 3;
+    if height > h {
+        height = h;
+        width = (h * 3 / 2).min(w);
+    }
+    (width.max(1), height.max(1))
 }
 
 /// Decode with format sniffed from the bytes (never from the declared
@@ -649,7 +675,26 @@ mod tests {
         let full = decode(&encode_photo(&large, PhotoSize::Full).unwrap()).unwrap();
         assert_eq!(full.dimensions(), (1600, 800));
         assert_eq!(PhotoSize::from_query(Some("full")), PhotoSize::Full);
+        assert_eq!(PhotoSize::from_query(Some("card")), PhotoSize::Card);
         assert_eq!(PhotoSize::from_query(None), PhotoSize::Thumb);
+    }
+
+    #[test]
+    fn the_card_is_a_three_by_two_crop_never_upscaled() {
+        // Wide: the height rules; tall: the width rules; big: capped.
+        assert_eq!(card_dimensions((1200, 600)), (900, 600));
+        assert_eq!(card_dimensions((480, 640)), (480, 320));
+        assert_eq!(card_dimensions((3200, 1600)), (960, 640));
+        assert_eq!(card_dimensions((960, 640)), (960, 640));
+        assert_eq!(card_dimensions((1, 1)), (1, 1));
+        let card =
+            decode(&encode_photo(&decode(&png(1200, 600)).unwrap(), PhotoSize::Card).unwrap())
+                .unwrap();
+        assert_eq!(card.dimensions(), (900, 600));
+        let portrait =
+            decode(&encode_photo(&decode(&png(480, 640)).unwrap(), PhotoSize::Card).unwrap())
+                .unwrap();
+        assert_eq!(portrait.dimensions(), (480, 320));
     }
 
     #[test]

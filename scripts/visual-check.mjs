@@ -356,8 +356,13 @@ class Browser {
       await document.fonts.ready
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
       const faces = [...document.fonts]
+      // Card photos are lazy; decode() fetches them wherever they sit.
+      const cardPhotos = [...document.querySelectorAll('.listing-item.has-photos img')]
+      const photosBroken = (await Promise.all(cardPhotos.map(i => i.decode().then(() => false, () => true)))).filter(Boolean).length
       return {
         path: location.pathname,
+        cardPhotos: cardPhotos.length,
+        photosBroken,
         scrollWidth: document.documentElement.scrollWidth,
         loaded: [...new Set(faces.filter(f => f.status === 'loaded').map(f => f.family.replaceAll('"', '')))],
         failed: faces.filter(f => f.status === 'error').map(f => f.family + ' ' + f.style + ' ' + f.weight),
@@ -370,6 +375,7 @@ class Browser {
     const finalPath = page.finalPath ?? new URL(page.path, BASE).pathname
     if (facts.path !== finalPath) problems.push(`ended at ${facts.path}, expected ${finalPath}`)
     if (!facts.expected) problems.push(`nothing matches ${page.expect}`)
+    if (facts.photosBroken) problems.push(`${facts.photosBroken} of ${facts.cardPhotos} card photos did not load`)
     // Measured against the emulated width, not innerWidth: in phone
     // emulation Chrome widens the layout viewport to fit oversized content,
     // which would hide exactly the overflow this looks for.

@@ -7,7 +7,8 @@ use eaten_at_atproto::lexicon::{
 };
 use eaten_at_atproto::repo::Record;
 use eaten_at_web::components::{
-    CommentView, CommentsView, Link, ListingItem, PhotoView, PublicationView, RatingView, VisitCard,
+    CommentView, CommentsView, Link, ListingItem, ListingPhoto, PhotoView, PublicationView,
+    RatingView, VisitCard,
 };
 use eaten_at_web::markdown::{excerpt, EXCERPT_TARGET};
 use eaten_at_web::meta::{Kind, PageMeta};
@@ -128,12 +129,13 @@ pub fn summary(visit_doc: &VisitDocument) -> String {
 pub fn listing_item(did: &Did, pub_rkey: &str, visit_doc: &VisitDocument) -> ListingItem {
     let title = visit_doc.document().title.clone();
     let place_name = &visit_doc.visit.place.name;
+    let photos = &visit_doc.visit.photos;
     ListingItem {
-        thumb_src: visit_doc
-            .visit
-            .photos
-            .first()
-            .map(|p| paths::photo(did, visit_doc.rkey(), p.image.cid(), "thumb")),
+        photo: photos.first().map(|first| ListingPhoto {
+            src: paths::photo(did, visit_doc.rkey(), first.image.cid(), "card"),
+            alt: first.alt.clone().unwrap_or_default(),
+            more: photos.len() - 1,
+        }),
         href: paths::document(did, pub_rkey, visit_doc.rkey()),
         // The place's name is the default title (D29); saying it twice
         // on one card helps nobody.

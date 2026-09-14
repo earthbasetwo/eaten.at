@@ -127,6 +127,23 @@ pub fn photo_grid(photos: &[PhotoView]) -> Markup {
     }
 }
 
+/// The photo that leads a listing card (plan 13): the visit's first,
+/// as the card rendition (up to 960 wide, 3:2), and how many more
+/// there are.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListingPhoto {
+    pub src: String,
+    /// Alt text as the author wrote it; empty stays empty.
+    pub alt: String,
+    /// Photos beyond this one.
+    pub more: usize,
+}
+
+/// The card rendition's proportions, so the card reserves its space
+/// before the image loads.
+pub const CARD_PHOTO_WIDTH: u32 = 960;
+pub const CARD_PHOTO_HEIGHT: u32 = 640;
+
 /// One row of a publication's document list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ListingItem {
@@ -137,19 +154,29 @@ pub struct ListingItem {
     pub rating: Option<RatingView>,
     pub published: String,
     pub excerpt: String,
-    /// The first photo's thumbnail, if the visit has one.
-    pub thumb_src: Option<String>,
+    /// The photo that leads the card, if the visit has any.
+    pub photo: Option<ListingPhoto>,
 }
 
-/// A list of write-ups.
+/// A list of write-ups: cards, each led by its first photo when it has
+/// one and a text card when it has none (plan 13).
 pub fn listing(items: &[ListingItem]) -> Markup {
     html! {
         ol.listing {
             @for item in items {
-                li.listing-item {
+                li.listing-item.has-photos[item.photo.is_some()].no-photos[item.photo.is_none()] {
                     article {
-                        @if let Some(src) = &item.thumb_src {
-                            img.listing-thumb src=(src) alt="" width="96" height="96" loading="lazy";
+                        @if let Some(photo) = &item.photo {
+                            // The same target as the title; not a second tab stop.
+                            a.listing-photo href=(item.href) tabindex="-1" {
+                                img src=(photo.src) alt=(photo.alt)
+                                    width=(CARD_PHOTO_WIDTH) height=(CARD_PHOTO_HEIGHT) loading="lazy";
+                                @if photo.more > 0 {
+                                    span.listing-photo-count {
+                                        "+" (photo.more) " " @if photo.more == 1 { "photo" } @else { "photos" }
+                                    }
+                                }
+                            }
                         }
                         div.listing-body {
                             p.kicker { time datetime=(item.published) { (human_date(&item.published)) } }
@@ -428,12 +455,20 @@ mod tests {
             }),
             published: "2026-09-07T12:00:00.000Z".into(),
             excerpt: String::new(),
-            thumb_src: Some("/img/did/rk/bafy?size=thumb".into()),
+            photo: Some(ListingPhoto {
+                src: "/img/did/rk/bafy?size=card".into(),
+                alt: "The <room>".into(),
+                more: 2,
+            }),
         }])
         .into_string();
         assert!(
+            out.contains("<li class=\"listing-item has-photos\">"),
+            "{out}"
+        );
+        assert!(
             out.contains(
-                "<img class=\"listing-thumb\" src=\"/img/did/rk/bafy?size=thumb\" alt=\"\""
+                "<a class=\"listing-photo\" href=\"/d\" tabindex=\"-1\"><img src=\"/img/did/rk/bafy?size=card\" alt=\"The &lt;room&gt;\" width=\"960\" height=\"640\" loading=\"lazy\"><span class=\"listing-photo-count\">+2 photos</span></a>"
             ),
             "{out}"
         );
@@ -454,10 +489,39 @@ mod tests {
             }),
             published: "2026-09-07T12:00:00.000Z".into(),
             excerpt: String::new(),
-            thumb_src: None,
+            photo: None,
         };
         let out = listing(std::slice::from_ref(&item)).into_string();
-        assert!(!out.contains("listing-thumb"), "{out}");
+        assert!(
+            out.contains("<li class=\"listing-item no-photos\">"),
+            "{out}"
+        );
+        assert!(
+            !out.contains("<img"),
+            "nothing stands in for a photo: {out}"
+        );
+        // One more photo is singular; none is no chip at all.
+        let one_more = listing(&[ListingItem {
+            photo: Some(ListingPhoto {
+                src: "/p".into(),
+                alt: String::new(),
+                more: 1,
+            }),
+            ..item.clone()
+        }])
+        .into_string();
+        assert!(one_more.contains(">+1 photo</span>"), "{one_more}");
+        let alone = listing(&[ListingItem {
+            photo: Some(ListingPhoto {
+                src: "/p".into(),
+                alt: String::new(),
+                more: 0,
+            }),
+            ..item.clone()
+        }])
+        .into_string();
+        assert!(!alone.contains("listing-photo-count"), "{alone}");
+        assert!(alone.contains("alt=\"\""), "{alone}");
         assert!(
             out.contains(
                 "<p class=\"listing-place\"><span class=\"rating\" aria-label=\"Rated Solid\">"

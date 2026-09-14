@@ -180,11 +180,16 @@ const textContent = (d) =>
     .filter(Boolean)
     .join('\n\n')
 
-// Two photos for the first visit, so the grid, the listing thumbnail,
-// and the photos page have something to show.
+// Two photos for the first visit, so the grid, the listing card, and the
+// photos page have something to show; one portrait photo for the second,
+// so a card with a single photo and the 3:2 crop of a tall one are seen
+// (plan 13). The third has none, for the text card.
 const photos = [
   { image: await uploadPhoto(alice.agent, 640, 480, [196, 30, 47]), alt: 'The dining room, mid-service', aspectRatio: { width: 640, height: 480 } },
   { image: await uploadPhoto(alice.agent, 480, 640, [232, 128, 79]), alt: '', aspectRatio: { width: 480, height: 640 } },
+]
+const onePortrait = [
+  { image: await uploadPhoto(alice.agent, 480, 640, [126, 87, 74]), alt: 'A window seat', aspectRatio: { width: 480, height: 640 } },
 ]
 
 // Placeholder visits. Enough to see a listing with ratings, a document
@@ -249,6 +254,7 @@ as the excerpt.
     visitedOn: '2026-08-14',
     meal: 'brunch',
     rating: 4,
+    photos: onePortrait,
     markdown: `This one has no description, so the listing derives its excerpt from the
 first paragraph of the body, cut at a sentence boundary.
 

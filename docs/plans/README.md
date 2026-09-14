@@ -66,8 +66,8 @@ carrying two image models at once).
 ## Second round (2026-09-13, after walking through the UI)
 
 `docs/feedback.md` collected eleven more items (12–22). Six plans, same
-working agreement as above. Plans 08–12 were implemented on
-2026-09-13 (D40–D45); 13 is not yet. Each plan's "Decisions" section records what
+working agreement as above. All six were implemented on
+2026-09-13 (D40–D45), one commit each on `main`. Each plan's "Decisions" section records what
 was settled.
 
 | # | Plan | Feedback items | Size | Depends on |
