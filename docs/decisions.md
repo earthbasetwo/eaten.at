@@ -91,7 +91,7 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | 2026-09-14 | Listings | Rows under rules (an ink rule above the list, hairlines between rows), not cards. The visit's fact box on a document page is the one boxed surface. |
 | 2026-09-14 | Vermilion contrast | The handoff's vermilion (`#D8401F`) is applied exactly although it reads 3.99:1 on paper and 4.34:1 on paper-bright, under AA for normal text; the handoff calls its colours final. Every use is short tracked capitals, a link that underlines on hover, or a prose link underlined at rest. `docs/design.md` records the numbers; darkening it is a one-token change. |
 | 2026-09-14 | Prose size | The write-up's text is Newsreader at 16px, the top of the handoff's 14–16 range, at a 640px measure; the departure to 17–18px made under Campari is dropped. |
-| 2026-09-14 | Fonts | Newsreader and JetBrains Mono are self-hosted woff2 subsets, not loaded from Google Fonts, so the CSP keeps every request same-origin. Evantic Italic, the logotype face bundled with the handoff under a personal-use licence, is converted to woff2 and served the same way; it is used for the logotype only. |
+| 2026-09-14 | Fonts | Newsreader and JetBrains Mono are self-hosted woff2 subsets, not loaded from Google Fonts, so the CSP keeps every request same-origin. Evantic Regular, the logotype face bundled with the handoff under a personal-use licence, is converted to woff2 and served the same way; it is used for the logotype only. |
 | 2026-09-14 | Masthead on publication pages | The logotype and tagline are the site's; a publication's inner pages carry the publication's name as a running head in the serif instead, because Evantic is for `eaten.at` alone. |
 
 ## Left over from the fork
