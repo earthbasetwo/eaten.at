@@ -141,7 +141,9 @@ async function main() {
   // Signed in.
   await browser.setCookie(cookieName, cookieValue)
   const rkey = discovered.documents[0].split('/').pop()
-  await check({ name: 'landing-signed-in', path: '/', expect: '.account a[href="/write"]' })
+  await check({ name: 'landing-signed-in', path: '/', expect: '.own-publication .listing-item' })
+  await check({ name: 'landing-find', path: '/?q=noodle', expect: '.own-publication .listing-item' })
+  await check({ name: 'landing-find-none', path: '/?q=zzz', expect: '.own-publication .empty' })
   await check({ name: 'settings', path: '/settings', expect: '.chooser-item' })
   // The editor starts by choosing a place (plan 06). Headless Chrome
   // grants no location, so the point is typed into the hidden fields the
@@ -198,6 +200,7 @@ async function main() {
   // An author with no publication yet (plan 08): settings offers to make
   // it, and the editor does not ask.
   await browser.setCookie(cookieName, bobCookieValue)
+  await check({ name: 'landing-no-publication', path: '/', expect: '.own-none' })
   await check({ name: 'settings-none', path: '/settings', expect: '.chooser-item.not-yet' })
   await check({ name: 'write-none', path: '/write', expect: '#place_query' })
 

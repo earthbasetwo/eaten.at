@@ -122,6 +122,20 @@ path evicts the listing).
 - Works with JavaScript off (nothing here uses any).
 - `just check` and `just visual-check` pass.
 
+## As built (2026-09-13)
+
+As planned, with these notes.
+
+- The handle sits where the kicker would, but as `.meta`, not `.kicker`:
+  a kicker is set in capitals and a handle is not.
+- A find shows its whole page of matches (up to twenty), not eight;
+  "All write-ups →" is shown only for the recent list, when the
+  publication has more than the eight shown.
+- The tag chips come from the same page of documents the list does,
+  which is how the front page gathers them too.
+- Matching lives in `search.rs` beside `tags.rs` and reuses its
+  normalization; a query under two characters matches nothing.
+
 ## Decisions
 
 Settled 2026-09-13:

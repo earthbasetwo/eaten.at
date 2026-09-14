@@ -307,6 +307,145 @@ async fn landing_page_leads_with_sign_in_and_keeps_the_lookup_form() {
 }
 
 #[tokio::test]
+async fn the_signed_in_landing_page_is_the_authors_home() {
+    let mut repo = one_publication();
+    repo.documents.clear();
+    // Newest first, as a PDS lists them.
+    for i in (1..=9).rev() {
+        repo.documents.push((
+            format!("v{i}"),
+            visit_doc(
+                "pub1",
+                &format!("Visit {i}"),
+                &format!("Place {i}"),
+                &["late"],
+            ),
+        ));
+    }
+    let server = mount(&repo).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+
+    let (status, _, body) = get_signed(&state, "/", &cookie).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    // One primary, and it writes.
+    assert_eq!(body.matches("class=\"button\"").count(), 1, "{body}");
+    assert!(
+        body.contains("<a class=\"button\" href=\"/write\">Write a new visit</a>"),
+        "{body}"
+    );
+    assert!(body.contains("<h1>Where did you eat?</h1>"), "{body}");
+    assert!(
+        body.contains("<p class=\"meta handle\">@alice.test</p>"),
+        "{body}"
+    );
+    // The publication: nameplate, find, tags, the newest eight, the rest
+    // through the front page.
+    assert!(
+        body.contains(&format!(
+            "<p class=\"own-name\"><a href=\"/at/{DID}/pub1/\">Ross Writes</a></p>"
+        )),
+        "{body}"
+    );
+    assert!(body.contains("ross.eaten.at · <a href="), "{body}");
+    assert!(
+        body.contains("<form class=\"lookup find\" action=\"/\" method=\"get\">"),
+        "{body}"
+    );
+    assert!(
+        body.contains("href=\"/at/") && body.contains("/tagged/late\""),
+        "{body}"
+    );
+    assert_eq!(body.matches("listing-item").count(), 8, "{body}");
+    assert!(body.contains("Visit 9"), "the newest leads: {body}");
+    assert!(!body.contains("Visit 1<"), "the ninth is not shown: {body}");
+    assert!(
+        body.contains(&format!(
+            "<a class=\"button-link\" href=\"/at/{DID}/pub1/\">All write-ups →</a>"
+        )),
+        "{body}"
+    );
+    // Settings and sign-out are the last line; the lookup form is gone.
+    assert!(
+        body.contains("<div class=\"meta tertiary\"><a href=\"/settings\">Settings</a>"),
+        "{body}"
+    );
+    assert!(body.contains("action=\"/logout\""), "{body}");
+    assert!(!body.contains("action=\"/lookup\""), "{body}");
+    assert!(!body.contains("data-typeahead"), "{body}");
+}
+
+#[tokio::test]
+async fn the_home_page_finds_write_ups_and_says_what_a_first_publish_makes() {
+    let mut repo = one_publication();
+    repo.documents.clear();
+    // Newest first, as a PDS lists them.
+    for i in (1..=9).rev() {
+        repo.documents.push((
+            format!("v{i}"),
+            visit_doc(
+                "pub1",
+                &format!("Visit {i}"),
+                &format!("Place {i}"),
+                &["late"],
+            ),
+        ));
+    }
+    let server = mount(&repo).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+
+    // A find narrows the list to matches by place, title, or address.
+    let (status, _, body) = get_signed(&state, "/?q=place+3", &cookie).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.matches("listing-item").count(), 1, "{body}");
+    assert!(body.contains("Matching “place 3”"), "{body}");
+    assert!(
+        body.contains("<a class=\"button-link\" href=\"/\">Clear</a>"),
+        "{body}"
+    );
+    assert!(!body.contains("All write-ups"), "{body}");
+    let (_, _, body) = get_signed(&state, "/?q=zzz", &cookie).await;
+    assert!(
+        body.contains("Nothing called “zzz” among your write-ups."),
+        "{body}"
+    );
+    assert!(!body.contains("listing-item"), "{body}");
+    // Signed out, the query means nothing.
+    let (status, _, body) = get(&state, "/?q=zzz").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!body.contains("Matching"), "{body}");
+    assert!(body.contains("href=\"/login\""), "{body}");
+
+    // No publication yet: what it will be, and where to change that.
+    let server = mount(&Repo::default()).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let (status, _, body) = get_signed(&state, "/", &cookie).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body.contains("class=\"own-publication own-none\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("It will be called alice.test, at alice.eaten.at; "),
+        "{body}"
+    );
+    assert!(
+        body.contains("href=\"/settings\">change that in settings</a>"),
+        "{body}"
+    );
+    assert!(
+        !body.contains("listing-item") && !body.contains("class=\"lookup find\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("href=\"/write\">Write a new visit</a>"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
 async fn handle_fields_suggest_from_the_configured_appview_and_only_those_pages_may_connect() {
     let server = mount(&Repo::default()).await;
     let state = state_for(&server, StaticDns::new());

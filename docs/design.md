@@ -313,7 +313,7 @@ one sentence saying what the site is.
 | Page | Masthead | Opens with | Then |
 |---|---|---|---|
 | Landing `/`, signed out | site | page head: h1 pitch, lede | one primary "Sign in" with a small aside on its baseline; a hairline; the lookup form with a secondary "Read" pill, its hint, and handle suggestions as you type; a note in the metadata voice |
-| Landing `/`, signed in | site | page head: h1 pitch, lede | lookup form, note, the account line (until plan 11) |
+| Landing `/`, signed in | site | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new visit"; "Your publication": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" pill and the tag chips under it, a "Recent write-ups" (or "Matching “q”" with a secondary "Clear") kicker over the listing cards, "All write-ups →" when there are more; or, with no publication yet, one lede saying what it will be; then a hairline and one quiet line, Settings · Sign out |
 | Publication front page | site | nameplate | listing, notice if truncated, pagination |
 | Tag page | publication | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
 | Document | publication | kicker date, h1 title | visit card, prose, comments (when the document names a Bluesky post), footer |
@@ -370,10 +370,11 @@ panes need the room.
   back in a `.notice.restore` banner at the top of the form. It is one
   line and two link buttons, "Restore it" and "Discard it".
 
-Signed in, the landing page also carries an **account line** under the
-lookup form, in the metadata voice: "Signed in as @handle" with a
-sign-out link button. Signed out there is none: the page's primary
-action is "Sign in" (plan 09).
+Signed in, the landing page is the author's home (plan 11). Its last
+line, under a hairline, is the only place settings and sign-out appear:
+"Settings · Sign out" in the metadata voice, the second a link button.
+Signed out there is no account line: the page's primary action is
+"Sign in" (plan 09).
 
 ## Accessibility and constraints
 
