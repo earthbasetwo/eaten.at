@@ -8,7 +8,7 @@ use axum::response::{IntoResponse, Response};
 use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::Publication;
 use eaten_at_atproto::repo::Record;
-use eaten_at_web::assets::{COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
+use eaten_at_web::assets::{COMBOBOX_SCRIPT, FIND_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
 use eaten_at_web::components::{listing, lookup_form, tag_links, LookupForm};
 use eaten_at_web::layout::{self, Page};
 use maud::{html, Markup};
@@ -40,7 +40,7 @@ pub async fn landing(
     nonce: Nonce,
 ) -> Result<Response, AppError> {
     if let Some(did) = user {
-        return signed_in(&state, &did, query.q.trim()).await;
+        return signed_in(&state, &did, query.q.trim(), &nonce).await;
     }
     // The handle island calls the AppView from the browser (plan 10),
     // which this page's policy alone allows.
@@ -99,19 +99,27 @@ struct Own<'a> {
     tags: Vec<eaten_at_web::components::Link>,
 }
 
-/// The author's home.
-async fn signed_in(state: &AppState, did: &Did, query: &str) -> Result<Response, AppError> {
+/// The author's home. With a publication it ships the live-find island;
+/// without one there is nothing to find.
+async fn signed_in(
+    state: &AppState,
+    did: &Did,
+    query: &str,
+    nonce: &Nonce,
+) -> Result<Response, AppError> {
     let identity = state.require_identity(did).await?;
     let label = view::author_label(&identity);
-    let section = match state.own_publication(&identity).await? {
+    let (section, scripts) = match state.own_publication(&identity).await? {
         Some(publication) => {
             let own = own(state, &identity, &publication, query).await?;
-            own_section(did, &own)
+            (own_section(did, &own), vec![FIND_SCRIPT])
         }
-        None => not_yet(state, &identity),
+        None => (not_yet(state, &identity), Vec::new()),
     };
     let page = layout::render(&Page {
         title: &[],
+        nonce: Some(nonce.0.clone()),
+        scripts,
         main: html! {
             div.page-head {
                 p.meta.handle { (label) }
@@ -218,29 +226,33 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
                 }
             }
             (tag_links(&own.tags, None))
-            div.list-head {
-                p.kicker {
-                    @if finding { "Matching “" (own.query) "”" } @else { "Recent write-ups" }
+            // What a find replaces, live or by a reload: the head and
+            // the list, announced to assistive technology when it changes.
+            div.find-results aria-live="polite" {
+                div.list-head {
+                    p.kicker {
+                        @if finding { "Matching “" (own.query) "”" } @else { "Recent write-ups" }
+                    }
+                    @if finding {
+                        a.button-link href="/" { "Clear" }
+                    }
                 }
-                @if finding {
-                    a.button-link href="/" { "Clear" }
-                }
-            }
-            @if own.items.is_empty() {
-                @if finding {
-                    p.empty { "Nothing called “" (own.query) "” among your write-ups." }
+                @if own.items.is_empty() {
+                    @if finding {
+                        p.empty { "Nothing called “" (own.query) "” among your write-ups." }
+                    } @else {
+                        p.empty { "No write-ups yet." }
+                    }
                 } @else {
-                    p.empty { "No write-ups yet." }
+                    (listing(&own.items))
                 }
-            } @else {
-                (listing(&own.items))
-            }
-            @if own.truncated {
-                p.notice { "Showing recent write-ups; this publication also has many other documents." }
-            }
-            @if own.more && !finding {
-                div.actions {
-                    a.button-link href=(front) { "All write-ups →" }
+                @if own.truncated {
+                    p.notice { "Showing recent write-ups; this publication also has many other documents." }
+                }
+                @if own.more && !finding {
+                    div.actions {
+                        a.button-link href=(front) { "All write-ups →" }
+                    }
                 }
             }
         }

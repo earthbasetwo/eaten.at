@@ -151,10 +151,9 @@ page logs no CSP violation (the runner already fails on those).
 As planned, with these notes.
 
 - The combobox came out at 3.5 KB, not 1.6 KB: the ARIA bookkeeping
-  and the abort-on-newer-query logic are most of it. The page set is
-  4.7 KB against the 7 KB per-page cap and everything ships at 9.4 KB
-  against the 10 KB total; plan 12 replaces the 1 KB location island
-  with a suggestion adapter of about the same size.
+  and the abort-on-newer-query logic are most of it. The budget was
+  then restated again the same day (D43 as amended): no per-page cap,
+  one 20 KB tripwire, and "be judicious" as the rule.
 - The connecting policy is set by the handler through
   `security::allow_connect`, on the landing page (signed out), the
   sign-in page in every state, and the lookup-error page.
