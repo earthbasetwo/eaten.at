@@ -2755,6 +2755,9 @@ async fn the_photo_proxy_serves_listed_photos_only_and_pages_show_them() {
     assert_eq!(jpeg_dimensions(&body), (400, 400), "a square thumbnail");
     let (_, _, full) = get_image(&state, &format!("/img/{DID}/ph/bafkcover?size=full")).await;
     assert_eq!(jpeg_dimensions(&full), (1000, 500));
+    let (status, _, card) = get_image(&state, &format!("/img/{DID}/ph/bafkcover?size=card")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(jpeg_dimensions(&card), (750, 500), "3:2 within the image");
     let (status, _, _) = get_image(&state, &format!("/img/{DID}/ph/bafyother")).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "not an open blob proxy");
     // The document's own image is now its first photo.
@@ -2780,9 +2783,17 @@ async fn the_photo_proxy_serves_listed_photos_only_and_pages_show_them() {
     let (_, _, listing) = get(&state, &format!("/at/{DID}/pub1/")).await;
     assert!(
         listing.contains(&format!(
-            "class=\"listing-thumb\" src=\"/img/{DID}/ph/bafkcover?size=thumb\""
+            "<a class=\"listing-photo\" href=\"/at/{DID}/pub1/ph\" tabindex=\"-1\"><img src=\"/img/{DID}/ph/bafkcover?size=card\""
         )),
         "{listing}"
+    );
+    assert!(
+        listing.contains("<li class=\"listing-item has-photos\">"),
+        "{listing}"
+    );
+    assert!(
+        listing.contains("<li class=\"listing-item no-photos\">"),
+        "the others: {listing}"
     );
     let cookie = signed_in(&state).await;
     let (_, _, mine) = get_signed(&state, &format!("/at/{DID}/pub1/ph"), &cookie).await;

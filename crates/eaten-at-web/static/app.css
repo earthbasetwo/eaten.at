@@ -389,15 +389,32 @@
   }
 
   /* Listing: one card per write-up, each a small version of the document
-     page (date, title, place and rating, excerpt). */
+     page (date, title, place and rating, excerpt). A visit with photos
+     leads its card with the first one, bled to the card's edge: across
+     the top at phone width, the left 42% from 40rem; a visit without is
+     a text card, and nothing stands in for a photo (plan 13). */
   .listing { display: flex; flex-direction: column; gap: var(--space-m); }
-  .listing-item article { display: flex; gap: var(--card-gap); align-items: flex-start; padding: var(--card-pad); }
-  .listing-thumb {
-    flex: none; inline-size: var(--thumb-small); block-size: var(--thumb-small);
-    object-fit: cover; border-radius: var(--radius-nested);
+  .listing-item article { display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
+  .listing-item.no-photos article { padding: var(--card-pad); }
+  .listing-item.has-photos .listing-body { padding: var(--card-pad); }
+  .listing-photo {
+    position: relative; display: block; aspect-ratio: 3 / 2;
     background: var(--color-sunken);
   }
-  .listing-body { min-inline-size: 0; flex: 1; }
+  .listing-photo img {
+    position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover;
+  }
+  .listing-photo-count {
+    position: absolute; inset-block-end: var(--space-s); inset-inline-end: var(--space-s);
+    padding: 2px var(--space-s); border-radius: var(--radius-s);
+    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.02em;
+    color: var(--color-ink-muted); background: color-mix(in oklab, var(--color-raised) 85%, transparent);
+  }
+  @media (min-width: 40rem) {
+    .listing-item.has-photos article { grid-template-columns: 42% minmax(0, 1fr); }
+    .listing-photo { aspect-ratio: auto; min-block-size: 12.5rem; }
+  }
+  .listing-body { min-inline-size: 0; }
   .listing-body .kicker { margin-block-end: var(--space-xs); }
   .listing-title { font-size: var(--text-card); line-height: 1.1; }
   .listing-title a { color: inherit; text-decoration: none; }

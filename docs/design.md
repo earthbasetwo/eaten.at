@@ -31,8 +31,9 @@ a class in that file.
    or a border (except a field's error state and the form error's rule).
 4. **Cards on blush.** Things a reader picks between (write-ups,
    publications) are cards: a raised surface, a hairline border, a 12px
-   radius, and one soft shadow. Sections within a page are separated by
-   hairlines and space. Borders do the work; shadows stay faint.
+   radius, and one soft shadow. A card may bleed one image to its edge,
+   and only an image. Sections within a page are separated by hairlines
+   and space. Borders do the work; shadows stay faint.
 5. **Same shape everywhere.** Every page opens the same way: a small
    mono kicker, then the title, then the content. A listing card is a
    small document page. A chooser card is a small listing card.
@@ -200,15 +201,25 @@ Raised surface, 1px border, 12px radius, card padding, the card shadow.
 On hover or focus-within the border darkens to `border-strong`. Nothing
 lifts or moves.
 
-**Listing card** (`.listing-item`). Cards in a column, 16px apart. The
-first photo as a small square thumbnail at the left (`.listing-thumb`,
-`--thumb-small`, 10px radius) when there is one; right, a kicker date,
-the title in the display
-serif at card size, the place name as a mono meta line with the rating
-marks beside it (`.listing-place`; the name is left out when it is the
-title, which it is by default), and the excerpt in the sans at small
-size in `ink-secondary`. It is the document page in miniature and in the
-same order.
+**Listing card** (`.listing-item`). Cards in a column, 16px apart, in
+two variants that share one text block: a kicker date, the title in the
+display serif at card size, the place name as a mono meta line with the
+rating marks beside it (`.listing-place`; the name is left out when it
+is the title, which it is by default), and the excerpt in the sans at
+small size in `ink-secondary`. It is the document page in miniature and
+in the same order.
+
+- *With photos* (`.has-photos`): the first photo leads, bled to the
+  card's edge (`.listing-photo`, the `card` rendition, cropped to 3:2,
+  never upscaled). Under 40rem it spans the top of the card; from 40rem
+  it fills the left 42%, at least 3:2 of its width and as tall as the
+  text. More than one photo puts a small mono chip at the photo's
+  bottom-right corner on a translucent raised ground, "+3 photos"
+  (`.listing-photo-count`). The photo links where the title does and is
+  not a second tab stop; its `alt` is the photo's own, empty when empty.
+- *Without photos* (`.no-photos`): the text block alone with the card
+  padding on every side. Nothing stands in for a photo: a text-only
+  listing reads as a plain journal, which is what it is.
 
 **Chooser card** (`.chooser-item`). Name in the display serif at card
 size, description in `ink-secondary`, the publication's URL in the mono
