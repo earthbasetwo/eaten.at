@@ -473,6 +473,11 @@
   .lookup-row input { flex: 1; min-inline-size: 0; }
   .lookup-row button { flex: none; }
   .landing-note { margin-block-start: var(--space-l); max-inline-size: 34rem; }
+  /* The landing page signed out: the one primary pill with a quiet aside
+     on its baseline, then a hairline before the secondary lookup form. */
+  .landing-actions { margin-block-start: 0; align-items: baseline; }
+  .landing-aside { font-size: var(--text-small); color: var(--color-ink-muted); }
+  .landing-divider { margin-block: var(--section-gap); }
   .account { margin-block-start: var(--space-m); display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: baseline; }
   .inline-form { display: inline; }
   /* A button that reads as a link, for actions that must be a POST. */

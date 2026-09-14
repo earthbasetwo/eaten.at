@@ -5,7 +5,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use eaten_at_atproto::identity::Handle;
-use eaten_at_web::components::lookup_form;
+use eaten_at_web::components::{lookup_form, LookupForm};
 use eaten_at_web::layout::{self, Page};
 use maud::html;
 use serde::Deserialize;
@@ -32,7 +32,11 @@ pub async fn lookup(Query(query): Query<LookupQuery>) -> Response {
                         p.kicker { "Lookup" }
                         h1 { "That doesn't look like a handle" }
                     }
-                    (lookup_form(&query.handle, Some(&err.to_string())))
+                    (lookup_form(&LookupForm {
+                        value: &query.handle,
+                        error: Some(&err.to_string()),
+                        ..LookupForm::default()
+                    }))
                 },
                 ..Page::default()
             });

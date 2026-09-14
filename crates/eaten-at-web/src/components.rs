@@ -203,18 +203,46 @@ pub fn publication_chooser(publications: &[PublicationView]) -> Markup {
     }
 }
 
-/// The handle lookup form on the landing page.
-pub fn lookup_form(value: &str, error: Option<&str>) -> Markup {
+/// The handle lookup form, as the landing page and the lookup error
+/// page show it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LookupForm<'a> {
+    /// The handle as typed, kept on an error.
+    pub value: &'a str,
+    pub error: Option<&'a str>,
+    /// The label over the field.
+    pub label: &'a str,
+    /// The submit button's text.
+    pub button: &'a str,
+    /// Whether the button is the page's primary action. The landing
+    /// page's is not (sign-in is); the lookup error page's is.
+    pub primary: bool,
+}
+
+impl Default for LookupForm<'_> {
+    fn default() -> Self {
+        Self {
+            value: "",
+            error: None,
+            label: "Read someone's write-ups by handle",
+            button: "Go",
+            primary: true,
+        }
+    }
+}
+
+/// The handle lookup form.
+pub fn lookup_form(form: &LookupForm<'_>) -> Markup {
     html! {
         form.lookup action="/lookup" method="get" {
-            label.kicker.lookup-label for="handle" { "Read someone's write-ups by handle" }
+            label.kicker.lookup-label for="handle" { (form.label) }
             div.lookup-row {
                 input #handle name="handle" type="text" inputmode="url" autocomplete="off"
-                    placeholder="alice.bsky.social" value=(value)
-                    aria-describedby=[error.map(|_| "handle-error")] required;
-                button type="submit" { "Go" }
+                    placeholder="alice.bsky.social" value=(form.value)
+                    aria-describedby=[form.error.map(|_| "handle-error")] required;
+                button.button-secondary[!form.primary] type="submit" { (form.button) }
             }
-            @if let Some(error) = error {
+            @if let Some(error) = form.error {
                 p.form-error #handle-error role="alert" { (error) }
             }
         }
