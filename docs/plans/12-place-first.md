@@ -210,8 +210,8 @@ combobox on the choosing state only.
   composed in the route).
 - Remove `static/locate.js`, `LOCATE_SCRIPT`, the `data-locate` hook;
   `security.rs` Permissions-Policy back to `geolocation=()`. Add
-  `static/place-suggest.js` and `PLACE_SUGGEST_SCRIPT` within plan 10's
-  budget.
+  `static/place-suggest.js` and `PLACE_SUGGEST_SCRIPT`, under the
+  tripwire (D43 as amended).
 - `scripts/dev-env.mjs`: `EATEN_AT_DEV_LOCATION` in `.env.dev`; the
   Open Places stub already answers by query. `scripts/visual-check.mjs`:
   `write` expects the combobox input; `write-suggest` types `noo` and

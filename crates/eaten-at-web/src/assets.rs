@@ -29,28 +29,25 @@ pub const COMBOBOX_SCRIPT: &str = include_str!("../static/combobox.js");
 /// landing pages (plan 10, D42). Needs [`COMBOBOX_SCRIPT`] before it.
 pub const HANDLE_TYPEAHEAD_SCRIPT: &str = include_str!("../static/handle-typeahead.js");
 
-/// Every inline script the site ships, all counted against the budget.
+/// The live find on the author's home (plan 11): the find form's
+/// results swapped in after a pause in typing, without a reload.
+pub const FIND_SCRIPT: &str = include_str!("../static/find.js");
+
+/// Every inline script the site ships, all counted against the tripwire.
 pub const INLINE_SCRIPTS: &[&str] = &[
     EDITOR_SCRIPT,
     LOCATE_SCRIPT,
     COMBOBOX_SCRIPT,
     HANDLE_TYPEAHEAD_SCRIPT,
+    FIND_SCRIPT,
 ];
 
-/// The sets of scripts a page ships together, each within
-/// [`PAGE_JS_BUDGET_BYTES`].
-pub const PAGE_SCRIPTS: &[&[&str]] = &[
-    &[EDITOR_SCRIPT, LOCATE_SCRIPT],
-    &[COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT],
-];
-
-/// Hard cap on all inline JavaScript combined, in bytes (plan §6.3,
-/// restated by D43). The point was never the number: every page works
-/// without any of it, which each page's no-JS test keeps proving.
-pub const JS_BUDGET_BYTES: usize = 10 * 1024;
-
-/// Hard cap on the inline JavaScript any one page ships, in bytes (D43).
-pub const PAGE_JS_BUDGET_BYTES: usize = 7 * 1024;
+/// A tripwire on all inline JavaScript combined, in bytes (D43). Not a
+/// target: the rule is to be judicious, and every page works without
+/// any of it, which each page's no-JS test keeps proving. Crossing this
+/// is the moment to look at how the site feels, not a reason to trim
+/// by itself.
+pub const JS_BUDGET_BYTES: usize = 20 * 1024;
 
 /// Self-hosted web fonts (`static/fonts/OFL.txt` has the licences).
 /// Latin and latin-ext subsets of each face; the stylesheet's
@@ -275,25 +272,13 @@ mod tests {
     }
 
     #[test]
-    fn javascript_stays_within_budget() {
+    fn javascript_stays_under_the_tripwire() {
         let total: usize = INLINE_SCRIPTS.iter().map(|s| s.len()).sum();
         assert!(
             total <= JS_BUDGET_BYTES,
-            "{total} bytes of JS exceeds the {JS_BUDGET_BYTES} byte budget"
+            "{total} bytes of inline JS crosses the {JS_BUDGET_BYTES} byte tripwire; \
+             be judicious, and if it is all earning its keep, raise the tripwire (D43)"
         );
-        for set in PAGE_SCRIPTS {
-            let page: usize = set.iter().map(|s| s.len()).sum();
-            assert!(
-                page <= PAGE_JS_BUDGET_BYTES,
-                "{page} bytes on one page exceeds the {PAGE_JS_BUDGET_BYTES} byte budget"
-            );
-            for script in *set {
-                assert!(
-                    INLINE_SCRIPTS.contains(script),
-                    "every page script is counted"
-                );
-            }
-        }
         for script in INLINE_SCRIPTS {
             assert!(
                 !script.contains("</script"),

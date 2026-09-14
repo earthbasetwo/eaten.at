@@ -285,6 +285,11 @@ radius, placeholder in `ink-faint`. The border darkens on hover and takes
 the accent when invalid. The text is never smaller than 16px, so mobile
 browsers do not zoom on focus. Checkboxes and radios take the accent.
 
+**Live find** (`.find`, `.find-results`). On the author's home, the
+results under the find form are swapped in after a pause in typing,
+without a reload; the address bar follows, and the form still submits
+as a form. The results region is `aria-live`.
+
 **Combobox** (`.combobox-list`, `.combobox-option`). A listbox an island
 puts under a text field: a raised panel with the card's border, radius,
 and shadow, one option per row with the name in the sans and a detail

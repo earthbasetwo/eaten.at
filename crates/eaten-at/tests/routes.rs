@@ -435,6 +435,7 @@ async fn the_home_page_finds_write_ups_and_says_what_a_first_publish_makes() {
         body.contains("href=\"/settings\">change that in settings</a>"),
         "{body}"
     );
+    assert!(!body.contains("<script"), "nothing to find yet: {body}");
     assert!(
         !body.contains("listing-item") && !body.contains("class=\"lookup find\""),
         "{body}"

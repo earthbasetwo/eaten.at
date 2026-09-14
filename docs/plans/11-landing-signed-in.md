@@ -135,6 +135,12 @@ As planned, with these notes.
   which is how the front page gathers them too.
 - Matching lives in `search.rs` beside `tags.rs` and reuses its
   normalization; a query under two characters matches nothing.
+- Added after the fact: the find applies itself. A small island fetches
+  the same `GET /?q=…` 500 ms after typing pauses and swaps in the
+  results section (an `aria-live` region), keeping the address bar in
+  step with `replaceState`. It is cheap on the server: after the first
+  load a find filters cached document pages in memory, so the cost per
+  query is rendering one page. The form still submits as a form.
 
 ## Decisions
 

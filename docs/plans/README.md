@@ -101,7 +101,8 @@ its own branch.
   "Write-up" is not it, and the replacement is not chosen; the plans
   use the word they found, and the copy changes in one pass later.
 
-- One JavaScript budget restated (10 KB total, 7 KB per page), with two
+- The JavaScript budget restated as a rule, be judicious, with one
+  20 KB tripwire and no per-page cap (D43 as amended), and two more
   functions that need script: handle suggestions from the Bluesky
   AppView (10) and place suggestions through our server (12). The
   browser geolocation island from plan 06 goes; the point comes from

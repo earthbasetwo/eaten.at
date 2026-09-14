@@ -144,6 +144,13 @@ async function main() {
   await check({ name: 'landing-signed-in', path: '/', expect: '.own-publication .listing-item' })
   await check({ name: 'landing-find', path: '/?q=noodle', expect: '.own-publication .listing-item' })
   await check({ name: 'landing-find-none', path: '/?q=zzz', expect: '.own-publication .empty' })
+  // The live find (plan 11): typing swaps the results in without a reload.
+  await check({
+    name: 'landing-find-live',
+    path: '/',
+    steps: [{ type: { '#q': 'noodle' }, wait: '.find-results a.button-link[href="/"]' }],
+    expect: '.find-results .listing-item',
+  })
   await check({ name: 'settings', path: '/settings', expect: '.chooser-item' })
   // The editor starts by choosing a place (plan 06). Headless Chrome
   // grants no location, so the point is typed into the hidden fields the
