@@ -57,7 +57,6 @@ pub fn photo_views(did: &Did, visit_doc: &VisitDocument) -> Vec<PhotoView> {
 pub fn rating_view(rating: Rating) -> RatingView {
     RatingView {
         word: rating.word().to_owned(),
-        marks: rating.marks().to_owned(),
     }
 }
 
@@ -412,7 +411,6 @@ mod tests {
         assert_eq!(card.address, None);
         assert_eq!(card.price.as_deref(), Some("$$$"));
         assert_eq!(card.meal.as_deref(), Some("Late night"));
-        assert_eq!(card.rating.as_ref().unwrap().marks, "++++");
         assert_eq!(card.rating.as_ref().unwrap().word, "Can’t Miss");
         let foreign_meal: Visit = serde_json::from_value(serde_json::json!({
             "place": {"name": "P"}, "visitedOn": "2026-09-12", "meal": "tea"

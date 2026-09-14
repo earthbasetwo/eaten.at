@@ -8,7 +8,7 @@ use maud::{html, Markup, PreEscaped, DOCTYPE};
 
 use crate::assets::css_path;
 use crate::theme::Theme;
-use crate::{page_title, APP_NAME};
+use crate::{page_title, APP_NAME, TAGLINE};
 
 /// Everything the shell needs to know about a page.
 #[derive(Debug, Clone, Default)]
@@ -19,8 +19,9 @@ pub struct Page<'a> {
     pub main: Markup,
     /// Extra `<head>` markup (meta tags, canonical links).
     pub head: Markup,
-    /// The name in the masthead. Defaults to the app, linking home; a
-    /// publication's pages put the publication there instead.
+    /// The name in the masthead. Defaults to the app's logotype over its
+    /// tagline, linking home; a publication's pages put the publication's
+    /// name there instead, as a running head.
     pub masthead: Option<Masthead<'a>>,
     /// Optional content for the site header's secondary slot.
     pub header_aside: Markup,
@@ -61,10 +62,6 @@ pub fn render(page: &Page<'_>) -> Markup {
         Width::Measure => "center",
         Width::Wide => "center-wide",
     };
-    let masthead = page.masthead.unwrap_or(Masthead {
-        name: APP_NAME,
-        href: "/",
-    });
     html! {
         (DOCTYPE)
         html lang="en" data-theme=[page.theme.as_ref().map(|_| "publication")] {
@@ -81,7 +78,13 @@ pub fn render(page: &Page<'_>) -> Markup {
             body {
                 a.skip-link href="#main" { "Skip to content" }
                 header.site-header {
-                    a.site-name href=(masthead.href) { (masthead.name) }
+                    @match page.masthead {
+                        Some(masthead) => a.site-name.running-head href=(masthead.href) { (masthead.name) },
+                        None => {
+                            a.site-name.logotype href="/" { (APP_NAME) }
+                            p.tagline { (TAGLINE) }
+                        }
+                    }
                     (page.header_aside)
                 }
                 main #main { div class=(column) { (page.main) } }
@@ -151,7 +154,9 @@ mod tests {
         }
         assert!(out.contains(&format!("href=\"{}\"", css_path())), "{out}");
         assert!(
-            out.contains("<a class=\"site-name\" href=\"/\">eaten.at</a>"),
+            out.contains(
+                "<a class=\"site-name logotype\" href=\"/\">eaten.at</a><p class=\"tagline\">The federated table</p>"
+            ),
             "{out}"
         );
         assert!(!out.contains("data-theme"), "{out}");
@@ -172,11 +177,14 @@ mod tests {
         .into_string();
         assert!(
             out.contains(
-                "<a class=\"site-name\" href=\"/at/did:plc:x/pub1/\">Heavy &lt;Rotation&gt;</a>"
+                "<a class=\"site-name running-head\" href=\"/at/did:plc:x/pub1/\">Heavy &lt;Rotation&gt;</a>"
             ),
             "{out}"
         );
-        // The app is still named once, in the footer.
+        // The logotype and its tagline give way to the running head; the
+        // app is still named once, in the footer.
+        assert!(!out.contains("logotype"), "{out}");
+        assert!(!out.contains("tagline"), "{out}");
         assert_eq!(out.matches("eaten.at").count(), 2, "{out}");
     }
 

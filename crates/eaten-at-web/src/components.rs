@@ -15,10 +15,9 @@ pub struct Link {
 /// The author's verdict on the house scale, ready to show.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RatingView {
-    /// The verdict in words, e.g. "Recommended".
+    /// The verdict in words, e.g. "Recommended". The stylesheet sets it
+    /// in capitals; the text stays as written so it reads naturally.
     pub word: String,
-    /// The verdict as plus signs, one per step.
-    pub marks: String,
 }
 
 /// Everything known about the visit a write-up describes.
@@ -38,8 +37,8 @@ pub struct VisitCard {
     pub links: Vec<Link>,
 }
 
-/// The visit card shown above a write-up: the place's name, a metadata
-/// line of date, meal, and price, the address, and the rating.
+/// The visit shown above a write-up: the place's name, a metadata line
+/// of date, meal, and price, the address, and the rating.
 pub fn visit_card(card: &VisitCard) -> Markup {
     html! {
         aside.visit-card aria-label="Visit" {
@@ -56,22 +55,18 @@ pub fn visit_card(card: &VisitCard) -> Markup {
                     p.place-address { (address) }
                 }
                 @if let Some(rating) = &card.rating {
-                    (rating_marks(rating))
+                    (rating_line(rating))
                 }
             }
         }
     }
 }
 
-/// The rating as plus signs with the word beside them. Assistive
-/// technology reads the word; the glyphs are decoration.
-pub fn rating_marks(rating: &RatingView) -> Markup {
+/// The rating as its word alone. No marks, stars, or numbers: the
+/// stylesheet sets the word in tracked mono capitals, in the accent.
+pub fn rating_line(rating: &RatingView) -> Markup {
     html! {
-        p.rating {
-            span.rating-marks aria-hidden="true" { (rating.marks) }
-            " "
-            span.rating-word { (rating.word) }
-        }
+        p.rating { (rating.word) }
     }
 }
 
@@ -158,8 +153,10 @@ pub struct ListingItem {
     pub photo: Option<ListingPhoto>,
 }
 
-/// A list of write-ups: cards, each led by its first photo when it has
-/// one and a text card when it has none (plan 13).
+/// A list of write-ups: rows, the title left and the verdict right, then
+/// the date and the place, then the excerpt. A row is led by its first
+/// photo when the visit has one and is text alone when it has none
+/// (plan 13).
 pub fn listing(items: &[ListingItem]) -> Markup {
     html! {
         ol.listing {
@@ -179,19 +176,16 @@ pub fn listing(items: &[ListingItem]) -> Markup {
                             }
                         }
                         div.listing-body {
-                            p.kicker { time datetime=(item.published) { (human_date(&item.published)) } }
-                            h2.listing-title { a href=(item.href) { (item.title) } }
-                            @if item.place_name.is_some() || item.rating.is_some() {
-                                p.listing-place {
-                                    @if let Some(name) = &item.place_name {
-                                        span.listing-place-name { (name) }
-                                    }
-                                    @if let Some(rating) = &item.rating {
-                                        @if item.place_name.is_some() { " " }
-                                        span.rating aria-label=(format!("Rated {}", rating.word)) {
-                                            span.rating-marks aria-hidden="true" { (rating.marks) }
-                                        }
-                                    }
+                            div.listing-head {
+                                h2.listing-title { a href=(item.href) { (item.title) } }
+                                @if let Some(rating) = &item.rating {
+                                    p.rating { (rating.word) }
+                                }
+                            }
+                            p.listing-meta {
+                                time datetime=(item.published) { (human_date(&item.published)) }
+                                @if let Some(name) = &item.place_name {
+                                    span.listing-place-name { (name) }
                                 }
                             }
                             @if !item.excerpt.is_empty() { p.listing-excerpt { (item.excerpt) } }
@@ -409,7 +403,6 @@ mod tests {
             meal: Some("Dinner".into()),
             rating: Some(RatingView {
                 word: "Recommended".into(),
-                marks: "++".into(),
             }),
             links: vec![link("Elsewhere", "https://example.com/x")],
         })
@@ -426,10 +419,7 @@ mod tests {
             out.contains("<p class=\"place-address\">1 Example St</p>"),
             "{out}"
         );
-        assert!(
-            out.contains("<p class=\"rating\"><span class=\"rating-marks\" aria-hidden=\"true\">++</span> <span class=\"rating-word\">Recommended</span></p>"),
-            "{out}"
-        );
+        assert!(out.contains("<p class=\"rating\">Recommended</p>"), "{out}");
         // Links are the footer's business, not the card's.
         assert!(!out.contains("example.com"), "{out}");
         let bare = visit_card(&VisitCard {
@@ -451,7 +441,6 @@ mod tests {
             place_name: Some("Sample Place".into()),
             rating: Some(RatingView {
                 word: "Can’t Miss".into(),
-                marks: "++++".into(),
             }),
             published: "2026-09-07T12:00:00.000Z".into(),
             excerpt: String::new(),
@@ -472,20 +461,21 @@ mod tests {
             ),
             "{out}"
         );
+        // The verdict sits beside the title; the date and the place make
+        // the metadata line.
         assert!(
-            out.contains("<p class=\"listing-place\"><span class=\"listing-place-name\">Sample Place</span> <span class=\"rating\" aria-label=\"Rated Can’t Miss\"><span class=\"rating-marks\" aria-hidden=\"true\">++++</span></span></p>"),
+            out.contains("<div class=\"listing-head\"><h2 class=\"listing-title\"><a href=\"/d\">A night out</a></h2><p class=\"rating\">Can’t Miss</p></div><p class=\"listing-meta\"><time datetime=\"2026-09-07T12:00:00.000Z\">September 7, 2026</time><span class=\"listing-place-name\">Sample Place</span></p>"),
             "{out}"
         );
         assert!(!out.contains("listing-excerpt"), "{out}");
-        // The title is the place's name: only the rating is left on the
-        // place line, and without one the line goes.
+        // The title is the place's name: the metadata line is the date
+        // alone, and without a rating the head is the title alone.
         let item = ListingItem {
             href: "/d".into(),
             title: "Sample Place".into(),
             place_name: None,
             rating: Some(RatingView {
                 word: "Solid".into(),
-                marks: "+".into(),
             }),
             published: "2026-09-07T12:00:00.000Z".into(),
             excerpt: String::new(),
@@ -523,9 +513,7 @@ mod tests {
         assert!(!alone.contains("listing-photo-count"), "{alone}");
         assert!(alone.contains("alt=\"\""), "{alone}");
         assert!(
-            out.contains(
-                "<p class=\"listing-place\"><span class=\"rating\" aria-label=\"Rated Solid\">"
-            ),
+            out.contains("</h2><p class=\"rating\">Solid</p></div><p class=\"listing-meta\"><time datetime=\"2026-09-07T12:00:00.000Z\">September 7, 2026</time></p>"),
             "{out}"
         );
         assert!(!out.contains("listing-place-name"), "{out}");
@@ -534,7 +522,11 @@ mod tests {
             ..item
         }])
         .into_string();
-        assert!(!out.contains("listing-place"), "{out}");
+        assert!(!out.contains("rating"), "{out}");
+        assert!(
+            out.contains("</h2></div><p class=\"listing-meta\">"),
+            "{out}"
+        );
     }
 
     #[test]
