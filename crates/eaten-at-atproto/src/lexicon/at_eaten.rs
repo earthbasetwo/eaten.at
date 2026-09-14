@@ -353,16 +353,6 @@ impl Rating {
             Self::CantMiss => "Can’t Miss",
         }
     }
-
-    /// The verdict as plus signs, one per step.
-    pub fn marks(self) -> &'static str {
-        match self {
-            Self::Solid => "+",
-            Self::Recommended => "++",
-            Self::StronglyRecommended => "+++",
-            Self::CantMiss => "++++",
-        }
-    }
 }
 
 impl TryFrom<u8> for Rating {
@@ -672,7 +662,6 @@ mod tests {
     fn rating_is_an_integer_between_one_and_four() {
         for r in Rating::ALL {
             assert_eq!(Rating::from_value(r.value()), Some(r));
-            assert_eq!(r.marks().len(), usize::from(r.value()));
         }
         assert_eq!(serde_json::to_value(Rating::CantMiss).unwrap(), 4);
         assert_eq!(

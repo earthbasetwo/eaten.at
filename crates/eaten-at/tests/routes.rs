@@ -763,7 +763,7 @@ async fn document_page_renders_card_body_tags_and_canonical() {
         "{body}"
     );
     assert!(
-        body.contains("<span class=\"rating-marks\" aria-hidden=\"true\">++</span> <span class=\"rating-word\">Recommended</span>"),
+        body.contains("<p class=\"rating\">Recommended</p>"),
         "{body}"
     );
     assert!(body.contains("<h2>Heading</h2>"), "{body}");
@@ -2055,7 +2055,7 @@ async fn editor_reports_problems_beside_fields_and_previews_a_good_draft() {
     );
     assert!(body.contains("class=\"place-name\">Promises<"), "{body}");
     assert!(
-        body.contains("<span class=\"rating-marks\" aria-hidden=\"true\">+++</span> <span class=\"rating-word\">Strongly Recommended</span>"),
+        body.contains("<p class=\"rating\">Strongly Recommended</p>"),
         "{body}"
     );
     assert!(body.contains(">Official site</a>"), "{body}");

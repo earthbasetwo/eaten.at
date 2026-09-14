@@ -62,6 +62,7 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | D43 | JavaScript budget | Settled 2026-09-13 (plan 10), amended the same day: be judicious with script. No per-page cap; a single 20 KB tripwire on all inline script fails the build, and crossing it is the moment to judge how the site feels, not a reason to trim by itself. Every page still works with none of it, which is the rule the number stands for. |
 | D44 | Location by IP | Settled 2026-09-13 (plan 12): the editor's place search looks near where the request's IP is, read from a local database in the MaxMind DB format with the GeoIP2 City layout (DB-IP's IP-to-City Lite, CC BY 4.0, configured by path only), falling back to the author's most recent visit with coordinates, and failing that to manual entry alone. No browser geolocation, no prompt, no third party told the address. The first `X-Forwarded-For` hop is trusted as the proxy's word. Supersedes D35. |
 | D45 | Place suggestions | Settled 2026-09-13 (plan 12): the choosing page suggests places as the author types, through this site's own `/write/suggest`, which runs the same cached Open Places search a pick re-reads. Three characters, 300 ms, six suggestions, thirty requests a minute per author. A place can always be entered by hand: a name, and an address if wanted, on the same page. |
+| D46 | Rating rendering | Settled 2026-09-14 (Masthead): the verdict is shown as its word alone, in tracked mono capitals in the accent (SOLID, RECOMMENDED, STRONGLY RECOMMENDED, CAN'T MISS). The plus signs of D4's rendering go; D4's scale and storage stand. The handoff's own five words (POOR to SUPERB) were a specimen, not a scale change. |
 
 ## Stack choices
 
@@ -83,7 +84,15 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | 2026-09-12 | Dark mode | None. Campari is a light palette and the site stays light whatever the system preference. |
 | 2026-09-12 | Listings | Cards (raised surface, border, 12px radius), not hairlined rows. |
 | 2026-09-12 | Prose size | Long-form prose is DM Sans at 17→18px; the rest of the interface uses Campari's exact 14–15px body scale. |
-| 2026-09-12 | Fonts | Instrument Serif, DM Sans, and JetBrains Mono are self-hosted woff2 subsets, not loaded from Google Fonts, so the CSP keeps every request same-origin. |
+| 2026-09-12 | Fonts | Superseded 2026-09-14. Was: Instrument Serif, DM Sans, and JetBrains Mono are self-hosted woff2 subsets, not loaded from Google Fonts, so the CSP keeps every request same-origin. |
+| 2026-09-14 | Visual design | The Masthead design system (`docs/design-handoff/masthead/`) replaces Campari: ivory paper, near-black ink, one vermilion accent; Newsreader and JetBrains Mono, with the Evantic logotype. `docs/design.md` has the rules. |
+| 2026-09-14 | Publication themes under Masthead | Kept. Masthead is the default palette; an author's four colors replace paper, ink, and vermilion, and the other tokens are derived from them (`theme.rs` for the bright surface, `color-mix` for the ink shades, stone, and the hairline). The sunken surface is gone: Masthead has two grounds. |
+| 2026-09-14 | Dark mode | None. Masthead is a light palette and the site stays light whatever the system preference. |
+| 2026-09-14 | Listings | Rows under rules (an ink rule above the list, hairlines between rows), not cards. The visit's fact box on a document page is the one boxed surface. |
+| 2026-09-14 | Vermilion contrast | The handoff's vermilion (`#D8401F`) is applied exactly although it reads 3.99:1 on paper and 4.34:1 on paper-bright, under AA for normal text; the handoff calls its colours final. Every use is short tracked capitals, a link that underlines on hover, or a prose link underlined at rest. `docs/design.md` records the numbers; darkening it is a one-token change. |
+| 2026-09-14 | Prose size | The write-up's text is Newsreader at 16px, the top of the handoff's 14–16 range, at a 640px measure; the departure to 17–18px made under Campari is dropped. |
+| 2026-09-14 | Fonts | Newsreader and JetBrains Mono are self-hosted woff2 subsets, not loaded from Google Fonts, so the CSP keeps every request same-origin. Evantic Italic, the logotype face bundled with the handoff under a personal-use licence, is converted to woff2 and served the same way; it is used for the logotype only. |
+| 2026-09-14 | Masthead on publication pages | The logotype and tagline are the site's; a publication's inner pages carry the publication's name as a running head in the serif instead, because Evantic is for `eaten.at` alone. |
 
 ## Left over from the fork
 

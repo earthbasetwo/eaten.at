@@ -4,69 +4,47 @@
 
 /* ---------- fonts ----------
    Self-hosted so no page makes a third-party request. Paths are rewritten
-   to their content-hashed form when the stylesheet is built (assets.rs). */
+   to their content-hashed form when the stylesheet is built (assets.rs).
+   Evantic Italic is the logotype and nothing else; its one file is drawn
+   italic, so it is declared as the family's normal face and never asked
+   for in italic. */
 @font-face {
-  font-family: "Instrument Serif";
+  font-family: "Evantic";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("/static/instrument-serif-latin.woff2") format("woff2");
+  src: url("/static/evantic-italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/static/newsreader-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "Instrument Serif";
+  font-family: "Newsreader";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 200 800;
   font-display: swap;
-  src: url("/static/instrument-serif-latin-ext.woff2") format("woff2");
+  src: url("/static/newsreader-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
-  font-family: "Instrument Serif";
+  font-family: "Newsreader";
   font-style: italic;
-  font-weight: 400;
+  font-weight: 200 800;
   font-display: swap;
-  src: url("/static/instrument-serif-italic-latin.woff2") format("woff2");
+  src: url("/static/newsreader-italic-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: "Instrument Serif";
+  font-family: "Newsreader";
   font-style: italic;
-  font-weight: 400;
+  font-weight: 200 800;
   font-display: swap;
-  src: url("/static/instrument-serif-italic-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-@font-face {
-  font-family: "DM Sans";
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url("/static/dm-sans-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "DM Sans";
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url("/static/dm-sans-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-@font-face {
-  font-family: "DM Sans";
-  font-style: italic;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url("/static/dm-sans-italic-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "DM Sans";
-  font-style: italic;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url("/static/dm-sans-italic-latin-ext.woff2") format("woff2");
+  src: url("/static/newsreader-italic-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
@@ -107,58 +85,57 @@
 }
 
 /* ---------- tokens ----------
-   Campari: apricot-blush ground, oxblood ink, Campari red for actions.
-   Instrument Serif for display, DM Sans for everything read or pressed,
-   JetBrains Mono for metadata. Light only. Sizes are fluid between a
-   390px and a 1080px viewport. */
+   Masthead: ivory paper, near-black ink, one vermilion accent. Evantic
+   for the logotype alone, Newsreader for everything read (titles at 500,
+   text at 400), JetBrains Mono for everything about the content and
+   everything pressed. Square corners, no shadows, hierarchy by type and
+   rules. Light only. Sizes are fluid between a 390px and a 1080px
+   viewport. */
 @layer tokens {
   :root {
     color-scheme: light;
 
-    /* The four channels a publication theme may replace, plus the two
-       surfaces theme.rs derives from them. Space-separated RGB so alpha
-       can be applied. The defaults are Campari's bg, ink, accent,
-       accent-contrast, bg-raised, and bg-sunken. */
-    --theme-bg: 247 231 220;
-    --theme-fg: 64 32 28;
-    --theme-accent: 196 30 47;
-    --theme-accent-fg: 252 243 235;
-    --theme-raised: 252 243 235;
-    --theme-sunken: 241 220 204;
+    /* The four channels a publication theme may replace, plus the one
+       surface theme.rs derives from them. Space-separated RGB so alpha
+       can be applied. The defaults are Masthead's paper, ink, vermilion,
+       paper-bright (as the text on vermilion), and paper-bright. */
+    --theme-bg: 246 241 229;
+    --theme-fg: 28 25 20;
+    --theme-accent: 216 64 31;
+    --theme-accent-fg: 253 251 244;
+    --theme-raised: 253 251 244;
 
-    /* Campari's palette, exact. */
-    --color-bg: #f7e7dc;
-    --color-raised: #fcf3eb;
-    --color-sunken: #f1dccc;
-    --color-ink: #40201c;
-    --color-ink-secondary: #5e3c31;
-    --color-ink-muted: #7e574a;
-    --color-ink-faint: #a87f6c;
-    --color-border: #e5c9b8;
-    --color-border-strong: #d9b49c;
-    --color-accent: #c41e2f;
-    --color-accent-fg: #fcf3eb;
-    --color-accent-soft: #e8804f;
-    --color-accent-hover: color-mix(in oklab, var(--color-accent) 92%, black);
-    --shadow-card: 0 2px 8px rgb(var(--theme-fg) / 0.06);
+    /* Masthead's palette, exact. */
+    --color-paper: #f6f1e5;
+    --color-paper-bright: #fdfbf4;
+    --color-ink: #1c1914;
+    --color-ink-body: #332e24;
+    --color-ink-soft: #4a4336;
+    --color-stone: #988d75;
+    --color-hairline: #ddd5c2;
+    --color-vermilion: #d8401f;
+    /* Text on a vermilion fill, and on an ink fill. */
+    --color-vermilion-fg: #fdfbf4;
+    --color-ink-fg: var(--color-paper-bright);
 
-    --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
-    --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-logotype: "Evantic", Georgia, "Times New Roman", serif;
+    --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
     /* Type: 390px → 1080px viewport. */
-    --text-mono:      clamp(0.625rem,  0.59rem + 0.145vw,  0.6875rem); /* 10 → 11 */
-    --text-label:     clamp(0.6875rem, 0.652rem + 0.145vw, 0.75rem);   /* 11 → 12 */
-    --text-button:    clamp(0.75rem,   0.715rem + 0.145vw, 0.8125rem); /* 12 → 13 */
-    --text-small:     clamp(0.8125rem, 0.777rem + 0.145vw, 0.875rem);  /* 13 → 14 */
+    --text-mono:      clamp(0.625rem,  0.59rem + 0.145vw,  0.6875rem); /* 10 → 11, metadata */
+    --text-label:     clamp(0.625rem,  0.59rem + 0.145vw,  0.6875rem); /* 10 → 11, tracked capitals */
+    --text-button:    clamp(0.6875rem, 0.652rem + 0.145vw, 0.75rem);   /* 11 → 12 */
+    --text-small:     0.875rem;                                         /* 14, interface text */
     --text-body:      clamp(0.875rem,  0.84rem + 0.145vw,  0.9375rem); /* 14 → 15 */
-    --text-lede:      0.9375rem;                                        /* 15 */
-    --text-prose:     clamp(1.0625rem, 1.027rem + 0.145vw, 1.125rem);  /* 17 → 18 */
-    --text-card:      clamp(1.25rem,   1.179rem + 0.29vw,  1.375rem);  /* 20 → 22 */
-    --text-masthead:  clamp(1.25rem,   1.179rem + 0.29vw,  1.375rem);  /* 20 → 22 */
-    --text-heading:   clamp(1.375rem,  1.163rem + 0.87vw,  1.75rem);   /* 22 → 28, prose h2 */
-    --text-title:     clamp(2.125rem,  1.772rem + 1.449vw, 2.75rem);   /* 34 → 44 */
-    --text-nameplate: clamp(2.75rem,   2.326rem + 1.739vw, 3.5rem);    /* 44 → 56 */
+    --text-lede:      1rem;                                             /* 16 */
+    --text-prose:     1rem;                                             /* 16, a write-up's text */
+    --text-card:      clamp(1.25rem,   1.179rem + 0.29vw,  1.375rem);  /* 20 → 22, row titles and names */
+    --text-heading:   clamp(1.375rem,  1.304rem + 0.29vw,  1.5rem);    /* 22 → 24, h2 in prose */
+    --text-masthead:  clamp(1.375rem,  1.234rem + 0.58vw,  1.625rem);  /* 22 → 26, the running head */
+    --text-title:     clamp(1.75rem,   1.538rem + 0.87vw,  2.125rem);  /* 28 → 34, the page title */
+    --text-nameplate: clamp(2rem,      1.717rem + 1.159vw, 2.5rem);    /* 32 → 40, a publication's name */
+    --text-logotype:  clamp(2.5rem,    2.076rem + 1.739vw, 3.25rem);   /* 40 → 52 */
 
     /* Space, on an 8px grid. */
     --space-xs: 0.25rem;  /*  4 */
@@ -167,130 +144,130 @@
     --space-m: 1rem;      /* 16 */
     --space-l: 1.5rem;    /* 24 */
     --space-xl: 2.5rem;   /* 40 */
-    --page-inline:      clamp(1.25rem,  1.109rem + 0.58vw,  1.5rem);   /* 20 → 24 */
+    --page-inline:      clamp(1.25rem,  0.826rem + 1.739vw, 2rem);     /* 20 → 32 */
     --page-top:         clamp(2rem,     1.435rem + 2.319vw, 3rem);     /* 32 → 48 */
     --page-bottom:      clamp(2.5rem,   1.935rem + 2.319vw, 3.5rem);   /* 40 → 56 */
-    --masthead-block:   clamp(1rem,     0.859rem + 0.58vw,  1.25rem);  /* 16 → 20 */
-    --masthead-inline:  clamp(1.25rem,  5.22vw,             3.5rem);   /* 20 → 56 */
+    --masthead-top:     clamp(1.5rem,   1.076rem + 1.739vw, 2.25rem);  /* 24 → 36 */
+    --masthead-bottom:  clamp(1rem,     0.859rem + 0.58vw,  1.25rem);  /* 16 → 20 */
     --title-gap:        clamp(1.5rem,   1.217rem + 1.159vw, 2rem);     /* 24 → 32 */
-    --card-pad:         clamp(1rem,     0.859rem + 0.58vw,  1.25rem);  /* 16 → 20 */
+    --card-pad:         clamp(1rem,     0.717rem + 1.159vw, 1.5rem);   /* 16 → 24 */
+    --row-pad:          clamp(1rem,     0.859rem + 0.58vw,  1.25rem);  /* 16 → 20, above and below a row */
     --card-gap:         clamp(0.75rem,  0.609rem + 0.58vw,  1rem);     /* 12 → 16 */
+    --action-gap:       1.125rem;                                      /* 18, between text actions */
     --thumb-small:      clamp(4.5rem,   3.652rem + 3.478vw, 6rem);     /* 72 → 96 */
     --footer-gap:       clamp(2rem,     1.717rem + 1.159vw, 2.5rem);   /* 32 → 40 */
     --footer-pad:       clamp(1rem,     0.717rem + 1.159vw, 1.5rem);   /* 16 → 24 */
-    --section-gap:      var(--space-xl);                               /* 40 */
+    --section-gap:      clamp(2.5rem,   1.935rem + 2.319vw, 3.5rem);   /* 40 → 56 */
 
     --column: 45rem;      /* 720px main column */
     --column-wide: 60rem;
-    --measure: 66ch;
+    --measure: 40rem;     /* 640px reading measure */
 
-    /* Shape. */
-    --radius: 12px;        /* cards, inputs */
-    --radius-nested: 10px; /* cards and images inside cards */
-    --radius-s: 6px;       /* small chips, code */
-    --radius-pill: 999px;  /* buttons, badges, tags */
-    --focus-ring: 2px solid var(--color-accent);
-    --ease: 180ms ease-out;
+    /* Shape: square. Rules do the separating. */
+    --rule-ink: 1px solid var(--color-ink);
+    --rule-hairline: 1px solid var(--color-hairline);
+    --rule-double: 3px double var(--color-ink);
+    --focus-ring: 2px solid var(--color-vermilion);
+    --ease: 160ms ease-out;
     --touch-target: 44px;
+    --tracking-label: 0.16em;
+    --tracking-button: 0.1em;
+    --tracking-rating: 0.14em;
+    --tracking-tagline: 0.22em;
   }
 
-  /* A publication theme sets the six channels on :root[data-theme] in an
-     inline style block. Every named color is then re-derived from them:
-     the grounds and the ink straight from the channels, the ink shades
-     and borders as mixes of ink into ground, so a dark author palette
-     gets light shades and a light one dark shades. */
+  /* A publication theme sets the five channels on :root[data-theme] in
+     an inline style block. Every named color is then re-derived from
+     them: the grounds and the ink straight from the channels, the ink
+     shades, stone, and the hairline as mixes of ink into paper, so a
+     dark author palette gets light shades and a light one dark shades. */
   :root[data-theme] {
-    --color-bg: rgb(var(--theme-bg));
-    --color-raised: rgb(var(--theme-raised));
-    --color-sunken: rgb(var(--theme-sunken));
+    --color-paper: rgb(var(--theme-bg));
+    --color-paper-bright: rgb(var(--theme-raised));
     --color-ink: rgb(var(--theme-fg));
-    --color-ink-secondary: color-mix(in oklab, var(--color-ink) 88%, var(--color-bg));
-    --color-ink-muted: color-mix(in oklab, var(--color-ink) 76%, var(--color-bg));
-    --color-ink-faint: color-mix(in oklab, var(--color-ink) 58%, var(--color-bg));
-    --color-border: color-mix(in oklab, var(--color-ink) 16%, var(--color-bg));
-    --color-border-strong: color-mix(in oklab, var(--color-ink) 28%, var(--color-bg));
-    --color-accent: rgb(var(--theme-accent));
-    --color-accent-fg: rgb(var(--theme-accent-fg));
-    --color-accent-soft: color-mix(in oklab, var(--color-accent) 60%, var(--color-bg));
+    --color-ink-body: color-mix(in oklab, var(--color-ink) 90%, var(--color-paper));
+    --color-ink-soft: color-mix(in oklab, var(--color-ink) 80%, var(--color-paper));
+    --color-stone: color-mix(in oklab, var(--color-ink) 46%, var(--color-paper));
+    --color-hairline: color-mix(in oklab, var(--color-ink) 14%, var(--color-paper));
+    --color-vermilion: rgb(var(--theme-accent));
+    --color-vermilion-fg: rgb(var(--theme-accent-fg));
   }
 }
 
 /* ---------- base ---------- */
 @layer base {
   body {
-    font-family: var(--font-body);
+    font-family: var(--font-serif);
     font-size: var(--text-body);
     line-height: 1.55;
     color: var(--color-ink);
-    background: var(--color-bg);
+    background: var(--color-paper);
   }
-  /* Display voice: one weight, hierarchy by size alone. */
+  /* Titles: the serif at 500, tight. Hierarchy comes from size. */
   h1, h2, h3, h4 {
-    font-family: var(--font-display); font-weight: 400;
-    line-height: 1.1; color: var(--color-ink); text-wrap: pretty;
+    font-family: var(--font-serif); font-weight: 500;
+    line-height: 1.15; color: var(--color-ink); text-wrap: pretty;
   }
-  h1 { font-size: var(--text-title); line-height: 1.05; }
+  h1 { font-size: var(--text-title); line-height: 1.1; }
   h2 { font-size: var(--text-heading); }
   h3 { font-size: var(--text-card); }
   h4 { font-size: var(--text-prose); }
   a {
-    color: var(--color-accent); text-decoration: none;
+    color: var(--color-vermilion); text-decoration: none;
     text-decoration-thickness: from-font; text-underline-offset: 0.15em;
     transition: color var(--ease), background-color var(--ease), border-color var(--ease);
   }
-  a:hover { color: var(--color-accent-hover); text-decoration: underline; }
+  a:hover { text-decoration: underline; }
   :focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
   code, pre { font-family: var(--font-mono); font-size: 0.85em; }
   pre {
     overflow-x: auto; padding: var(--space-m);
-    background: var(--color-sunken); color: var(--color-ink); border-radius: var(--radius-nested);
+    background: var(--color-paper-bright); color: var(--color-ink); border: var(--rule-hairline);
   }
-  blockquote { border-inline-start: 3px solid var(--color-border); padding-inline-start: var(--space-m); color: var(--color-ink-muted); }
-  hr { border: 0; border-top: 1px solid var(--color-border); }
+  blockquote { border-inline-start: var(--rule-ink); padding-inline-start: var(--space-m); color: var(--color-ink-soft); }
+  hr { border: 0; border-top: var(--rule-hairline); }
   time { font-variant-numeric: tabular-nums; }
   small { font-size: var(--text-small); }
 
-  /* Buttons. Primary: a filled pill in the accent. Secondary: a pill
-     outlined in the border color. */
+  /* Buttons: rectangles in the mono voice, capitals tracked. The primary
+     is the page's one action, filled with vermilion; a secondary is
+     outlined in ink. Hovering inverts fill and outline. */
   button, .button, .button-secondary {
     display: inline-flex; align-items: center; justify-content: center; gap: var(--space-s);
-    font-family: var(--font-body); font-size: var(--text-button); font-weight: 700;
-    line-height: 1.2; letter-spacing: 0; text-decoration: none;
-    background: var(--color-accent); color: var(--color-accent-fg);
-    border: 1px solid transparent; border-radius: var(--radius-pill);
-    padding: 0.625rem 1.375rem;
+    font-family: var(--font-mono); font-size: var(--text-button); font-weight: 400;
+    line-height: 1.2; letter-spacing: var(--tracking-button); text-transform: uppercase; text-decoration: none;
+    background: var(--color-vermilion); color: var(--color-vermilion-fg);
+    border: 1px solid var(--color-vermilion); border-radius: 0;
+    padding: 0.6875rem 1.375rem;
     cursor: pointer;
     transition: color var(--ease), background-color var(--ease), border-color var(--ease);
   }
-  button:hover, .button:hover { background: var(--color-accent-hover); color: var(--color-accent-fg); text-decoration: none; }
-  .button-secondary {
-    background: transparent; color: var(--color-ink-muted);
-    border-color: var(--color-border); font-weight: 500;
-  }
-  .button-secondary:hover { background: var(--color-sunken); color: var(--color-ink); text-decoration: none; }
+  button:hover, .button:hover { background: transparent; color: var(--color-vermilion); text-decoration: none; }
+  .button-secondary { background: transparent; color: var(--color-ink); border-color: var(--color-ink); }
+  .button-secondary:hover { background: var(--color-ink); color: var(--color-ink-fg); text-decoration: none; }
 
-  /* Fields: a raised well with a hairline border. The size never drops
-     below 16px, so mobile browsers do not zoom in on focus. */
+  /* Fields: a bright well with a hairline. The size never drops below
+     16px, so mobile browsers do not zoom in on focus. */
   input[type="text"], input[type="url"], input[type="search"], textarea, select {
     inline-size: 100%;
-    font-family: var(--font-body); font-size: max(1rem, var(--text-body));
-    background: var(--color-raised); color: var(--color-ink);
-    border: 1px solid var(--color-border); border-radius: var(--radius);
-    padding: 0.6em 0.9em;
+    font-family: var(--font-serif); font-size: max(1rem, var(--text-body));
+    background: var(--color-paper-bright); color: var(--color-ink);
+    border: var(--rule-hairline); border-radius: 0;
+    padding: 0.55em 0.8em;
     transition: border-color var(--ease);
   }
   input[type="text"]:hover, input[type="url"]:hover, input[type="search"]:hover, textarea:hover, select:hover {
-    border-color: var(--color-border-strong);
+    border-color: var(--color-stone);
   }
-  input::placeholder, textarea::placeholder { color: var(--color-ink-faint); opacity: 1; }
-  input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent); }
+  input::placeholder, textarea::placeholder { color: var(--color-stone); opacity: 1; }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--color-vermilion); }
 
-  /* Metadata voice: mono, small, faint. A kicker is the same voice in
-     tracked capitals, sitting above a title. */
-  .meta, .kicker { font-family: var(--font-mono); font-size: var(--text-mono); font-weight: 400; line-height: 1.5; color: var(--color-ink-faint); letter-spacing: 0.02em; }
-  .kicker { font-size: var(--text-label); text-transform: uppercase; letter-spacing: 0.08em; }
+  /* The metadata voice: mono, small, stone. A kicker is the same voice
+     in tracked capitals, sitting above a title or naming a section. */
+  .meta, .kicker { font-family: var(--font-mono); font-size: var(--text-mono); font-weight: 400; line-height: 1.5; color: var(--color-stone); letter-spacing: 0.04em; }
+  .kicker { font-size: var(--text-label); text-transform: uppercase; letter-spacing: var(--tracking-label); }
   .meta a, .kicker a { color: inherit; }
-  .meta a:hover, .kicker a:hover { color: var(--color-accent); }
+  .meta a:hover, .kicker a:hover { color: var(--color-vermilion); }
 
   @media (max-width: 40rem) {
     button, .button, .button-secondary { min-block-size: var(--touch-target); }
@@ -316,34 +293,40 @@
 @layer components {
   .skip-link {
     position: absolute; inset-inline-start: var(--space-m); top: -100%;
-    background: var(--color-accent); color: var(--color-accent-fg);
-    font-weight: 700; font-size: var(--text-button);
-    padding: var(--space-s) var(--space-m); border-radius: var(--radius-pill);
+    background: var(--color-ink); color: var(--color-ink-fg);
+    font-family: var(--font-mono); font-size: var(--text-button); letter-spacing: var(--tracking-button); text-transform: uppercase;
+    padding: var(--space-s) var(--space-m);
     z-index: 10;
   }
   .skip-link:focus { top: var(--space-s); }
-  .skip-link:hover { color: var(--color-accent-fg); }
+  .skip-link:hover { color: var(--color-ink-fg); }
 
-  /* Masthead: the publication's name (or the site's), centred. */
+  /* Masthead: the logotype centred over a tracked tagline, closed by a
+     double rule. On a publication's inner pages the logotype gives way
+     to the publication's name as a running head, in the serif. */
   .site-header {
-    display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline;
-    gap: var(--space-s) var(--space-m);
-    padding: var(--masthead-block) var(--masthead-inline);
-    border-block-end: 1px solid var(--color-border);
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-sm);
+    padding: var(--masthead-top) var(--page-inline) var(--masthead-bottom);
+    border-block-end: var(--rule-double);
     text-align: center;
   }
-  .site-name {
-    font-family: var(--font-display); font-weight: 400; font-size: var(--text-masthead); line-height: 1.1;
-    color: var(--color-ink); text-decoration: none;
+  .site-name { color: var(--color-ink); text-decoration: none; }
+  .site-name:hover { color: var(--color-vermilion); text-decoration: none; }
+  .logotype { font-family: var(--font-logotype); font-weight: 400; font-size: var(--text-logotype); line-height: 1; text-transform: lowercase; }
+  .running-head { font-family: var(--font-serif); font-weight: 500; font-size: var(--text-masthead); line-height: 1.1; }
+  .tagline {
+    font-family: var(--font-mono); font-size: var(--text-label); line-height: 1.5;
+    letter-spacing: var(--tracking-tagline); text-transform: uppercase; color: var(--color-stone);
+    /* The tracking after the last letter would push the text off centre. */
+    margin-inline-end: calc(-1 * var(--tracking-tagline));
   }
-  .site-name:hover { color: var(--color-accent); text-decoration: none; }
   .site-footer {
-    padding: var(--space-m) var(--page-inline); border-block-start: 1px solid var(--color-border);
-    color: var(--color-ink-faint); font-family: var(--font-mono); font-size: var(--text-mono);
+    padding: var(--space-m) var(--page-inline); border-block-start: var(--rule-hairline);
+    color: var(--color-stone); font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em;
     text-align: center;
   }
   .site-footer a { color: inherit; }
-  .site-footer a:hover { color: var(--color-accent); }
+  .site-footer a:hover { color: var(--color-vermilion); }
 
   /* Page head: an optional kicker, the title, an optional lede. Every
      page that is not a document or a publication front page opens with
@@ -351,129 +334,126 @@
   .page-head { margin-block-end: var(--title-gap); }
   .page-head .kicker { margin-block-end: var(--space-s); }
   .page-head h1 { text-wrap: balance; }
-  .lede { max-inline-size: 520px; font-size: var(--text-lede); line-height: 1.55; color: var(--color-ink-muted); }
+  .lede { max-inline-size: 34rem; font-size: var(--text-lede); line-height: 1.55; color: var(--color-ink-soft); }
   .page-head .lede, .page-head > .meta { margin-block-start: var(--space-sm); }
   .page-head > .form-error { margin-block-start: var(--space-m); }
 
-  /* Nameplate: a publication's front page opens with its name set large
-     and centred, a mono dateline, its description, and its tags. */
+  /* Nameplate: a publication's front page opens with its own masthead,
+     the name set large and centred, a mono dateline, its description in
+     italic, and its tags, closed by the double rule. */
   .nameplate {
     display: flex; flex-direction: column; align-items: center; gap: var(--space-sm);
     text-align: center;
-    padding-block-end: var(--section-gap); margin-block-end: var(--section-gap);
-    border-block-end: 1px solid var(--color-border);
+    padding-block-end: var(--space-l); margin-block-end: var(--section-gap);
+    border-block-end: var(--rule-double);
   }
-  .nameplate-name { font-size: var(--text-nameplate); line-height: 1; text-wrap: balance; }
-  .nameplate .lede { font-family: var(--font-display); font-style: italic; font-size: var(--text-card); line-height: 1.3; }
+  .nameplate-name { font-size: var(--text-nameplate); line-height: 1.05; text-wrap: balance; }
+  .nameplate .lede { font-style: italic; font-size: var(--text-lede); line-height: 1.5; max-inline-size: var(--measure); }
   .nameplate .tag-list { justify-content: center; margin-block-start: var(--space-xs); }
+  /* The double rule already opens the list that follows a nameplate. */
+  .nameplate + .listing { border-block-start: 0; }
   .dateline {
     display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-xs) var(--space-s);
-    font-family: var(--font-mono); font-size: var(--text-label); color: var(--color-ink-faint); letter-spacing: 0.02em;
+    font-family: var(--font-mono); font-size: var(--text-mono); color: var(--color-stone); letter-spacing: 0.04em;
   }
   .dateline li { display: flex; gap: var(--space-s); }
   .dateline li + li::before { content: "·"; }
-  .dateline a { color: var(--color-ink-muted); }
-  .dateline a:hover { color: var(--color-accent); }
+  .dateline a { color: var(--color-ink-soft); }
+  .dateline a:hover { color: var(--color-vermilion); }
 
-  /* Cards: a raised surface with a hairline border and the one soft
-     shadow. Hovering darkens the border; nothing lifts or moves. */
-  .listing-item article, .chooser-item, .visit-card {
-    background: var(--color-raised);
-    border: 1px solid var(--color-border); border-radius: var(--radius);
-    box-shadow: var(--shadow-card);
-    transition: border-color var(--ease);
-  }
-  .listing-item article:hover, .listing-item article:focus-within,
-  .chooser-item:hover, .chooser-item:focus-within {
-    border-color: var(--color-border-strong);
+  /* Rows: things a reader picks between sit in a column on the paper,
+     an ink rule above the first and a hairline between the rest.
+     Nothing is boxed, lifted, or shadowed. */
+  .listing, .chooser, .results, .photo-manage { display: flex; flex-direction: column; border-block-start: var(--rule-ink); }
+  .listing-item, .chooser-item, .result-item, .photo-row { padding-block: var(--row-pad); }
+  .listing-item + .listing-item, .chooser-item + .chooser-item, .result-item + .result-item, .photo-row + .photo-row {
+    border-block-start: var(--rule-hairline);
   }
 
-  /* Listing: one card per write-up, each a small version of the document
-     page (date, title, place and rating, excerpt). A visit with photos
-     leads its card with the first one, bled to the card's edge: across
-     the top at phone width, the left 42% from 40rem; a visit without is
-     a text card, and nothing stands in for a photo (plan 13). */
-  .listing { display: flex; flex-direction: column; gap: var(--space-m); }
-  .listing-item article { display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
-  .listing-item.no-photos article { padding: var(--card-pad); }
-  .listing-item.has-photos .listing-body { padding: var(--card-pad); }
+  /* Listing: one row per write-up, the title left and the verdict right,
+     a metadata line of date and place, the excerpt. A visit with photos
+     leads its row with the first one: across the top at phone width,
+     the left 42% from 40rem; a visit without is text alone, and nothing
+     stands in for a photo (plan 13). */
+  .listing-item article { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--card-gap); }
   .listing-photo {
     position: relative; display: block; aspect-ratio: 3 / 2;
-    background: var(--color-sunken);
+    background: var(--color-paper-bright);
   }
   .listing-photo img {
     position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover;
   }
   .listing-photo-count {
     position: absolute; inset-block-end: var(--space-s); inset-inline-end: var(--space-s);
-    padding: 2px var(--space-s); border-radius: var(--radius-s);
-    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.02em;
-    color: var(--color-ink-muted); background: color-mix(in oklab, var(--color-raised) 85%, transparent);
+    padding: 2px var(--space-s);
+    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em;
+    color: var(--color-ink-soft); background: color-mix(in oklab, var(--color-paper-bright) 88%, transparent);
   }
   @media (min-width: 40rem) {
     .listing-item.has-photos article { grid-template-columns: 42% minmax(0, 1fr); }
     .listing-photo { aspect-ratio: auto; min-block-size: 12.5rem; }
   }
   .listing-body { min-inline-size: 0; }
-  .listing-body .kicker { margin-block-end: var(--space-xs); }
-  .listing-title { font-size: var(--text-card); line-height: 1.1; }
+  .listing-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-xs) var(--space-m); }
+  .listing-title { font-size: var(--text-card); line-height: 1.15; }
   .listing-title a { color: inherit; text-decoration: none; }
-  .listing-title a:hover { color: var(--color-accent); text-decoration: none; }
-  .listing-place {
+  .listing-title a:hover { color: var(--color-vermilion); text-decoration: none; }
+  .listing-meta {
+    display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-s);
     margin-block-start: var(--space-xs);
-    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.02em; color: var(--color-ink-faint);
+    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em; color: var(--color-stone);
   }
+  .listing-meta > * + *::before { content: "·"; margin-inline-end: var(--space-s); }
   .listing-excerpt {
-    margin-block-start: var(--space-s); max-inline-size: var(--measure);
-    font-size: var(--text-small); line-height: 1.55; color: var(--color-ink-secondary);
+    margin-block-start: var(--space-sm); max-inline-size: var(--measure);
+    font-size: var(--text-small); line-height: 1.6; color: var(--color-ink-body);
   }
 
-  /* Chooser: the publications of one account, one card each. Settings
-     reuses the same cards with a form inside. */
-  .chooser { display: flex; flex-direction: column; gap: var(--space-m); }
-  .chooser-item { padding: var(--card-pad); }
-  .chooser-name { font-size: var(--text-card); line-height: 1.1; }
+  /* Chooser: the publications of one account, one row each. Settings
+     reuses the same row with a form inside. */
+  .chooser-name { font-size: var(--text-card); line-height: 1.15; }
   .chooser-name a { color: inherit; text-decoration: none; }
-  .chooser-name a:hover { color: var(--color-accent); text-decoration: none; }
-  .chooser-description { margin-block-start: var(--space-xs); max-inline-size: var(--measure); font-size: var(--text-small); color: var(--color-ink-secondary); }
+  .chooser-name a:hover { color: var(--color-vermilion); text-decoration: none; }
+  .chooser-description { margin-block-start: var(--space-xs); max-inline-size: var(--measure); font-size: var(--text-small); line-height: 1.6; color: var(--color-ink-body); }
   .chooser-url { margin-block-start: var(--space-s); }
 
-  /* Empty states and notices. An empty state is a quiet line where the
-     content would have been; a notice is a sunken panel about the content
-     that is there. Sunken panels carry no accent text (theme.rs). */
+  /* Empty states and notices. An empty state is a quiet italic line
+     where the content would have been; a notice is a bright sheet with
+     a hairline about the content that is there. */
   .empty {
     padding-block: var(--space-xl); text-align: center;
-    font-family: var(--font-display); font-style: italic; font-size: var(--text-card); line-height: 1.3;
-    color: var(--color-ink-muted);
+    font-style: italic; font-size: var(--text-card); font-weight: 400; line-height: 1.3;
+    color: var(--color-ink-soft);
   }
   .notice {
-    font-size: var(--text-small); color: var(--color-ink-muted);
+    font-size: var(--text-small); line-height: 1.6; color: var(--color-ink-soft);
     padding: var(--space-sm) var(--space-m);
-    background: var(--color-sunken); border-radius: var(--radius);
+    background: var(--color-paper-bright); border: var(--rule-hairline);
   }
   .notice { margin-block-start: var(--space-l); }
-  .notice a, .notice .link-button { color: var(--color-ink); text-decoration: underline; }
   .form-error {
-    font-size: var(--text-small); color: var(--color-ink);
+    font-size: var(--text-small); line-height: 1.6; color: var(--color-ink);
     padding: var(--space-sm) var(--space-m);
-    background: var(--color-raised); border: 1px solid var(--color-border);
-    border-inline-start: 3px solid var(--color-accent); border-radius: var(--radius);
+    background: var(--color-paper-bright); border: var(--rule-hairline);
+    border-inline-start: 3px solid var(--color-vermilion);
     margin-block-start: var(--space-s);
   }
 
-  /* Actions: one primary pill at most, every other action a secondary
-     pill. A button that must be a POST joins them as a pill too. */
+  /* Actions: one primary button at most, every other action a secondary.
+     A button that must be a POST joins them as a secondary too. */
   .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-s) var(--space-sm); margin-block-start: var(--space-l); }
   .button-link, .actions > .link-button {
     display: inline-flex; align-items: center; justify-content: center;
-    font-family: var(--font-body); font-size: var(--text-button); font-weight: 500; line-height: 1.2;
-    color: var(--color-ink-muted); background: transparent; text-decoration: none;
-    border: 1px solid var(--color-border); border-radius: var(--radius-pill);
-    padding: 0.625rem 1.375rem;
+    font-family: var(--font-mono); font-size: var(--text-button); font-weight: 400; line-height: 1.2;
+    letter-spacing: var(--tracking-button); text-transform: uppercase;
+    color: var(--color-ink); background: transparent; text-decoration: none;
+    border: var(--rule-ink); border-radius: 0;
+    padding: 0.6875rem 1.375rem;
+    cursor: pointer;
     transition: color var(--ease), background-color var(--ease), border-color var(--ease);
   }
   .button-link:hover, .actions > .link-button:hover {
-    background: var(--color-sunken); color: var(--color-ink); text-decoration: none;
+    background: var(--color-ink); color: var(--color-ink-fg); text-decoration: none;
   }
   @media (max-width: 40rem) {
     .button-link, .actions > .link-button { min-block-size: var(--touch-target); }
@@ -485,15 +465,16 @@
 
   /* Handle lookup: a labelled field and one button. */
   .lookup { max-inline-size: 34rem; }
-  .lookup-label { display: block; margin-block-end: var(--space-s); }
+  /* A kicker used as a field's label is read, so it is the soft ink. */
+  .lookup-label { display: block; margin-block-end: var(--space-s); color: var(--color-ink-soft); }
   .lookup-row { display: flex; gap: var(--space-s); }
   .lookup-row input { flex: 1; min-inline-size: 0; }
   .lookup-row button { flex: none; }
   .landing-note { margin-block-start: var(--space-l); max-inline-size: 34rem; }
-  /* The landing page signed out: the one primary pill with a quiet aside
-     on its baseline, then a hairline before the secondary lookup form. */
+  /* The landing page signed out: the one primary button with a quiet
+     aside on its baseline, then a hairline before the lookup form. */
   .landing-actions { margin-block-start: 0; align-items: baseline; }
-  .landing-aside { font-size: var(--text-small); color: var(--color-ink-muted); }
+  .landing-aside { font-size: var(--text-small); color: var(--color-ink-soft); }
   .landing-divider { margin-block: var(--section-gap); }
   .lookup .field-hint { margin-block-start: var(--space-s); }
 
@@ -505,10 +486,10 @@
   .own-publication { margin-block-start: var(--section-gap); }
   .own-publication > .kicker { margin-block-end: var(--space-s); }
   .own-nameplate { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs) var(--space-sm); }
-  .own-name { font-family: var(--font-display); font-size: var(--text-card); line-height: 1.1; color: var(--color-ink); }
+  .own-name { font-family: var(--font-serif); font-weight: 500; font-size: var(--text-card); line-height: 1.15; color: var(--color-ink); }
   .own-name a { color: inherit; text-decoration: none; }
-  .own-name a:hover { color: var(--color-accent); }
-  .own-address a { color: var(--color-ink-muted); }
+  .own-name a:hover { color: var(--color-vermilion); }
+  .own-address a { color: var(--color-ink-soft); }
   .find { margin-block-start: var(--space-l); }
   .find + .tags .tag-list { margin-block-start: var(--space-sm); }
   .own-publication .list-head {
@@ -519,29 +500,28 @@
   .own-publication .empty { padding-block: var(--space-l); }
   .own-none .lede { margin-block-start: var(--space-xs); }
   .tertiary {
-    display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-s) var(--space-m);
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-s) var(--action-gap);
     margin-block-start: var(--section-gap); padding-block-start: var(--space-m);
-    border-top: 1px solid var(--color-border);
+    border-top: var(--rule-hairline);
   }
-  .tertiary a, .tertiary .link-button { color: var(--color-ink-muted); }
-  .tertiary a:hover, .tertiary .link-button:hover { color: var(--color-accent); }
+  .tertiary a, .tertiary .link-button { color: var(--color-ink-soft); }
+  .tertiary a:hover, .tertiary .link-button:hover { color: var(--color-vermilion); }
 
   /* Combobox (plan 10): the listbox an island puts under a field. A
-     raised panel like a card; the active option fills with sunken. */
+     bright sheet with a hairline; the active option takes the paper. */
   .combobox-list {
     list-style: none; margin: var(--space-xs) 0 0; padding: var(--space-xs);
-    background: var(--color-raised); border: 1px solid var(--color-border);
-    border-radius: var(--radius); box-shadow: var(--shadow-card);
+    background: var(--color-paper-bright); border: var(--rule-hairline);
   }
   .combobox-option {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs) var(--space-s);
-    padding: var(--space-s) var(--space-sm); border-radius: var(--radius-nested); cursor: pointer;
+    padding: var(--space-s) var(--space-sm); cursor: pointer;
   }
-  .combobox-option:hover, .combobox-option[aria-selected="true"] { background: var(--color-sunken); }
+  .combobox-option:hover, .combobox-option[aria-selected="true"] { background: var(--color-paper); }
   .combobox-label { color: var(--color-ink); }
   .combobox-detail {
-    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.02em;
-    color: var(--color-ink-faint);
+    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em;
+    color: var(--color-stone);
   }
   .account { margin-block-start: var(--space-m); display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: baseline; }
   .inline-form { display: inline; }
@@ -549,10 +529,10 @@
   .link-button {
     display: inline; min-block-size: 0;
     background: none; border: 0; padding: 0; border-radius: 0;
-    font: inherit; letter-spacing: inherit; color: var(--color-accent);
+    font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--color-vermilion);
     cursor: pointer;
   }
-  .link-button:hover { background: none; color: var(--color-accent-hover); text-decoration: underline; }
+  .link-button:hover { background: none; color: var(--color-vermilion); text-decoration: underline; }
 
   /* Editor: the write-up on the left, the visit on the right, stacked
      when the column is narrow. Every control is a plain form element with
@@ -564,50 +544,57 @@
   .editor-group + .editor-group { margin-block-start: var(--space-xl); }
   .editor-group > legend {
     padding: 0; margin-block-end: var(--space-m);
-    font-family: var(--font-display); font-size: var(--text-card); line-height: 1.1;
+    font-family: var(--font-serif); font-weight: 500; font-size: var(--text-card); line-height: 1.15;
     text-transform: none; letter-spacing: 0; color: var(--color-ink);
   }
   .editor-group > * + * { margin-block-start: var(--space-m); }
   .field { display: grid; gap: var(--space-xs); }
-  .field > label:not(.choice) {
-    font-family: var(--font-body); font-size: var(--text-small); font-weight: 500;
-    text-transform: none; letter-spacing: 0; color: var(--color-ink-muted);
+  /* A group of choices is a fieldset dressed as a field: no box. */
+  fieldset.field { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+  /* A field's label is a UI label: mono capitals, tracked, in the soft
+     ink that still reads. */
+  .field > label:not(.choice), .field > legend {
+    padding: 0;
+    font-family: var(--font-mono); font-size: var(--text-label); font-weight: 400;
+    text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--color-ink-soft);
   }
-  .field-invalid input, .field-invalid textarea, .field-invalid select { border-color: var(--color-accent); }
-  .field-error { font-size: var(--text-small); font-weight: 500; color: var(--color-accent); }
-  /* A hint is read, not scanned, so it is the body voice at the small
-     size, in the muted ink that still passes contrast. */
+  .field > legend { margin-block-end: var(--space-xs); }
+  .field-invalid input, .field-invalid textarea, .field-invalid select { border-color: var(--color-vermilion); }
+  .field-error { font-size: var(--text-small); font-weight: 500; color: var(--color-vermilion); }
+  /* A hint is read, not scanned, so it is the text voice at the small
+     size, in the soft ink that passes contrast. */
   .field-hint {
     margin-block-start: var(--space-xs);
-    font-family: var(--font-body); font-size: var(--text-small); letter-spacing: 0;
-    color: var(--color-ink-muted);
+    font-family: var(--font-serif); font-size: var(--text-small); line-height: 1.55; letter-spacing: 0;
+    color: var(--color-ink-soft);
   }
   /* A hint is also .meta, whose links take the text color; in a sentence a
      link has to look like one. */
-  .field-hint a { color: var(--color-accent); text-decoration: underline; text-decoration-color: color-mix(in oklab, currentColor 35%, transparent); }
-  .field-hint a:hover { color: var(--color-accent-hover); text-decoration-color: currentColor; }
+  .field-hint a { color: var(--color-vermilion); text-decoration: underline; text-decoration-color: color-mix(in oklab, currentColor 40%, transparent); }
+  .field-hint a:hover { text-decoration-color: currentColor; }
   .field-group > * + * { margin-block-start: var(--space-m); }
   .editor-body { min-block-size: 24rem; font-size: var(--text-prose); line-height: 1.6; resize: vertical; }
-  input[type="file"] { font-family: var(--font-body); font-size: var(--text-small); color: var(--color-ink-muted); }
+  input[type="file"] { font-family: var(--font-serif); font-size: var(--text-small); color: var(--color-ink-soft); }
   input[type="file"]::file-selector-button {
-    font: inherit; font-weight: 500; color: var(--color-ink-muted);
-    background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius-pill);
-    padding: 0.4rem 1rem; margin-inline-end: var(--space-sm); cursor: pointer;
+    font-family: var(--font-mono); font-size: var(--text-button); letter-spacing: var(--tracking-button); text-transform: uppercase;
+    color: var(--color-ink); background: transparent; border: var(--rule-ink); border-radius: 0;
+    padding: 0.5rem 1rem; margin-inline-end: var(--space-sm); cursor: pointer;
+    transition: color var(--ease), background-color var(--ease);
   }
-  input[type="file"]::file-selector-button:hover { background: var(--color-sunken); color: var(--color-ink); }
+  input[type="file"]::file-selector-button:hover { background: var(--color-ink); color: var(--color-ink-fg); }
   .rows > * + * { margin-block-start: var(--space-m); }
-  .row { display: grid; gap: var(--space-s); grid-template-columns: minmax(0, 1fr); padding-block-end: var(--space-m); border-block-end: 1px solid var(--color-border); }
-  .row-remove { justify-self: start; color: var(--color-ink-muted); }
+  .row { display: grid; gap: var(--space-s); grid-template-columns: minmax(0, 1fr); padding-block-end: var(--space-m); border-block-end: var(--rule-hairline); }
+  .row-remove { justify-self: start; color: var(--color-ink-soft); }
   .preview {
     margin-block-end: var(--space-xl); padding: var(--card-pad);
-    background: var(--color-raised); border: 1px solid var(--color-border); border-radius: var(--radius);
+    background: var(--color-paper-bright); border: var(--rule-hairline);
   }
   .preview > .kicker { margin-block-end: var(--space-l); }
   .preview-document { max-inline-size: var(--column); }
   .preview .doc-footer a[href="#"] { pointer-events: none; }
   .restore { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: baseline; margin-block-end: var(--space-l); }
   /* Choosing a place: the search box, a status line for where the search
-     looks, the results as cards, and the way out by hand. */
+     looks, the results as rows, and the way out by hand. */
   .editor-choosing { max-inline-size: var(--column); }
   .editor-choosing > * + * { margin-block-start: var(--space-m); }
   .search-field .lookup-row { align-items: center; }
@@ -615,21 +602,17 @@
   /* With suggestions on, the Search button is the no-JS path only. */
   .js-suggesting .search-field button { display: none; }
   /* The place by hand, under a hairline (plan 12). */
-  .manual-entry { margin-block-start: var(--space-xl); padding-block-start: var(--space-l); border-top: 1px solid var(--color-border); max-inline-size: 34rem; }
+  .manual-entry { margin-block-start: var(--space-xl); padding-block-start: var(--space-l); border-top: var(--rule-hairline); max-inline-size: 34rem; }
   .manual-entry > .kicker { margin-block-end: var(--space-m); }
   .manual-entry .field + .field { margin-block-start: var(--space-m); }
   .manual-entry .actions { margin-block-start: var(--space-m); }
   .locate-status { min-block-size: 1.2em; }
-  .results { list-style: none; padding: 0; margin: var(--space-l) 0 0; display: flex; flex-direction: column; gap: var(--space-m); }
+  .results { margin-block-start: var(--space-l); }
   .result-item {
     display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: center; justify-content: space-between;
-    padding: var(--card-pad);
-    background: var(--color-raised); border: 1px solid var(--color-border); border-radius: var(--radius);
-    box-shadow: var(--shadow-card);
   }
-  .result-item:hover, .result-item:focus-within { border-color: var(--color-border-strong); }
   .result-body { min-inline-size: 0; flex: 1 1 16rem; }
-  .result-name { font-family: var(--font-display); font-size: var(--text-card); line-height: 1.1; color: var(--color-ink); }
+  .result-name { font-family: var(--font-serif); font-weight: 500; font-size: var(--text-card); line-height: 1.15; color: var(--color-ink); }
   .result-meta { margin-block-start: var(--space-xs); }
   .place-source { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-s); align-items: baseline; }
   .attribution { margin-block-start: var(--space-l); }
@@ -637,25 +620,20 @@
      the move and remove actions, then the file input. */
   .photos-form { max-inline-size: var(--column); }
   .photos-form > * + * { margin-block-start: var(--space-l); }
-  .photo-manage { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-m); }
-  .photo-row {
-    display: flex; gap: var(--card-gap); align-items: flex-start; padding: var(--card-pad);
-    background: var(--color-raised); border: 1px solid var(--color-border); border-radius: var(--radius);
-    box-shadow: var(--shadow-card);
-  }
-  .photo-row-image { flex: none; display: block; border-radius: var(--radius-nested); }
+  .photo-row { display: flex; gap: var(--card-gap); align-items: flex-start; }
+  .photo-row-image { flex: none; display: block; }
   .photo-row-image img {
     display: block; inline-size: var(--thumb-small); block-size: var(--thumb-small);
-    object-fit: cover; border-radius: var(--radius-nested); background: var(--color-sunken);
+    object-fit: cover; background: var(--color-paper-bright);
   }
   .photo-row-body { min-inline-size: 0; flex: 1; }
   .photo-row-body > * + * { margin-block-start: var(--space-s); }
-  .photo-row-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-m); }
+  .photo-row-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--action-gap); }
   .hosting-form { margin-block-start: var(--space-m); max-inline-size: 34rem; }
   .hosting-form > * + * { margin-block-start: var(--space-m); }
   .choice {
     display: flex; gap: var(--space-s); align-items: baseline;
-    font-family: var(--font-body); font-size: var(--text-body); font-weight: 400;
+    font-family: var(--font-serif); font-size: var(--text-body); font-weight: 400;
     color: var(--color-ink); letter-spacing: 0; text-transform: none;
   }
   .subdomain { align-items: center; }
@@ -665,151 +643,156 @@
   .search-results { margin-block-start: var(--space-s); display: grid; gap: var(--space-xs); }
   .search-results li { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-s); align-items: baseline; }
 
-  /* Pagination: two secondary pills, newest left, older right. */
+  /* Pagination: two secondary buttons, newest left, older right. */
   .pagination {
     display: flex; justify-content: space-between; gap: var(--space-m);
     margin-block-start: var(--section-gap);
   }
   .pagination a {
     display: inline-flex; align-items: center;
-    font-size: var(--text-button); font-weight: 500; line-height: 1.2;
-    color: var(--color-ink-muted); text-decoration: none;
-    border: 1px solid var(--color-border); border-radius: var(--radius-pill);
-    padding: 0.625rem 1.375rem;
+    font-family: var(--font-mono); font-size: var(--text-button); line-height: 1.2;
+    letter-spacing: var(--tracking-button); text-transform: uppercase;
+    color: var(--color-ink); text-decoration: none;
+    border: var(--rule-ink);
+    padding: 0.6875rem 1.375rem;
     transition: color var(--ease), background-color var(--ease), border-color var(--ease);
   }
-  .pagination a:hover { background: var(--color-sunken); color: var(--color-ink); text-decoration: none; }
+  .pagination a:hover { background: var(--color-ink); color: var(--color-ink-fg); text-decoration: none; }
   .pagination a[rel="next"] { margin-inline-start: auto; }
   @media (max-width: 40rem) { .pagination a { min-block-size: var(--touch-target); } }
 
-  /* Document page: kicker (the date), title, card, prose, footer. */
+  /* Document page: kicker (the date), title, the visit, prose, footer. */
   .document > .kicker { margin-block-end: var(--space-s); }
   .doc-title { margin-block-end: var(--title-gap); text-wrap: balance; }
 
-  /* Photos: a grid of square thumbnails between the visit card and the
+  /* Photos: a grid of square thumbnails between the visit and the
      prose, each a link to its full rendition. */
   .photos { margin-block-start: var(--space-l); }
   .photo-grid {
     list-style: none; padding: 0; margin: 0;
     display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: var(--space-s);
   }
-  .photo-grid a { display: block; border-radius: var(--radius-nested); }
+  .photo-grid a { display: block; }
   .photo-grid img {
     display: block; inline-size: 100%; block-size: auto; aspect-ratio: 1;
-    object-fit: cover; border-radius: var(--radius-nested);
-    background: var(--color-sunken); border: 1px solid var(--color-border);
+    object-fit: cover;
+    background: var(--color-paper-bright); border: var(--rule-hairline);
   }
-  /* Visit card: the place's name, then the date, meal, and
-     price in the metadata voice, the address, and the rating, on a raised
-     card. */
+  /* The visit: the place's name, then the date, meal, and price in the
+     metadata voice, the address, and the verdict, on a bright sheet
+     with a hairline: the one boxed thing on the page, a fact box beside
+     the text. */
   .visit-card {
     display: flex; gap: var(--card-gap); align-items: flex-start;
     padding: var(--card-pad);
     margin-block-end: var(--title-gap);
+    background: var(--color-paper-bright); border: var(--rule-hairline);
   }
   .visit-card-body { min-inline-size: 0; flex: 1; }
   .visit-card-body > * + * { margin-block-start: var(--space-xs); }
-  .place-name { font-family: var(--font-display); font-size: var(--text-card); line-height: 1.1; color: var(--color-ink); }
+  .place-name { font-family: var(--font-serif); font-weight: 500; font-size: var(--text-card); line-height: 1.15; color: var(--color-ink); }
   .visit-meta {
     display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-s);
-    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.02em; color: var(--color-ink-faint);
+    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em; color: var(--color-stone);
   }
   .visit-meta > * + *::before { content: "·"; margin-inline-end: var(--space-s); }
-  .place-address { font-size: var(--text-small); color: var(--color-ink-muted); }
-  /* The rating: the verdict as plus signs with the word beside them, in
-     the accent. Ratings and actions are the only accent fills. */
+  .place-address { font-size: var(--text-small); color: var(--color-ink-soft); }
+  /* The rating: the verdict as a word alone, mono capitals tracked wide,
+     in vermilion. No marks, no numbers. Ratings, links, and the one
+     primary action are all the vermilion there is. */
   .rating {
-    font-family: var(--font-body); font-size: var(--text-button); font-weight: 700;
-    letter-spacing: 0; color: var(--color-accent);
+    font-family: var(--font-mono); font-size: var(--text-button); font-weight: 400; line-height: 1.5;
+    letter-spacing: var(--tracking-rating); text-transform: uppercase; color: var(--color-vermilion);
+    white-space: nowrap;
   }
-  .rating-marks { letter-spacing: 0.08em; }
-  .listing-place .rating { font-size: var(--text-mono); }
+  .visit-card .rating { margin-block-start: var(--space-s); }
+  .listing-head .rating { flex: none; }
 
-  /* Prose: the one place text runs long, so it is set larger than the
-     interface and its links keep a faint underline at rest; color alone
-     does not mark a link inside a paragraph. */
-  .prose { max-inline-size: var(--measure); font-size: var(--text-prose); line-height: 1.6; color: var(--color-ink-secondary); }
+  /* Prose: the write-up, at measure, in the body ink. Its links keep a
+     faint underline at rest: colour alone does not mark a link inside a
+     paragraph. */
+  .prose { max-inline-size: var(--measure); font-size: var(--text-prose); line-height: 1.6; color: var(--color-ink-body); }
   .prose > * + * { margin-block-start: 1.1em; }
   .prose h2, .prose h3, .prose h4 { margin-block-start: 1.5em; color: var(--color-ink); }
   .prose h2 { font-size: var(--text-heading); }
   .prose h3 { font-size: var(--text-card); }
-  .prose h4 { font-size: var(--text-prose); font-family: var(--font-body); font-weight: 700; line-height: 1.4; }
-  .prose strong { font-weight: 700; color: var(--color-ink); }
-  .prose a { text-decoration: underline; text-decoration-color: color-mix(in oklab, currentColor 35%, transparent); }
+  .prose h4 { font-size: var(--text-prose); line-height: 1.4; }
+  .prose strong { font-weight: 600; color: var(--color-ink); }
+  .prose a { text-decoration: underline; text-decoration-color: color-mix(in oklab, currentColor 40%, transparent); }
   .prose a:hover { text-decoration-color: currentColor; }
   .prose ul, .prose ol { padding-inline-start: 1.4em; }
   .prose li + li { margin-block-start: 0.3em; }
-  .prose li::marker { color: var(--color-ink-faint); }
-  .prose .host { color: var(--color-ink-faint); font-family: var(--font-mono); font-size: 0.75em; }
-  .plain-body { white-space: pre-wrap; font-family: inherit; font-size: inherit; background: none; padding: 0; color: inherit; }
+  .prose li::marker { color: var(--color-stone); }
+  .prose .host { color: var(--color-stone); font-family: var(--font-mono); font-size: 0.75em; }
+  .plain-body { white-space: pre-wrap; font-family: inherit; font-size: inherit; background: none; padding: 0; border: 0; color: inherit; }
 
   /* Comments: the Bluesky thread, read here and answered there. Who is
-     the body voice; the handle and when are the metadata voice. Rows are
-     hairlined, replies to replies indented. The class is scoped to the
-     section because the document footer's link shares it. */
+     the serif at 500; the handle and when are the metadata voice. An ink
+     rule opens the section; rows are hairlined, replies to replies
+     indented. The class is scoped to the section because the document
+     footer's link shares it. */
   section.comments {
     margin-block-start: var(--footer-gap); padding-block-start: var(--footer-pad);
-    border-block-start: 1px solid var(--color-border);
+    border-block-start: var(--rule-ink);
   }
   section.comments > .kicker { margin-block-end: var(--space-s); }
   .comment-list { display: flex; flex-direction: column; }
-  .comment + .comment { border-block-start: 1px solid var(--color-border); }
+  .comment + .comment { border-block-start: var(--rule-hairline); }
   .comment article { padding-block: var(--space-m); }
   .comment.depth-1 article { margin-inline-start: var(--space-l); }
   .comment.depth-2 article { margin-inline-start: calc(2 * var(--space-l)); }
   .comment.depth-3 article { margin-inline-start: calc(3 * var(--space-l)); }
   .comment-byline {
     display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-s); align-items: baseline;
-    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.02em;
-    color: var(--color-ink-faint);
+    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em;
+    color: var(--color-stone);
   }
   .comment-byline a { color: inherit; text-decoration: none; }
-  .comment-byline a:hover { color: var(--color-accent); }
+  .comment-byline a:hover { color: var(--color-vermilion); }
   .comment-byline .comment-author {
-    font-family: var(--font-body); font-size: var(--text-small); font-weight: 500; letter-spacing: 0;
+    font-family: var(--font-serif); font-size: var(--text-body); font-weight: 500; letter-spacing: 0;
     color: var(--color-ink);
   }
-  .comment-handle { color: var(--color-ink-faint); }
+  .comment-handle { color: var(--color-stone); }
   .comment-time { margin-inline-start: auto; }
   .comment-text {
     margin-block-start: var(--space-xs); max-inline-size: var(--measure);
-    font-size: var(--text-small); line-height: 1.55; color: var(--color-ink-secondary);
+    font-size: var(--text-small); line-height: 1.6; color: var(--color-ink-body);
     white-space: pre-wrap; overflow-wrap: anywhere;
   }
   .comments-empty { padding-block: var(--space-l); }
   .comments-more { margin-block-start: var(--space-s); }
-  .comments-more a { color: var(--color-accent); }
-  .comments-more a:hover { color: var(--color-accent-hover); }
+  .comments-more a { color: var(--color-vermilion); }
 
-  /* Document footer: the place's links, then tags; metadata voice throughout. */
+  /* Document footer: the place's links, then tags; metadata voice
+     throughout, plain text links 18px apart. */
   .doc-footer {
     margin-block-start: var(--footer-gap); padding-block-start: var(--footer-pad);
-    border-block-start: 1px solid var(--color-border);
+    border-block-start: var(--rule-hairline);
     display: flex; flex-direction: column; gap: var(--space-m);
-    font-family: var(--font-mono); font-size: var(--text-label); color: var(--color-ink-faint);
+    font-family: var(--font-mono); font-size: var(--text-button); letter-spacing: 0.04em; color: var(--color-stone);
   }
-  .doc-footer-row { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: center; }
+  .doc-footer-row { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--action-gap); align-items: center; }
   .doc-footer-row .push { margin-inline-start: auto; }
-  .doc-footer a { color: var(--color-accent); }
-  .doc-footer a:hover { color: var(--color-accent-hover); }
+  .doc-footer a { color: var(--color-vermilion); }
   .visit-links { display: contents; }
   .visit-links-list { display: contents; }
   .tags { display: contents; }
-  .doc-footer .quiet-links { display: flex; gap: var(--space-m); }
-  .doc-footer .quiet-links a { color: var(--color-ink-muted); }
-  .doc-footer .quiet-links a:hover { color: var(--color-accent); }
+  .doc-footer .quiet-links { display: flex; gap: var(--action-gap); }
+  .doc-footer .quiet-links a { color: var(--color-ink-soft); }
+  .doc-footer .quiet-links a:hover { color: var(--color-vermilion); }
 
-  /* Tag chip: an outlined pill in the body voice. */
+  /* Tag chip: a small square badge in the mono voice, hairlined. */
   .tag-list { display: flex; flex-wrap: wrap; gap: var(--space-s); align-items: center; }
   .doc-footer .tag, .tag {
-    display: inline-block; padding: 0.3rem 0.8rem;
-    font-family: var(--font-body); font-size: var(--text-button); font-weight: 500; line-height: 1.3; letter-spacing: 0;
-    color: var(--color-ink-muted); text-decoration: none;
-    border: 1px solid var(--color-border); border-radius: var(--radius-pill);
+    display: inline-block; padding: 0.2rem 0.5rem;
+    font-family: var(--font-mono); font-size: var(--text-mono); font-weight: 400; line-height: 1.5; letter-spacing: 0.04em;
+    color: var(--color-ink-soft); text-decoration: none;
+    border: var(--rule-hairline);
     transition: color var(--ease), background-color var(--ease), border-color var(--ease);
   }
-  .doc-footer .tag:hover, .tag:hover { background: var(--color-sunken); color: var(--color-ink); text-decoration: none; }
-  .tags-note { inline-size: 100%; color: var(--color-ink-faint); }
+  .doc-footer .tag:hover, .tag:hover { border-color: var(--color-ink); color: var(--color-ink); text-decoration: none; }
+  .tags-note { inline-size: 100%; color: var(--color-stone); }
 }
 
 /* ---------- utilities ---------- */
@@ -818,5 +801,5 @@
     position: absolute !important; width: 1px; height: 1px; overflow: hidden;
     clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
   }
-  .muted { color: var(--color-ink-muted); }
+  .muted { color: var(--color-ink-soft); }
 }

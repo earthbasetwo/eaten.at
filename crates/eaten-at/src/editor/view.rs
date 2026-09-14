@@ -628,7 +628,7 @@ fn meal_select(form: &EditorForm, errors: &FieldErrors) -> Markup {
 }
 
 /// The rating as a radio group: unrated, then the four steps, each
-/// labelled with its marks and its word.
+/// labelled with its word.
 fn rating_choice(form: &EditorForm, errors: &FieldErrors) -> Markup {
     let current = form.rating.trim();
     html! {
@@ -642,8 +642,6 @@ fn rating_choice(form: &EditorForm, errors: &FieldErrors) -> Markup {
                 @let id = format!("rating_{}", rating.value());
                 label.choice for=(id) {
                     input id=(id) name="rating" type="radio" value=(rating.value()) checked[current == rating.value().to_string()];
-                    " "
-                    span.rating aria-hidden="true" { (rating.marks()) }
                     " " (rating.word())
                 }
             }

@@ -1,15 +1,15 @@
-Fonts embedded in the binary and served from /static/. All three are licensed
-under the SIL Open Font License 1.1 (text below) and were fetched as the latin
-and latin-ext woff2 subsets that Google Fonts serves for these faces.
+Fonts embedded in the binary and served from /static/. Newsreader and
+JetBrains Mono are licensed under the SIL Open Font License 1.1 (text below)
+and were fetched as the latin and latin-ext woff2 subsets that Google Fonts
+serves for the variable faces.
 
-  Instrument Serif (400 roman and italic)
-  Copyright 2022 The Instrument Serif Project Authors (https://github.com/Instrument/instrument-serif)
-
-  DM Sans (opsz 9..40, wght 400..700, roman and italic)
-  Copyright 2014 The DM Sans Project Authors (https://github.com/googlefonts/dm-fonts)
+  Newsreader (opsz 6..72, wght 200..800, roman and italic)
+  Copyright 2020 The Newsreader Project Authors (http://github.com/productiontype/Newsreader)
 
   JetBrains Mono (wght 400..500)
   Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
+
+Evantic Italic, the logotype face, is not under this licence; see EVANTIC.txt.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

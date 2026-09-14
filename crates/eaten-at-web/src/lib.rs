@@ -11,8 +11,13 @@ pub mod markdown;
 pub mod meta;
 pub mod theme;
 
-/// Human-readable application name used in page chrome.
+/// Human-readable application name used in page chrome. It is also the
+/// logotype, set in Evantic and always lowercase.
 pub const APP_NAME: &str = "eaten.at";
+
+/// The line under the logotype in the masthead, set in tracked mono
+/// capitals by the stylesheet.
+pub const TAGLINE: &str = "The federated table";
 
 /// Separator between segments of a page title.
 const TITLE_SEPARATOR: &str = " — ";

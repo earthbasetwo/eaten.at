@@ -6,7 +6,8 @@
 //   - answers with an unexpected status,
 //   - logs a JavaScript error, an exception, or a CSP violation,
 //   - loads a subresource that fails (other than /favicon.ico),
-//   - fails to load one of the three web fonts, or
+//   - fails to load one of the web fonts (Newsreader and JetBrains Mono
+//     everywhere; Evantic wherever the logotype is on the page), or
 //   - scrolls horizontally.
 //
 // Full-page screenshots of every page land in target/visual-check/.
@@ -35,7 +36,11 @@ const WIDTHS = [
   { label: 'desktop', width: 1080, height: 900, mobile: false },
   { label: 'phone', width: 390, height: 844, mobile: true },
 ]
-const FONT_FAMILIES = ['Instrument Serif', 'DM Sans', 'JetBrains Mono']
+const FONT_FAMILIES = ['Newsreader', 'JetBrains Mono']
+// The logotype face is only asked for where the logotype is; a
+// publication's inner pages carry a running head in the serif instead.
+const LOGOTYPE_FAMILY = 'Evantic'
+const LOGOTYPE_SELECTOR = '.logotype'
 const NAVIGATION_TIMEOUT_MS = 20_000
 
 const children = []
@@ -364,6 +369,7 @@ class Browser {
         cardPhotos: cardPhotos.length,
         photosBroken,
         scrollWidth: document.documentElement.scrollWidth,
+        logotype: !!document.querySelector(${JSON.stringify(LOGOTYPE_SELECTOR)}),
         loaded: [...new Set(faces.filter(f => f.status === 'loaded').map(f => f.family.replaceAll('"', '')))],
         failed: faces.filter(f => f.status === 'error').map(f => f.family + ' ' + f.style + ' ' + f.weight),
         expected: ${JSON.stringify(page.expect ?? null)} === null || !!document.querySelector(${JSON.stringify(page.expect ?? '')}),
@@ -382,7 +388,8 @@ class Browser {
     if (facts.scrollWidth > viewport.width) {
       problems.push(`scrolls horizontally: ${facts.scrollWidth}px of content in ${viewport.width}px`)
     }
-    for (const family of FONT_FAMILIES) {
+    const families = facts.logotype ? [...FONT_FAMILIES, LOGOTYPE_FAMILY] : FONT_FAMILIES
+    for (const family of families) {
       if (!facts.loaded.includes(family)) problems.push(`font not loaded: ${family}`)
     }
     for (const face of facts.failed) problems.push(`font failed: ${face}`)
