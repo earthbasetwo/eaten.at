@@ -108,6 +108,10 @@ async function createRecord(agent, collection, record) {
 
 const publisher = await account('eaten.test')
 const alice = await account('alice.test')
+// An author who has signed in and done nothing else: no publication, no
+// preferences. The settings and editor pages have a first-time state for
+// this (plan 08).
+const bob = await account('bob.test')
 
 // Two publications: Field Notes has no theme, so it renders in the site's
 // own palette; After Hours carries an author theme, so the theme path (and
@@ -401,7 +405,7 @@ const envDev = [
   `# Written by scripts/dev-env.mjs at ${new Date().toISOString()}. Regenerated on every start.`,
   'EATEN_AT_DEV_INSECURE=1',
   `EATEN_AT_PLC_DIRECTORY=http://localhost:${PLC_PORT}`,
-  `EATEN_AT_DEV_HOSTS=eaten.test=127.0.0.1:${PDS_PORT},alice.test=127.0.0.1:${PDS_PORT}`,
+  `EATEN_AT_DEV_HOSTS=eaten.test=127.0.0.1:${PDS_PORT},alice.test=127.0.0.1:${PDS_PORT},bob.test=127.0.0.1:${PDS_PORT}`,
   // The lexicon DNS name comes from the NSID authority (at.eaten →
   // eaten.at), not from the publisher's handle.
   `EATEN_AT_DEV_DNS_TXT=_lexicon.eaten.at=did=${publisher.did}`,
@@ -409,6 +413,7 @@ const envDev = [
   `EATEN_AT_LEXICON_APP_PASSWORD=${publisher.appPassword}`,
   `EATEN_AT_DEV_PDS=http://localhost:${PDS_PORT}`,
   `EATEN_AT_DEV_ALICE_DID=${alice.did}`,
+  `EATEN_AT_DEV_BOB_DID=${bob.did}`,
   `EATEN_AT_DEV_ALICE_THEMED_PUBLICATION=${themedPublicationUri.split('/').pop()}`,
   `EATEN_AT_DB=${DEV_CACHE}`,
   // The stub above stands in for Open Places; the real key in .env is
@@ -431,6 +436,7 @@ Local atproto network is up (in memory; Ctrl-C to stop).
               publication ${publicationUri}   Field Notes (site palette, the default)
               publication ${themedPublicationUri}   After Hours (author theme)
               documents   ${docUris.join('\n              ')}
+  bob.test    ${bob.did}   author with no publication yet, password "${PASSWORD}"
 
 Wrote .env.dev and cleared ${DEV_CACHE}. In another terminal:
 

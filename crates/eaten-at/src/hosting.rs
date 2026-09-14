@@ -16,7 +16,7 @@ use axum::http::{StatusCode, Uri};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Redirect, Response};
 use eaten_at_atproto::at_uri::AtUri;
-use eaten_at_atproto::identity::{Did, Identity};
+use eaten_at_atproto::identity::{Did, Handle, Identity};
 use rusqlite::{params, OptionalExtension};
 
 use crate::cache::Clock;
@@ -68,6 +68,38 @@ impl PartialEq for ClaimError {
                 | (Self::Reserved, Self::Reserved)
                 | (Self::Taken, Self::Taken)
         )
+    }
+}
+
+/// Most numbered variants tried when a suggested label is taken.
+const MAX_SUFFIX: u32 = 99;
+
+/// The subdomain label suggested for an account (plan 08): the first
+/// label of its handle (`alice` from `alice.bsky.social`, `rosslebeau`
+/// from `rosslebeau.com`), or the DID's own id when it has no verified
+/// handle, made into a valid label. Reserved or taken names are the
+/// caller's problem; see [`AppState::claim_free`].
+pub fn suggest_name(did: &Did, handle: Option<&Handle>) -> String {
+    let raw = match handle {
+        Some(handle) => handle
+            .as_str()
+            .split('.')
+            .next()
+            .unwrap_or_default()
+            .to_owned(),
+        None => did.as_str().trim_start_matches("did:").replace(':', "-"),
+    };
+    let mut name: String = raw
+        .to_ascii_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    name.truncate(MAX_LABEL_LEN);
+    let name = name.trim_matches('-').to_owned();
+    if name.is_empty() {
+        "author".to_owned()
+    } else {
+        name
     }
 }
 
@@ -243,6 +275,33 @@ fn row_to_claim(row: &rusqlite::Row<'_>) -> rusqlite::Result<Option<Claim>> {
 }
 
 impl AppState {
+    /// Claim `base` for `publication`, or failing that the first of
+    /// `base-2`, `base-3`, … that is neither taken nor reserved. Returns
+    /// the name claimed.
+    pub async fn claim_free(
+        &self,
+        base: &str,
+        publication: &AtUri,
+        did: &Did,
+    ) -> Result<String, ClaimError> {
+        for n in 1..=MAX_SUFFIX {
+            let candidate = if n == 1 {
+                base.to_owned()
+            } else {
+                let suffix = format!("-{n}");
+                let mut stem = base.to_owned();
+                stem.truncate(MAX_LABEL_LEN - suffix.len());
+                format!("{}{suffix}", stem.trim_end_matches('-'))
+            };
+            match self.claims().claim(&candidate, publication, did).await {
+                Ok(()) => return Ok(candidate),
+                Err(ClaimError::Taken | ClaimError::Reserved) => {}
+                Err(err) => return Err(err),
+            }
+        }
+        Err(ClaimError::Taken)
+    }
+
     /// The host of a hosted subdomain: `{name}.{our host}`.
     pub fn hosted_host(&self, name: &str) -> String {
         format!("{name}.{}", self.public_host())
@@ -398,6 +457,24 @@ pub async fn by_host(State(state): State<AppState>, mut request: Request, next: 
 mod tests {
     use super::*;
     use crate::cache::ManualClock;
+
+    #[test]
+    fn a_label_is_suggested_from_the_handle_or_the_did() {
+        let did = Did::parse("did:plc:re3ebnp5v7ffagz6rb6xfei4").unwrap();
+        let handle = |s: &str| Handle::parse(s).unwrap();
+        assert_eq!(
+            suggest_name(&did, Some(&handle("alice.bsky.social"))),
+            "alice"
+        );
+        assert_eq!(
+            suggest_name(&did, Some(&handle("rosslebeau.com"))),
+            "rosslebeau"
+        );
+        assert_eq!(suggest_name(&did, None), "plc-re3ebnp5v7ffagz6rb6xfei4");
+        // A reserved word is suggested as is; claiming decides what to do.
+        assert_eq!(suggest_name(&did, Some(&handle("www.example.com"))), "www");
+        assert!(validate_name(&suggest_name(&did, None)).is_ok());
+    }
 
     #[test]
     fn names_follow_dns_label_rules() {

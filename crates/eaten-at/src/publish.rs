@@ -7,20 +7,24 @@ use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::at_eaten::{PREFERENCES_NSID, PREFERENCES_RKEY};
 use eaten_at_atproto::lexicon::{
-    BlobRef, Datetime, Document, Photo, Visit, DOCUMENT_NSID, PUBLICATION_NSID, VISIT_NSID,
+    BlobRef, Datetime, Document, Photo, Preferences, Publication, Visit, DOCUMENT_NSID,
+    PUBLICATION_NSID, VISIT_NSID,
 };
 use eaten_at_atproto::oauth::{AuthorizedSession, OAuthError};
 use eaten_at_atproto::repo::write::WriteReceipt;
 use eaten_at_atproto::repo::Record;
+use eaten_at_atproto::tid::Tid;
 use eaten_at_web::markdown;
 use serde_json::{json, Value};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::cache::Namespace;
-use crate::editor::{DocumentDraft, Target};
+use crate::editor::DocumentDraft;
 use crate::error::AppError;
+use crate::hosting::{self, ClaimError};
 use crate::img::{Size, MAX_IMAGE_BLOB_BYTES};
 use crate::model::VisitDocument;
+use crate::paths;
 use crate::state::AppState;
 use crate::view;
 
@@ -43,8 +47,21 @@ pub enum PublishError {
     SessionExpired,
     #[error("the author's server refused the write: {0}")]
     Repo(OAuthError),
+    /// The publication's hosted address could not be claimed; the
+    /// message is for the author.
+    #[error("{0}")]
+    Home(String),
     #[error(transparent)]
     App(#[from] AppError),
+}
+
+impl From<ClaimError> for PublishError {
+    fn from(err: ClaimError) -> Self {
+        match err {
+            ClaimError::Db(err) => Self::App(AppError::Upstream(err.to_string())),
+            other => Self::Home(format!("{other}.")),
+        }
+    }
 }
 
 impl From<OAuthError> for PublishError {
@@ -60,8 +77,20 @@ impl From<OAuthError> for PublishError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Published {
     pub did: Did,
-    pub pub_rkey: String,
+    /// The document's `site`, as written.
+    pub site: String,
     pub doc_rkey: String,
+}
+
+impl Published {
+    /// The document's own page on this site, or the repo's when its
+    /// `site` is not a publication record here.
+    pub fn document_path(&self) -> String {
+        AtUri::parse(&self.site).map_or_else(
+            |_| paths::repo(&self.did),
+            |site| paths::document(&self.did, site.rkey(), &self.doc_rkey),
+        )
+    }
 }
 
 /// A URL slug from a title: lowercase, accents stripped, anything that is
@@ -124,7 +153,8 @@ pub fn document_path(published_at: &Datetime, title: &str, taken: &[String]) -> 
 /// Everything that fixes the record apart from the draft.
 #[derive(Debug, Clone)]
 pub struct Placement<'a> {
-    pub site: &'a AtUri,
+    /// The publication's AT-URI, or whatever `site` the original had.
+    pub site: &'a str,
     pub path: &'a str,
     pub published_at: &'a Datetime,
     /// Set on edits only.
@@ -149,7 +179,7 @@ pub fn build_document(draft: &DocumentDraft, placement: &Placement<'_>) -> Value
         unreachable!("a document serializes to an object")
     };
     fields.insert("$type".into(), json!(DOCUMENT_NSID));
-    fields.insert("site".into(), json!(placement.site.as_str()));
+    fields.insert("site".into(), json!(placement.site));
     fields.insert("title".into(), json!(draft.title));
     fields.insert("path".into(), json!(placement.path));
     fields.insert("publishedAt".into(), json!(placement.published_at));
@@ -264,8 +294,189 @@ pub fn text_content(visit: &Visit, markdown: &str) -> String {
     parts.join("\n\n")
 }
 
-/// Publish a draft: create what a first publish needs, write the
-/// document, and forget the cached state it changes.
+/// Where a new publication is served from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Home {
+    /// This exact hosted subdomain label, or an error when it is not free.
+    Hosted(String),
+    /// This label, or the first of `label-2`, `label-3`, … that is free.
+    HostedOrNext(String),
+    /// A domain the author serves themselves; an `https` origin.
+    Own(String),
+    /// The publication's own site route here, for a deployment that
+    /// cannot host subdomains (local development).
+    SiteRoute,
+}
+
+/// What a publication is created with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublicationSpec {
+    pub name: String,
+    pub description: Option<String>,
+    pub home: Home,
+}
+
+/// The account's publication and the preferences that name it.
+#[derive(Debug, Clone)]
+pub struct Ensured {
+    pub publication: Record<Publication>,
+    pub preferences: Preferences,
+}
+
+/// The defaults a publication is created with when the author has not
+/// said otherwise (plan 08, D41): named after the handle, hosted at a
+/// subdomain made from its first label.
+pub fn default_spec(state: &AppState, identity: &Identity) -> PublicationSpec {
+    let name = identity
+        .handle
+        .as_ref()
+        .map_or_else(|| identity.did.to_string(), |h| h.as_str().to_owned());
+    let home = if state.can_host_subdomains() {
+        Home::HostedOrNext(hosting::suggest_name(
+            &identity.did,
+            identity.handle.as_ref(),
+        ))
+    } else {
+        Home::SiteRoute
+    };
+    PublicationSpec {
+        name,
+        description: None,
+        home,
+    }
+}
+
+/// The account's eaten.at publication, created with the defaults when
+/// there is none yet (plan 08, D40). The preferences come back too, so
+/// a caller that goes on to write them does not read them twice.
+pub async fn ensure_publication(
+    state: &AppState,
+    identity: &Identity,
+    session: &AuthorizedSession,
+    now: &Datetime,
+) -> Result<Ensured, PublishError> {
+    let preferences = state.preferences(identity).await?;
+    if let Some(publication) = state.designated(identity, &preferences).await? {
+        return Ok(Ensured {
+            publication,
+            preferences,
+        });
+    }
+    let spec = default_spec(state, identity);
+    create_publication(state, identity, session, spec, preferences, now).await
+}
+
+/// Create the account's publication and write the preference that
+/// designates it. The record key is minted here so a site-route address
+/// can name it before the write. A hosted name is claimed before the
+/// write and released if the author's server refuses it, so the two
+/// never disagree.
+pub async fn create_publication(
+    state: &AppState,
+    identity: &Identity,
+    session: &AuthorizedSession,
+    spec: PublicationSpec,
+    mut preferences: Preferences,
+    now: &Datetime,
+) -> Result<Ensured, PublishError> {
+    let did = &identity.did;
+    let rkey = Tid::now();
+    let uri = AtUri::from_parts(did, PUBLICATION_NSID, rkey.as_str())
+        .map_err(|e| AppError::Upstream(format!("could not address the publication: {e}")))?;
+    let (origin, claimed) = match &spec.home {
+        Home::Hosted(label) => {
+            let name = hosting::validate_name(label)?;
+            state.claims().claim(&name, &uri, did).await?;
+            (state.hosted_origin(&name), Some(name))
+        }
+        Home::HostedOrNext(label) => {
+            let name = state.claim_free(label, &uri, did).await?;
+            (state.hosted_origin(&name), Some(name))
+        }
+        Home::Own(own) => (own.trim_end_matches('/').to_owned(), None),
+        Home::SiteRoute => {
+            let path = paths::publication(did, rkey.as_str());
+            (state.absolute(path.trim_end_matches('/')), None)
+        }
+    };
+    let mut record = json!({
+        "$type": PUBLICATION_NSID,
+        "url": origin,
+        "name": spec.name,
+    });
+    if let Some(description) = &spec.description {
+        record["description"] = json!(description);
+    }
+    let receipt = match session
+        .create_record(PUBLICATION_NSID, Some(rkey.as_str()), &record)
+        .await
+    {
+        Ok(receipt) => receipt,
+        Err(err) => {
+            if claimed.is_some() {
+                if let Err(release) = state.claims().release(&uri).await {
+                    tracing::error!(error = %release, %uri, "could not release the claim after a refused write");
+                }
+            }
+            return Err(err.into());
+        }
+    };
+    let written = AtUri::parse(&receipt.uri).map_err(|e| {
+        PublishError::Repo(OAuthError::Transport(format!(
+            "PDS returned an unusable record URI: {e}"
+        )))
+    })?;
+    if written != uri {
+        // A server that ignored the key we asked for. The claim follows
+        // the record; the site-route address, if any, is now stale and
+        // the settings page can fix it.
+        tracing::warn!(asked = %uri, got = %written, "the server chose its own record key");
+        if let Some(name) = &claimed {
+            if let Err(err) = state.claims().release(&uri).await {
+                tracing::error!(error = %err, "could not move the claim to the written key");
+            }
+            state.claims().claim(name, &written, did).await?;
+        }
+    }
+
+    preferences.type_ = Some(PREFERENCES_NSID.to_owned());
+    preferences.default_publication = Some(written.clone());
+    if preferences.created_at.is_none() {
+        preferences.created_at = Some(now.clone());
+    }
+    session
+        .put_record(
+            PREFERENCES_NSID,
+            PREFERENCES_RKEY,
+            &serde_json::to_value(&preferences).unwrap_or_default(),
+        )
+        .await?;
+
+    let cache = state.cache();
+    cache
+        .evict(Namespace::Publication, &format!("list:{did}"))
+        .await;
+    cache
+        .evict(Namespace::Publication, &format!("prefs:{did}"))
+        .await;
+    cache
+        .evict(Namespace::Publication, &format!("{did}/{}", written.rkey()))
+        .await;
+    let value: Publication = serde_json::from_value(record).map_err(|e| {
+        AppError::Upstream(format!("the publication written does not read back: {e}"))
+    })?;
+    Ok(Ensured {
+        publication: Record {
+            uri: written,
+            cid: receipt.cid,
+            value,
+        },
+        preferences,
+    })
+}
+
+/// Publish a draft: make sure the account has its publication, write
+/// the document, and forget the cached state it changes.
 pub async fn publish(
     state: &AppState,
     identity: &Identity,
@@ -275,45 +486,32 @@ pub async fn publish(
     let did = &identity.did;
     let session = state.oauth().session(did).await?;
     let now = Datetime::now();
+    let original = editing.map(VisitDocument::document);
 
-    let site = match &draft.target {
-        Target::Existing(uri) => uri.clone(),
-        Target::New { name, url } => {
-            let receipt = session
-                .create_record(
-                    PUBLICATION_NSID,
-                    None,
-                    &json!({
-                        "$type": PUBLICATION_NSID,
-                        "url": url.trim_end_matches('/'),
-                        "name": name,
-                    }),
-                )
-                .await?;
-            let uri = AtUri::parse(&receipt.uri).map_err(|e| {
-                PublishError::Repo(OAuthError::Transport(format!(
-                    "PDS returned an unusable record URI: {e}"
-                )))
-            })?;
-            state
-                .cache()
-                .evict(Namespace::Publication, &format!("list:{did}"))
-                .await;
-            uri
-        }
+    // An edit stays where it is, whatever publication put it there; a
+    // new write-up goes to the account's one publication (plan 08).
+    let (site, preferences) = if let Some(doc) = original {
+        (
+            doc.site.trim_end_matches('/').to_owned(),
+            state.preferences(identity).await?,
+        )
+    } else {
+        let ensured = ensure_publication(state, identity, &session, &now).await?;
+        (
+            ensured.publication.uri.as_str().to_owned(),
+            ensured.preferences,
+        )
     };
 
     update_preferences(
         state,
         identity,
         &session,
-        &site,
+        preferences,
         draft.crosspost.is_some(),
         &now,
     )
     .await?;
-
-    let original = editing.map(VisitDocument::document);
 
     let path = if let Some(path) = original.and_then(|d| d.path.clone()) {
         path
@@ -351,35 +549,30 @@ pub async fn publish(
     forget_document(state, did, &doc_rkey).await;
     Ok(Published {
         did: did.clone(),
-        pub_rkey: site.rkey().to_owned(),
+        site,
         doc_rkey,
     })
 }
 
-/// Preferences are written once on a first publish (the default
-/// publication), and again only when the crosspost choice changed, so
-/// the editor's toggle remembers it (plan §4.3). An author who never
-/// crossposts never gets the field.
+/// The crosspost default is written only when the author's choice
+/// changed, so the editor's toggle remembers it (plan §4.3). An author
+/// who never crossposts never gets the field. The designation itself is
+/// [`create_publication`]'s to write.
 async fn update_preferences(
     state: &AppState,
     identity: &Identity,
     session: &AuthorizedSession,
-    site: &AtUri,
+    mut preferences: Preferences,
     crosspost: bool,
     now: &Datetime,
 ) -> Result<(), PublishError> {
-    let mut preferences = state.preferences(identity).await?;
-    let absent = preferences.created_at.is_none() && preferences.default_publication.is_none();
-    if !absent && preferences.crosspost_default() == crosspost {
+    if preferences.crosspost_default() == crosspost {
         return Ok(());
     }
     preferences.type_ = Some(PREFERENCES_NSID.to_owned());
-    if absent {
-        preferences.default_publication = Some(site.clone());
+    preferences.crosspost_to_bluesky = Some(crosspost);
+    if preferences.created_at.is_none() {
         preferences.created_at = Some(now.clone());
-    }
-    if crosspost || preferences.crosspost_to_bluesky.is_some() {
-        preferences.crosspost_to_bluesky = Some(crosspost);
     }
     session
         .put_record(
@@ -607,7 +800,7 @@ async fn link_card(
 async fn taken_paths(
     state: &AppState,
     identity: &Identity,
-    site: &AtUri,
+    site: &str,
 ) -> Result<Vec<String>, AppError> {
     let mut taken = Vec::new();
     let mut cursor: Option<String> = None;
@@ -616,7 +809,7 @@ async fn taken_paths(
         taken.extend(
             page.records
                 .iter()
-                .filter(|r| r.value.site == site.as_str())
+                .filter(|r| r.value.site.trim_end_matches('/') == site)
                 .filter_map(|r| r.value.path.clone()),
         );
         match page.cursor {
@@ -700,12 +893,6 @@ mod tests {
                 "rating": 3
             }))
             .unwrap(),
-            target: Target::Existing(
-                AtUri::parse(
-                    "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1",
-                )
-                .unwrap(),
-            ),
             crosspost: None,
         }
     }
@@ -789,14 +976,12 @@ mod tests {
 
     #[test]
     fn a_new_document_has_exactly_the_planned_shape() {
-        let site =
-            AtUri::parse("at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1")
-                .unwrap();
+        let site = "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1";
         let at = Datetime::parse("2026-09-09T15:00:00.000Z").unwrap();
         let doc = build_document(
             &draft(),
             &Placement {
-                site: &site,
+                site,
                 path: "/2026/09/a-room-with-the-lights-off",
                 published_at: &at,
                 updated_at: None,
@@ -857,9 +1042,7 @@ mod tests {
             }
         }))
         .unwrap();
-        let site =
-            AtUri::parse("at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1")
-                .unwrap();
+        let site = "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1";
         let published = Datetime::parse("2026-08-30T12:00:00.000Z").unwrap();
         let updated = Datetime::parse("2026-09-09T15:00:00.000Z").unwrap();
         let mut d = draft();
@@ -868,7 +1051,7 @@ mod tests {
         let doc = build_document(
             &d,
             &Placement {
-                site: &site,
+                site,
                 path: "/2026/08/old-title",
                 published_at: &published,
                 updated_at: Some(&updated),

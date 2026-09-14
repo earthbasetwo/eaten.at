@@ -217,6 +217,38 @@ impl AppState {
         Ok(found.map(|r| r.value).unwrap_or_default())
     }
 
+    /// The account's eaten.at publication (plan 08): the one its
+    /// preferences name, when that record still exists. `Ok(None)` means
+    /// the account has none yet, whatever else its repo holds.
+    pub async fn own_publication(
+        &self,
+        identity: &Identity,
+    ) -> Result<Option<Record<Publication>>, AppError> {
+        let preferences = self.preferences(identity).await?;
+        self.designated(identity, &preferences).await
+    }
+
+    /// [`own_publication`](Self::own_publication) for preferences already
+    /// in hand.
+    pub async fn designated(
+        &self,
+        identity: &Identity,
+        preferences: &Preferences,
+    ) -> Result<Option<Record<Publication>>, AppError> {
+        let Some(uri) = &preferences.default_publication else {
+            return Ok(None);
+        };
+        let found = self
+            .publications(identity)
+            .await?
+            .into_iter()
+            .find(|p| &p.uri == uri);
+        if found.is_none() {
+            tracing::debug!(did = %identity.did, %uri, "the designated publication is gone");
+        }
+        Ok(found)
+    }
+
     /// Resolve `/at/{did}/` per plan §4.3: a valid `defaultPublication`
     /// wins; else a lone publication is used; else the reader chooses.
     pub async fn choose_publication(

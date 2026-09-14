@@ -6,7 +6,7 @@ use eaten_at_web::components::{tag_links, visit_card, visit_links, Link};
 use eaten_at_web::markdown;
 use maud::{html, Markup, PreEscaped};
 
-use super::form::{Action, Choice, EditorForm, PlaceMode, RowKind, PUBLICATION_NEW};
+use super::form::{Action, Choice, EditorForm, PlaceMode, RowKind};
 use super::{default_post_text, DocumentDraft, FieldErrors};
 use crate::places::Hit;
 use crate::publish::MAX_POST_GRAPHEMES;
@@ -21,13 +21,6 @@ pub enum CrosspostState {
     /// The session has not been granted posting yet; the first
     /// crosspost asks for it.
     NeedsPermission,
-}
-
-/// A publication the author can write to.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PublicationOption {
-    pub uri: String,
-    pub name: String,
 }
 
 /// What the choosing state shows under the search box.
@@ -59,7 +52,6 @@ pub enum Located {
 pub struct EditorPage<'a> {
     pub form: &'a EditorForm,
     pub errors: &'a FieldErrors,
-    pub publications: &'a [PublicationOption],
     /// Where the form posts.
     pub action_path: &'a str,
     /// Set when editing an existing document.
@@ -157,7 +149,6 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                                 aria-describedby=[described(errors, "tags")];
                         }))
                         p.meta.field-hint { "Separate tags with commas." }
-                        (publication(form, page.publications, errors))
                     }
                     fieldset.editor-group {
                         legend.kicker { "Bluesky" }
@@ -321,9 +312,6 @@ fn carried(form: &EditorForm) -> Markup {
             (hidden(&format!("link_label_{i}"), &link.label))
         }
         (hidden("tags", &form.tags))
-        (hidden("publication", &form.publication))
-        (hidden("new_publication_name", &form.new_publication_name))
-        (hidden("new_publication_url", &form.new_publication_url))
         @if form.crosspost { (hidden("crosspost", "1")) }
         (hidden("post_text", &form.post_text))
     }
@@ -641,37 +629,6 @@ fn rating_choice(form: &EditorForm, errors: &FieldErrors) -> Markup {
             @if let Some(message) = errors.get("rating") {
                 p.field-error id="rating-error" { (message) }
             }
-        }
-    }
-}
-
-fn publication(
-    form: &EditorForm,
-    publications: &[PublicationOption],
-    errors: &FieldErrors,
-) -> Markup {
-    html! {
-        (field("publication", "Publication", errors, &html! {
-            select #publication name="publication" aria-describedby=[described(errors, "publication")] {
-                @for publication in publications {
-                    option value=(publication.uri) selected[form.publication == publication.uri] { (publication.name) }
-                }
-                option value=(PUBLICATION_NEW) selected[form.publication == PUBLICATION_NEW || publications.is_empty()] {
-                    @if publications.is_empty() { "A new publication" } @else { "A new publication…" }
-                }
-            }
-        }))
-        div.field-group.new-publication {
-            (field("new_publication_name", "New publication's name", errors, &html! {
-                input #new_publication_name name="new_publication_name" type="text" value=(form.new_publication_name)
-                    aria-describedby=[described(errors, "new_publication_name")];
-            }))
-            (field("new_publication_url", "New publication's address", errors, &html! {
-                input #new_publication_url name="new_publication_url" type="url" value=(form.new_publication_url)
-                    placeholder="https://" spellcheck="false"
-                    aria-describedby=[described(errors, "new_publication_url")];
-            }))
-            p.meta.field-hint { "Only needed for a new publication. Hosting on eaten.at comes with settings." }
         }
     }
 }

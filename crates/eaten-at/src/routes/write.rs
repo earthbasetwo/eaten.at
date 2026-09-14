@@ -14,8 +14,6 @@ use axum::Form;
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::at_eaten::Preferences;
-use eaten_at_atproto::lexicon::Publication;
-use eaten_at_atproto::repo::Record;
 use eaten_at_web::assets::{EDITOR_SCRIPT, LOCATE_SCRIPT};
 use eaten_at_web::layout::{self, urlencoding, Page, Width};
 use serde::Deserialize;
@@ -23,25 +21,22 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::auth::{PostPermission, RequireUser};
 use crate::editor::view::{
-    self, CrosspostPage, CrosspostState, DeletePage, DeletePost, EditorPage, Located,
-    PublicationOption, SearchState,
+    self, CrosspostPage, CrosspostState, DeletePage, DeletePost, EditorPage, Located, SearchState,
 };
-use crate::editor::{self, Action, Context, EditorForm, FieldErrors, PUBLICATION_NEW};
+use crate::editor::{self, Action, Context, EditorForm, FieldErrors};
 use crate::error::AppError;
 use crate::model::VisitDocument;
 use crate::paths;
 use crate::places::Point;
 use crate::publish::{self, PublishError, MAX_POST_GRAPHEMES};
-use crate::read::PublicationChoice;
 use crate::security::Nonce;
 use crate::state::AppState;
 
-/// What the author has to write into.
+/// Who is writing. The publication is not part of it: every write-up
+/// goes to the account's one publication, made on the first publish if
+/// need be (plan 08).
 struct Author {
     identity: Identity,
-    publications: Vec<Record<Publication>>,
-    /// The preselected publication: the preference, or the only one.
-    default: String,
     preferences: Preferences,
     /// What the sign-in may do with Bluesky posts.
     posting: PostPermission,
@@ -49,11 +44,6 @@ struct Author {
 
 async fn author(state: &AppState, did: &Did) -> Result<Author, AppError> {
     let identity = state.require_identity(did).await?;
-    let publications = state.publications(&identity).await?;
-    let default = match state.choose_publication(&identity).await? {
-        PublicationChoice::Chosen(publication) => publication.uri.as_str().to_owned(),
-        PublicationChoice::Choose(_) | PublicationChoice::None => PUBLICATION_NEW.to_owned(),
-    };
     let preferences = state.preferences(&identity).await?;
     // A session whose grant cannot be read is treated as one that may
     // not post; the worst case is being asked to allow it again.
@@ -66,27 +56,9 @@ async fn author(state: &AppState, did: &Did) -> Result<Author, AppError> {
     };
     Ok(Author {
         identity,
-        publications,
-        default,
         preferences,
         posting,
     })
-}
-
-impl Author {
-    fn options(&self) -> Vec<PublicationOption> {
-        self.publications
-            .iter()
-            .map(|p| PublicationOption {
-                uri: p.uri.as_str().to_owned(),
-                name: p.value.name.clone(),
-            })
-            .collect()
-    }
-
-    fn uris(&self) -> Vec<AtUri> {
-        self.publications.iter().map(|p| p.uri.clone()).collect()
-    }
 }
 
 /// The document being edited, when there is one.
@@ -152,7 +124,6 @@ fn render(
     outcome: &Outcome<'_>,
 ) -> Response {
     let action_path = editing.map_or_else(|| "/write".to_owned(), |e| format!("/write/{}", e.rkey));
-    let options = author.options();
     let crosspost =
         match editing.and_then(|e| crate::view::bluesky_post_url(e.visit_doc.document())) {
             Some(url) => CrosspostState::Posted(url),
@@ -172,7 +143,6 @@ fn render(
         main: view::page(&EditorPage {
             form,
             errors: &outcome.errors,
-            publications: &options,
             action_path: &action_path,
             editing: editing.is_some(),
             heading,
@@ -196,7 +166,7 @@ pub async fn new_form(
 ) -> Result<Response, AppError> {
     let nonce = nonce.0.as_str();
     let author = author(&state, &did).await?;
-    let mut form = EditorForm::blank(&author.default);
+    let mut form = EditorForm::blank();
     form.crosspost = author.preferences.crosspost_default();
     let outcome = Outcome::default();
     Ok(render(
@@ -285,9 +255,7 @@ async fn submit(
             ));
         }
     }
-    let uris = author.uris();
     let context = Context {
-        publications: &uris,
         original: editing.map(|e| &e.visit_doc.visit),
     };
     let draft = match editor::validate(&form, &context) {
@@ -321,23 +289,34 @@ async fn submit(
             },
         ));
     }
+    publish_and_continue(state, nonce, author, editing, &form, &draft).await
+}
+
+/// Write the draft and move on, or come back to the form saying why not.
+async fn publish_and_continue(
+    state: &AppState,
+    nonce: &str,
+    author: &Author,
+    editing: Option<&Editing>,
+    form: &EditorForm,
+    draft: &editor::DocumentDraft,
+) -> Result<Response, AppError> {
     match publish::publish(
         state,
         &author.identity,
-        &draft,
+        draft,
         editing.map(|e| &e.visit_doc),
     )
     .await
     {
         Ok(published) => {
-            let document_path =
-                paths::document(&published.did, &published.pub_rkey, &published.doc_rkey);
+            let document_path = published.document_path();
             Ok(after_publish(
                 state,
                 author,
                 &published.doc_rkey,
                 &document_path,
-                &draft,
+                draft,
                 editing.is_none(),
             )
             .await)
@@ -346,6 +325,25 @@ async fn submit(
             Ok(Redirect::to("/login?return_to=/write").into_response())
         }
         Err(PublishError::App(err)) => Err(err),
+        Err(PublishError::Home(message)) => {
+            // The default subdomain could not be claimed; settings is
+            // where an address is chosen by hand.
+            tracing::warn!(message, "publish could not claim the default address");
+            Ok(render(
+                state,
+                nonce,
+                StatusCode::UNPROCESSABLE_ENTITY,
+                author,
+                editing,
+                form,
+                &Outcome {
+                    publish_error: Some(
+                        "Your publication's address could not be set up. Choose one in settings, then publish again.",
+                    ),
+                    ..Outcome::default()
+                },
+            ))
+        }
         Err(PublishError::Repo(err)) => {
             tracing::warn!(error = %err, "publish refused");
             Ok(render(
@@ -354,7 +352,7 @@ async fn submit(
                 StatusCode::BAD_GATEWAY,
                 author,
                 editing,
-                &form,
+                form,
                 &Outcome {
                     publish_error: Some("Your server did not accept the write. Nothing was changed; try again in a moment."),
                     ..Outcome::default()
@@ -612,6 +610,7 @@ pub async fn crosspost_submit(
         ))
         .into_response()),
         Err(PublishError::App(err)) => Err(err),
+        Err(PublishError::Home(message)) => Err(AppError::Upstream(message)),
         Err(PublishError::Repo(err)) => {
             tracing::warn!(error = %err, "crosspost refused");
             Ok(crosspost_response(
@@ -686,6 +685,7 @@ pub async fn delete_submit(
             Ok(Redirect::to(&format!("/login?return_to=/write/{rkey}/delete")).into_response())
         }
         Err(PublishError::App(err)) => Err(err),
+        Err(PublishError::Home(message)) => Err(AppError::Upstream(message)),
         Err(PublishError::Repo(err)) => {
             tracing::warn!(error = %err, "delete refused");
             Err(AppError::Upstream(err.to_string()))

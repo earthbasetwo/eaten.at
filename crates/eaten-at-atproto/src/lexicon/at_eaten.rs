@@ -507,8 +507,9 @@ pub const PREFERENCES_RKEY: &str = "self";
 pub struct Preferences {
     #[serde(rename = "$type", default, skip_serializing_if = "Option::is_none")]
     pub type_: Option<String>,
-    /// Publication to show for a bare DID route and to preselect in the
-    /// editor. A hint, not a restriction.
+    /// The account's eaten.at publication: the one every document is
+    /// written to and a bare DID route shows (plan 08). Absent, or
+    /// dangling, means none yet.
     #[serde(
         rename = "defaultPublication",
         default,

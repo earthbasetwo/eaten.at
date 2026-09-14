@@ -58,7 +58,7 @@ This starts a PLC on `localhost:2582`, a PDS on `localhost:2583`, and a
 stub of the Open Places API on `localhost:2584` (any search finds the same
 three places; a query containing "nothing" finds none, one containing
 "quota" is refused, so every state of the place search can be seen without
-the network). It creates two accounts, seeds records, and writes
+the network). It creates three accounts, seeds records, and writes
 `.env.dev`:
 
 - **`eaten.test`**, the lexicon publisher, with an app password.
@@ -72,6 +72,9 @@ the network). It creates two accounts, seeds records, and writes
   - **After Hours**, with a dark author theme whose text colour fails
     contrast on purpose, and two write-ups, so the theme path and its
     contrast clamp are exercised.
+- **`bob.test`**, an author who has signed in and done nothing else: no
+  publication, no preferences. The settings page and the editor have a
+  first-time state for this account (plan 08).
 
 Set `ATPROTO_DIR` if the checkout is somewhere other than `../atproto`.
 
@@ -147,7 +150,7 @@ for a day, handle lookups for an hour) and every page would fail with
 |---|---|
 | `EATEN_AT_DEV_INSECURE=1` | The outbound HTTP policy allows plain HTTP and loopback. This disables the SSRF guards; the app logs a warning at startup. Never set it in production. |
 | `EATEN_AT_PLC_DIRECTORY` | Replaces `https://plc.directory` with the local PLC. |
-| `EATEN_AT_DEV_HOSTS` | Maps `eaten.test` and `alice.test` to the local PDS before the system resolver is consulted, so handle verification via `/.well-known/atproto-did` reaches it. |
+| `EATEN_AT_DEV_HOSTS` | Maps `eaten.test`, `alice.test`, and `bob.test` to the local PDS before the system resolver is consulted, so handle verification via `/.well-known/atproto-did` reaches it. |
 | `EATEN_AT_DEV_DNS_TXT` | A fixed TXT answer for `_lexicon.eaten.at`, standing in for the real DNS record. The name comes from the NSID authority, not from the publisher's handle, so it is the production name even locally. The first `=` separates name from value. |
 | `EATEN_AT_LEXICON_*` | Credentials for the publish tool. |
 | `EATEN_AT_DEV_PDS`, `EATEN_AT_DEV_ALICE_DID` | Used by the `just` recipes and handy for `curl`. |

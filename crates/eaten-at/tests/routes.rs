@@ -245,9 +245,21 @@ async fn get(state: &AppState, uri: &str) -> (StatusCode, Option<String>, String
     )
 }
 
+/// The preferences record that designates `pub_rkey` as the account's
+/// eaten.at publication (plan 08).
+fn designating(pub_rkey: &str) -> Value {
+    json!({
+        "$type": "at.eaten.preferences",
+        "defaultPublication": format!("at://{DID}/site.standard.publication/{pub_rkey}"),
+        "createdAt": "2026-01-01T00:00:00.000Z"
+    })
+}
+
+/// An eaten.at account: one publication, designated by its preferences.
 fn one_publication() -> Repo {
     Repo {
         publications: vec![("pub1", publication("Ross Writes", "https://ross.eaten.at"))],
+        preferences: Some(designating("pub1")),
         documents: vec![
             (
                 "d3".into(),
@@ -1411,16 +1423,12 @@ fn good_fields<'a>() -> Vec<(&'a str, &'a str)> {
         ("link_service_0", "officialSite"),
         ("link_label_0", ""),
         ("tags", "#notes, Short"),
-        (
-            "publication",
-            "at://did:plc:re3ebnp5v7ffagz6rb6xfei4/site.standard.publication/pub1",
-        ),
         ("action", "preview"),
     ]
 }
 
 #[tokio::test]
-async fn editor_requires_sign_in_and_prefills_the_publication() {
+async fn editor_requires_sign_in_and_starts_by_choosing_a_place() {
     let server = mount(&one_publication()).await;
     let state = state_for(&server, dns_for_handle());
     let (status, location, _) = get(&state, "/write").await;
@@ -1442,14 +1450,11 @@ async fn editor_requires_sign_in_and_prefills_the_publication() {
     assert!(body.contains("data-locate"), "{body}");
     assert!(body.contains("value=\"manual\""), "{body}");
     assert!(!body.contains("id=\"title\""), "the form waits: {body}");
-    // The rest of the form rides along hidden, the publication preselected.
-    assert!(
-        body.contains(&format!(
-            "name=\"publication\" value=\"at://{DID}/site.standard.publication/pub1\""
-        )),
-        "the only publication is preselected: {body}"
-    );
+    // The rest of the form rides along hidden. There is no publication
+    // to choose: every write-up goes to the account's one (plan 08).
     assert!(body.contains("name=\"link_url_0\""), "{body}");
+    assert!(!body.contains("name=\"publication\""), "{body}");
+    assert!(!body.contains("new_publication"), "{body}");
     assert!(!body.contains("A new write-up"), "{body}");
 }
 
@@ -1934,10 +1939,7 @@ async fn first_publish_creates_the_publication_and_preferences_then_the_document
     let cookie = author_session(&state, &server).await;
 
     let mut fields = good_fields();
-    fields.retain(|(k, _)| !matches!(*k, "publication" | "action"));
-    fields.push(("publication", "new"));
-    fields.push(("new_publication_name", "Liner Notes"));
-    fields.push(("new_publication_url", "https://notes.alice.test/"));
+    fields.retain(|(k, _)| *k != "action");
     fields.push(("action", "publish"));
     let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
@@ -1952,10 +1954,25 @@ async fn first_publish_creates_the_publication_and_preferences_then_the_document
             "com.atproto.repo.createRecord"
         ]
     );
+    // The publication is made with the defaults (plan 08): named after
+    // the handle, hosted at a subdomain from its first label, under a
+    // key the app minted so the address was known before the write.
     let publication = &writes[0].1;
     assert_eq!(publication["collection"], "site.standard.publication");
-    assert_eq!(publication["record"]["url"], "https://notes.alice.test");
-    assert_eq!(publication["record"]["name"], "Liner Notes");
+    assert_eq!(publication["record"]["url"], "https://alice.eaten.at");
+    assert_eq!(publication["record"]["name"], "alice.test");
+    assert!(publication["record"].get("description").is_none());
+    let rkey = publication["rkey"].as_str().unwrap();
+    assert!(
+        eaten_at_atproto::tid::Tid::is_valid(rkey),
+        "a minted TID, not {rkey}"
+    );
+    // The claim follows the key the server actually wrote under.
+    let claim = state.claims().by_name("alice").await.unwrap().unwrap();
+    assert_eq!(
+        claim.publication_uri.as_str(),
+        format!("at://{DID}/site.standard.publication/newpub")
+    );
     let prefs = &writes[1].1;
     assert_eq!(prefs["collection"], "at.eaten.preferences");
     assert_eq!(prefs["rkey"], "self");
@@ -2607,43 +2624,65 @@ async fn post_form_signed(
 
 #[tokio::test]
 async fn settings_claims_a_subdomain_and_rewrites_the_publication_url() {
-    let mut repo = one_publication();
-    repo.publications
-        .push(("pub2", publication("Second", "https://two.alice.test")));
-    let server = mount(&repo).await;
+    let server = mount(&one_publication()).await;
     mount_writes(&server).await;
     let state = state_for(&server, dns_for_handle());
     let cookie = author_session(&state, &server).await;
 
     let (status, _, body) = get_signed(&state, "/settings", &cookie).await;
     assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("<h1>Your publication</h1>"), "{body}");
     assert!(body.contains("Served by you at ross.eaten.at"), "{body}");
-    assert!(body.contains("action=\"/settings/pub1/hosting\""), "{body}");
+    assert!(body.contains("action=\"/settings\""), "{body}");
+    assert!(
+        body.contains("name=\"name\" type=\"text\" value=\"Ross Writes\""),
+        "{body}"
+    );
     assert!(
         body.contains("<span class=\"meta\">.eaten.at</span>"),
         "{body}"
     );
+    assert_eq!(body.matches("chooser-item").count(), 1, "one card: {body}");
 
     for (form, message) in [
         (
-            "mode=hosted&name=-bad-",
+            "name=Ross+Writes&mode=hosted&subdomain=-bad-",
             "not starting or ending with a hyphen",
         ),
-        ("mode=hosted&name=www", "reserved"),
-        ("mode=own&url=http://insecure.example", "https address"),
-        ("mode=", "Choose where"),
+        ("name=Ross+Writes&mode=hosted&subdomain=www", "reserved"),
+        (
+            "name=Ross+Writes&mode=own&url=http://insecure.example",
+            "https address",
+        ),
+        ("name=Ross+Writes&mode=", "Choose where"),
+        (
+            "name=+&mode=own&url=https://ross.eaten.at",
+            "Name the publication.",
+        ),
     ] {
-        let (status, _, body) =
-            post_form_signed(&state, "/settings/pub1/hosting", &cookie, form).await;
+        let (status, _, body) = post_form_signed(&state, "/settings", &cookie, form).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{form}: {body}");
         assert!(body.contains(message), "{form}: {body}");
     }
+    assert!(repo_writes(&server).await.is_empty(), "nothing was written");
+
+    // A form that changes nothing writes nothing.
+    let (status, location, _) = post_form_signed(
+        &state,
+        "/settings",
+        &cookie,
+        "name=Ross+Writes&description=Ross+Writes+description&mode=own&url=https://ross.eaten.at/",
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(location.as_deref(), Some("/settings"));
+    assert!(repo_writes(&server).await.is_empty(), "nothing changed");
 
     let (status, location, body) = post_form_signed(
         &state,
-        "/settings/pub1/hosting",
+        "/settings",
         &cookie,
-        "mode=hosted&name=Records",
+        "name=Ross+Eats&description=&mode=hosted&subdomain=Records",
     )
     .await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
@@ -2654,23 +2693,177 @@ async fn settings_claims_a_subdomain_and_rewrites_the_publication_url() {
     assert_eq!(put["collection"], "site.standard.publication");
     assert_eq!(put["rkey"], "pub1");
     assert_eq!(put["record"]["url"], "https://records.eaten.at");
-    assert_eq!(
-        put["record"]["name"], "Ross Writes",
-        "the rest of the record is kept"
+    assert_eq!(put["record"]["name"], "Ross Eats");
+    assert!(
+        put["record"].get("description").is_none(),
+        "a blank description is removed: {put}"
     );
     assert_eq!(put["record"]["$type"], "site.standard.publication");
 
-    // The second publication cannot take the same name.
+    // A name another publication holds cannot be taken.
+    let did = eaten_at_atproto::identity::Did::parse(DID).unwrap();
+    let other = eaten_at_atproto::at_uri::AtUri::parse(&format!(
+        "at://{OTHER_DID}/site.standard.publication/theirs"
+    ))
+    .unwrap();
+    state.claims().claim("taken", &other, &did).await.unwrap();
     let (status, _, body) = post_form_signed(
         &state,
-        "/settings/pub2/hosting",
+        "/settings",
         &cookie,
-        "mode=hosted&name=records",
+        "name=Ross+Eats&mode=hosted&subdomain=taken",
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(body.contains("that name is taken"), "{body}");
-    assert!(body.contains("Hosted here at records.eaten.at"), "{body}");
+}
+
+#[tokio::test]
+async fn settings_creates_the_publication_on_a_first_save() {
+    let server = mount(&Repo::default()).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+
+    // No publication yet: the page shows the defaults it would be made with.
+    let (status, _, body) = get_signed(&state, "/settings", &cookie).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("You don't have one yet"), "{body}");
+    assert!(
+        body.contains("name=\"name\" type=\"text\" value=\"alice.test\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("name=\"subdomain\" value=\"alice\""),
+        "{body}"
+    );
+    assert!(body.contains(">Create it</button>"), "{body}");
+
+    let (status, location, body) = post_form_signed(
+        &state,
+        "/settings",
+        &cookie,
+        "name=Liner+Notes&description=Notes+on+dinner&mode=hosted&subdomain=liner",
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
+    assert_eq!(location.as_deref(), Some("/settings"));
+    let writes = repo_writes(&server).await;
+    let names: Vec<&str> = writes.iter().map(|(n, _)| n.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "com.atproto.repo.createRecord",
+            "com.atproto.repo.putRecord"
+        ]
+    );
+    let publication = &writes[0].1;
+    assert_eq!(publication["collection"], "site.standard.publication");
+    assert_eq!(publication["record"]["url"], "https://liner.eaten.at");
+    assert_eq!(publication["record"]["name"], "Liner Notes");
+    assert_eq!(publication["record"]["description"], "Notes on dinner");
+    let prefs = &writes[1].1;
+    assert_eq!(prefs["collection"], "at.eaten.preferences");
+    assert_eq!(
+        prefs["record"]["defaultPublication"],
+        format!("at://{DID}/site.standard.publication/newpub")
+    );
+    assert!(prefs["record"]["createdAt"].is_string());
+    assert!(state.claims().by_name("liner").await.unwrap().is_some());
+}
+
+#[tokio::test]
+async fn a_refused_publication_write_releases_its_claim() {
+    let server = mount(&Repo::default()).await;
+    mount_writes(&server).await;
+    Mock::given(method("POST"))
+        .and(path("/xrpc/com.atproto.repo.createRecord"))
+        .and(wiremock::matchers::body_string_contains(
+            "\"collection\":\"site.standard.publication\"",
+        ))
+        .respond_with(ResponseTemplate::new(500).set_body_json(json!({
+            "error": "InternalServerError", "message": "no"
+        })))
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let mut fields = good_fields();
+    fields.retain(|(k, _)| *k != "action");
+    fields.push(("action", "publish"));
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY, "{body}");
+    assert!(body.contains("did not accept the write"), "{body}");
+    assert!(
+        state.claims().by_name("alice").await.unwrap().is_none(),
+        "the claim went back"
+    );
+    let writes = repo_writes(&server).await;
+    assert_eq!(
+        writes.len(),
+        1,
+        "nothing after the refused write: {writes:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_taken_default_label_gets_a_number() {
+    let server = mount(&Repo::default()).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let other_did = eaten_at_atproto::identity::Did::parse(OTHER_DID).unwrap();
+    let other = eaten_at_atproto::at_uri::AtUri::parse(&format!(
+        "at://{OTHER_DID}/site.standard.publication/theirs"
+    ))
+    .unwrap();
+    state
+        .claims()
+        .claim("alice", &other, &other_did)
+        .await
+        .unwrap();
+    let mut fields = good_fields();
+    fields.retain(|(k, _)| *k != "action");
+    fields.push(("action", "publish"));
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
+    let writes = repo_writes(&server).await;
+    assert_eq!(
+        writes[0].1["record"]["url"], "https://alice-2.eaten.at",
+        "{writes:?}"
+    );
+    assert!(state.claims().by_name("alice-2").await.unwrap().is_some());
+}
+
+#[tokio::test]
+async fn an_edit_keeps_the_document_where_it_is() {
+    // A document in a publication that is not the designated one (an
+    // earlier build, another client) is edited in place, not moved.
+    let mut repo = one_publication();
+    repo.publications
+        .push(("pub2", publication("Second", "https://two.alice.test")));
+    repo.documents.push((
+        "d9".into(),
+        visit_doc("pub2", "Elsewhere", "Elsewhere Place", &[]),
+    ));
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let mut fields = good_fields();
+    fields.retain(|(k, _)| *k != "action");
+    fields.push(("action", "publish"));
+    let (status, body) = post_editor(&state, "/write/d9", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
+    let writes = repo_writes(&server).await;
+    assert_eq!(writes.len(), 1, "{writes:?}");
+    let (name, put) = &writes[0];
+    assert_eq!(name, "com.atproto.repo.putRecord");
+    assert_eq!(
+        put["record"]["site"],
+        format!("at://{DID}/site.standard.publication/pub2")
+    );
 }
 
 #[tokio::test]
@@ -2758,9 +2951,9 @@ async fn moving_to_an_own_domain_releases_the_claim_and_redirects_the_old_host()
 
     let (status, _, body) = post_form_signed(
         &state,
-        "/settings/pub1/hosting",
+        "/settings",
         &cookie,
-        "mode=own&url=https%3A%2F%2Fross.example%2F",
+        "name=Ross+Writes&mode=own&url=https%3A%2F%2Fross.example%2F",
     )
     .await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
