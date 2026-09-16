@@ -66,7 +66,6 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
                 }
                 p.lede {
                     "Well, not " em { "us" } ", exactly. But you have thoughts about food and there's a demanding public out there! Write about it here."
-
                 }
                 p.lede {
                     "As for us, we don't actually care to know. We put all of your data in the "
