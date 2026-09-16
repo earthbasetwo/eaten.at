@@ -284,6 +284,47 @@ pub fn lookup_form(form: &LookupForm<'_>) -> Markup {
     }
 }
 
+/// The way in on the signed-out landing page (plan 09): one primary
+/// "Connect" that, pressed, becomes the handle field in place.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Connect<'a> {
+    /// The `AppView` origin the handle field suggests from (D42).
+    pub appview: &'a str,
+    /// The quiet aside on the button's baseline.
+    pub aside: &'a str,
+}
+
+/// The connect component.
+///
+/// Without script it is a link to the sign-in page beside its aside;
+/// the sign-in form is in the markup but hidden. The island hides the
+/// link, shows the form, and focuses the field, so the swap happens
+/// where the button stood and the caret is already in the field. The
+/// form posts where the sign-in page's does, and an error comes back on
+/// that page with the handle kept. Its field has its own id because the
+/// lookup form's `handle` shares the page.
+pub fn connect(connect: &Connect<'_>) -> Markup {
+    html! {
+        div.connect data-connect {
+            div.actions.landing-actions.connect-idle {
+                a.button.connect-button href="/login" { "Connect" }
+                span.landing-aside { (connect.aside) }
+            }
+            form.lookup.connect-form action="/login" method="post" hidden {
+                label.visually-hidden for="connect-handle" { "Your handle" }
+                div.lookup-row {
+                    input #connect-handle name="handle" type="text" inputmode="url" autocomplete="username"
+                        placeholder="Start typing your handle…"
+                        data-typeahead=(connect.appview)
+                        aria-describedby="connect-hint" required;
+                    button type="submit" { "Continue" }
+                }
+                p.meta.field-hint #connect-hint { (HANDLE_HINT) }
+            }
+        }
+    }
+}
+
 /// Tag links. A tag page covers one publication, not everyone who used
 /// the tag, so the landmark says so; `scope_note` adds visible copy where
 /// a page wants it spelled out.

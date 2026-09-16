@@ -48,7 +48,8 @@ a class in that file.
    replaces paper, ink, and vermilion; layout, type, spacing, and shape
    are fixed.
 7. **Server-rendered, no script.** Nothing here needs JavaScript. A
-   few islands make pages quicker: the sign-in and landing pages
+   few islands make pages quicker: the landing page's Connect button
+   becomes the sign-in form in place, the sign-in and landing pages
    suggest handles as you type from the Bluesky AppView (D42), the
    editor suggests places as you type through this site's own endpoint
    (D45), the author's home applies its find as you type, and the
@@ -189,7 +190,8 @@ Elevation: none. A bright surface has a hairline and nothing else.
 
 Motion: 160ms ease-out (`--ease`) on color, background, and border only.
 Nothing lifts, scales, or slides, and `prefers-reduced-motion` removes even
-that.
+that. The one animation is the connect field's arrival (below), and it
+too is colour only.
 
 ## Components
 
@@ -315,6 +317,20 @@ tracked at 0.1em, padded 11px by 22px. Hovering inverts fill and outline.
 
 Actions sit in an `.actions` row with 8–12px gaps.
 
+**Connect** (`.connect`). The signed-out landing page's way in: one
+primary "Connect" with a quiet aside on its baseline. Pressed, the
+button and aside give way to the sign-in form where they stood (the
+handle field with "Start typing your handle…", a primary "Continue" at
+its end, the served hint under it, suggestions as you type), and the
+caret is already in the field. The field arrives with a wash of
+vermilion at 12% that settles into `paper-bright` over 1.2s, fading in
+over the first 160ms: the site's one animation, colour only, so the eye
+lands on the caret without anything moving; reduced motion skips to the
+settled field. Without script the button is a link to the sign-in page
+and the form stays hidden. A modified or middle click keeps the link.
+The form posts where the sign-in page's does, so an error comes back on
+that page with the handle kept.
+
 **Link button** (`.link-button`). A button dressed as an inline link, for
 a POST that sits in a sentence (sign out, restore a draft, remove a row).
 
@@ -355,7 +371,7 @@ hairline above: one sentence saying what the site is.
 
 | Page | Above the content | Opens with | Then |
 |---|---|---|---|
-| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | one primary "Sign in" with a small aside on its baseline; a hairline; the lookup form with a secondary "Read" button, its hint, and handle suggestions as you type; a note in the metadata voice |
+| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect" with a small aside on its baseline, which becomes the sign-in form in place; a hairline; the lookup form with a secondary "Read" button, its hint, and handle suggestions as you type; a note in the metadata voice |
 | Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new visit"; "Your publication": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent write-ups" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All write-ups →" when there are more; or, with no publication yet, one lede saying what it will be; then a hairline and one quiet line, Settings · Sign out |
 | Publication front page | — | nameplate | listing, notice if truncated, pagination |
 | Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
@@ -417,7 +433,7 @@ Signed in, the landing page is the author's home (plan 11). Its last
 line, under a hairline, is the only place settings and sign-out appear:
 "Settings · Sign out" in the metadata voice, the second a link button.
 Signed out there is no account line: the page's primary action is
-"Sign in" (plan 09).
+"Connect" (plan 09), which becomes the sign-in form in place.
 
 ## Accessibility and constraints
 
@@ -428,8 +444,8 @@ Signed out there is no account line: the page's primary action is
 - Contrast: see the palette notes, including the vermilion shortfall.
   Publication themes are clamped to WCAG AA (`theme::MIN_CONTRAST`) on
   every surface their text sits on.
-- `prefers-reduced-motion` disables the transitions; there are no
-  animations.
+- `prefers-reduced-motion` disables the transitions and cuts the one
+  animation, the connect field's arrival, to its settled state.
 - Newsreader and JetBrains Mono are subset to Latin and Latin Extended;
   Evantic is one file. All use `font-display: swap` and fall back to
   Georgia and the system mono. The licences are in

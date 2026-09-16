@@ -111,6 +111,17 @@ async function main() {
   if (themed.documents.length === 0) throw new Error(`no documents listed on ${themedFront}`)
 
   await check({ name: 'landing', path: '/', expect: 'a.button[href="/login"]' })
+  // Connect (plan 09): pressing the link swaps the sign-in form in and
+  // focuses its field, which then suggests handles like the sign-in page.
+  await check({
+    name: 'landing-connect',
+    path: '/',
+    steps: [
+      { press: '.connect-button', wait: '#connect-handle:focus' },
+      { type: { '#connect-handle': 'ali' }, wait: '#connect-handle-list [role="option"]' },
+    ],
+    expect: '.connect-idle[hidden] + form.connect-form:not([hidden])',
+  })
   await check({ name: 'lookup-error', path: '/lookup?handle=nobody.invalid', status: 400 })
   await check({ name: 'login', path: '/login', expect: 'input[data-typeahead]' })
   // The handle island (plan 10): typing shows suggestions from the stub
@@ -275,6 +286,9 @@ class Browser {
     const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json()
     const browser = new Browser(await Session.connect(target.webSocketDebuggerUrl))
     await browser.session.send('Page.enable')
+    // A headless page is never the focused window, so :focus would match
+    // nothing; act as if it were, so a step can wait on a focused field.
+    await browser.session.send('Emulation.setFocusEmulationEnabled', { enabled: true })
     await browser.session.send('Network.enable')
     await browser.session.send('Runtime.enable')
     await browser.session.send('Log.enable')
@@ -319,6 +333,16 @@ class Browser {
     // page under test. `submit` is the one-click shorthand.
     const steps = page.steps ?? (page.submit ? [{ click: page.submit }] : [])
     for (const step of steps) {
+      // A `press` step clicks something in the page and waits for `wait`
+      // to appear; no navigation follows.
+      if (step.press) {
+        const pressed = await this.evaluate(
+          `(() => { const el = document.querySelector(${JSON.stringify(step.press)}); if (!el) return false; el.click(); return true })()`,
+        )
+        if (!pressed) problems.push(`no element matches ${step.press}`)
+        else if (!(await this.appears(step.wait))) problems.push(`nothing matched ${step.wait} after pressing ${step.press}`)
+        continue
+      }
       // A `type` step types into a field (an input event, so an island
       // reacts) and waits for `wait` to appear; no navigation follows.
       if (step.type) {
@@ -328,14 +352,7 @@ class Browser {
           )
           if (!typed) problems.push(`no element matches ${selector}`)
         }
-        const appeared = await this.evaluate(`(async () => {
-          for (let i = 0; i < 40; i++) {
-            if (document.querySelector(${JSON.stringify(step.wait)})) return true
-            await new Promise(r => setTimeout(r, 100))
-          }
-          return false
-        })()`)
-        if (!appeared) problems.push(`nothing matched ${step.wait} after typing`)
+        if (!(await this.appears(step.wait))) problems.push(`nothing matched ${step.wait} after typing`)
         continue
       }
       for (const [selector, value] of Object.entries(step.fill ?? {})) {
@@ -410,6 +427,17 @@ class Browser {
    * event. Returns the main document's HTTP status; console errors,
    * exceptions, CSP violations, and failed subresources go into `problems`.
    */
+  // Whether `selector` matches within four seconds.
+  async appears(selector) {
+    return this.evaluate(`(async () => {
+      for (let i = 0; i < 40; i++) {
+        if (document.querySelector(${JSON.stringify(selector)})) return true
+        await new Promise(r => setTimeout(r, 100))
+      }
+      return false
+    })()`)
+  }
+
   async navigate(url, problems = [], trigger) {
     const { session } = this
     let status = null

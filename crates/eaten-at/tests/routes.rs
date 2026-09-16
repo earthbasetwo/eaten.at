@@ -284,24 +284,36 @@ fn one_publication() -> Repo {
 }
 
 #[tokio::test]
-async fn landing_page_leads_with_sign_in_and_keeps_the_lookup_form() {
+async fn landing_page_leads_with_connect_and_keeps_the_lookup_form() {
     let server = mount(&Repo::default()).await;
     let (status, _, body) = get(&state_for(&server, StaticDns::new()), "/").await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.contains("<main id=\"main\">"), "{body}");
-    // One primary action, and it is sign-in (plan 09).
+    // One primary action, and it is the way in (plan 09): a link to the
+    // sign-in page, which the island swaps for the sign-in form.
+    assert!(
+        body.contains("<a class=\"button connect-button\" href=\"/login\">Connect</a>"),
+        "{body}"
+    );
     assert_eq!(
-        body.matches("class=\"button\"").count(),
+        body.matches("class=\"button connect-button\"").count(),
         1,
         "one primary: {body}"
     );
+    // The form it becomes is served hidden, posts where the sign-in page
+    // does, suggests handles, and does not share the lookup field's id.
+    let form =
+        body.find("<form class=\"lookup connect-form\" action=\"/login\" method=\"post\" hidden>");
+    assert!(form.is_some(), "{body}");
     assert!(
-        body.contains("<a class=\"button\" href=\"/login\">Sign in</a>"),
+        body.contains("<input id=\"connect-handle\" name=\"handle\" type=\"text\" inputmode=\"url\" autocomplete=\"username\""),
         "{body}"
     );
+    assert_eq!(body.matches("data-typeahead=").count(), 2, "{body}");
+    assert_eq!(body.matches("id=\"handle\"").count(), 1, "{body}");
     let sign_in = body.find("href=\"/login\"").unwrap();
     let lookup = body.find("action=\"/lookup\"").unwrap();
-    assert!(sign_in < lookup, "sign-in comes first: {body}");
+    assert!(sign_in < lookup, "connect comes first: {body}");
     // The lookup form is still there, secondary, and a plain GET form.
     assert!(
         body.contains("<button class=\"button-secondary\" type=\"submit\">Read</button>"),
@@ -495,16 +507,28 @@ async fn handle_fields_suggest_from_the_configured_appview_and_only_those_pages_
             body.contains("Suggestions from Bluesky appear as you type."),
             "{uri}: {body}"
         );
-        assert_eq!(body.matches("<script").count(), 2, "{uri}: {body}");
+        // The combobox and the handle island; the landing page adds the
+        // connect island, which needs both before it.
+        let scripts = if uri == "/" { 3 } else { 2 };
+        assert_eq!(body.matches("<script").count(), scripts, "{uri}: {body}");
         assert_eq!(
             body.matches(&format!("<script nonce=\"{nonce}\">")).count(),
-            2,
+            scripts,
             "{uri}: {body}"
         );
         assert!(
             body.contains("window.eaCombobox = function"),
             "{uri}: the combobox comes first"
         );
+        let connect = body.find("[data-connect]");
+        assert_eq!(connect.is_some(), uri == "/", "{uri}: {body}");
+        if let Some(connect) = connect {
+            let typeahead = body.find("input[data-typeahead]").unwrap();
+            assert!(
+                typeahead < connect,
+                "{uri}: the handle island comes before connect"
+            );
+        }
         // The form itself is unchanged: a plain submit still works.
         assert!(
             body.contains("id=\"handle\" name=\"handle\""),
