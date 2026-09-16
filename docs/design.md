@@ -132,7 +132,7 @@ Sizes are fluid between a 390px and a 1080px viewport.
 | Token | Mobile → desktop | Use |
 |---|---|---|
 | `--text-mono` | 10 → 11 | metadata lines, bylines, the site footer, tag chips |
-| `--text-label` | 10 → 11 | kickers, field labels, the tagline: tracked capitals |
+| `--text-label` | 10 → 11 | kickers and field labels: tracked capitals |
 | `--text-button` | 11 → 12 | buttons, pagination, the rating, the document footer |
 | `--text-small` | 14 | excerpts, comment text, hints, notices, the address |
 | `--text-body` | 14 → 15 | the interface, choice labels, a comment's author |
@@ -155,9 +155,9 @@ Rules:
   `--measure` (640px).
 - The mono voice is `stone` with `letter-spacing: 0.04em`. Capitals are
   always tracked: kickers and field labels at 0.16em, buttons at 0.1em,
-  the rating at 0.14em, the tagline at 0.22em. A **kicker** (`.kicker`)
-  sits above a title or names a section; it is one of the few places
-  capitals appear, with buttons, labels, the rating, and the tagline.
+  the rating at 0.14em. A **kicker** (`.kicker`) sits above a title or
+  names a section; it is one of the few places capitals appear, with
+  buttons, labels, and the rating.
 - Italic serif marks a *description* (a publication's description on its
   nameplate) or an *absence* (an empty state).
 
@@ -172,7 +172,7 @@ inline gaps 8–12px, and text actions 18px apart (`--action-gap`).
 |---|---|---|
 | `--page-top` / `--page-bottom` | 32/40 → 48/56 | main's vertical padding |
 | `--page-inline` | 20 → 32 | side padding |
-| `--masthead-top` / `--masthead-bottom` | 24/16 → 36/20 | above and below the masthead's contents |
+| `--masthead-top` / `--masthead-bottom` | 24/16 → 36/20 | above and below a running head; `--masthead-top` also above the landing page's wordmark |
 | `--title-gap` | 24 → 32 | below a page title, before content |
 | `--footer-gap` / `--footer-pad` | 32/16 → 40/24 | above and inside the document footer |
 | `--card-gap` | 12 → 16 | between the parts of a row or sheet |
@@ -182,8 +182,8 @@ Shape: **square corners everywhere.** Three rules do the separating:
 | Rule | Value | Use |
 |---|---|---|
 | `--rule-ink` | 1px solid ink | above a list of rows, above a section, a blockquote's edge |
-| `--rule-hairline` | 1px solid hairline | between rows, under the masthead's footer, around every bright surface |
-| `--rule-double` | 3px double ink | under the masthead and under a publication's nameplate |
+| `--rule-hairline` | 1px solid hairline | between rows, above the site footer, around every bright surface |
+| `--rule-double` | 3px double ink | under a running head and under a publication's nameplate |
 
 Elevation: none. A bright surface has a hairline and nothing else.
 
@@ -193,19 +193,21 @@ that.
 
 ## Components
 
-**Masthead** (`.site-header`). Centred, closed by the double rule. On the
-landing page, chooser, editor, and status pages it is the **logotype**
-(`.site-name.logotype`, Evantic at logotype size, leading home) over the
-**tagline** (`.tagline`, "The federated table" in tracked mono capitals in
-`stone`). On a publication's front page it is still the logotype, because
-the front page carries its own nameplate. On the publication's inner pages
-(document, tag) it is the publication's name as a **running head**
-(`.site-name.running-head`, the serif at 500 and masthead size) leading to
-the front page, with no tagline: the logotype is Evantic's only job, and a
-publication's name is not the logotype.
+**Running head** (`.site-header`). The document page alone carries a
+masthead: the publication's name (`.site-name.running-head`, the serif at
+500 and masthead size), centred, leading to the front page, closed by the
+double rule. Every other page opens with its own content — no site chrome
+above it.
+
+**Wordmark** (`.wordmark`). The signed-out landing page alone opens with
+the **logotype** (`.site-name.logotype`, Evantic at logotype size, leading
+home), centred at the top of the page — it is the one page that has to say
+what the site is. It is not a masthead bar: no tagline, no rule, and
+nothing else beside it. Evantic sets the logotype
+and nothing else, which is why a publication's name is the serif instead.
 
 **Nameplate** (`.nameplate`). A publication's front page opens with its
-own masthead: the name at `--text-nameplate`, centred; a mono
+own masthead in place of any site chrome: the name at `--text-nameplate`, centred; a mono
 **dateline** (`.dateline`) of author, site, and rss separated by middle
 dots; the description as an italic lede; the tag chips. The double rule
 closes it.
@@ -351,27 +353,27 @@ hairline above: one sentence saying what the site is.
 
 ## Page recipes
 
-| Page | Masthead | Opens with | Then |
+| Page | Above the content | Opens with | Then |
 |---|---|---|---|
-| Landing `/`, signed out | logotype | page head: h1 pitch, lede | one primary "Sign in" with a small aside on its baseline; a hairline; the lookup form with a secondary "Read" button, its hint, and handle suggestions as you type; a note in the metadata voice |
-| Landing `/`, signed in | logotype | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new visit"; "Your publication": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent write-ups" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All write-ups →" when there are more; or, with no publication yet, one lede saying what it will be; then a hairline and one quiet line, Settings · Sign out |
-| Publication front page | logotype | nameplate | listing, notice if truncated, pagination |
-| Tag page | running head | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
+| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | one primary "Sign in" with a small aside on its baseline; a hairline; the lookup form with a secondary "Read" button, its hint, and handle suggestions as you type; a note in the metadata voice |
+| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new visit"; "Your publication": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent write-ups" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All write-ups →" when there are more; or, with no publication yet, one lede saying what it will be; then a hairline and one quiet line, Settings · Sign out |
+| Publication front page | — | nameplate | listing, notice if truncated, pagination |
+| Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
 | Document | running head | kicker date, h1 title | the visit, photos, prose, comments (when the document names a Bluesky post), footer |
-| Chooser (`/at/{did}/`) | logotype | page head: "Publications" kicker, h1 author, lede | chooser rows |
-| No publications | logotype | page head: "Publications" kicker, h1 author | empty state |
-| Interstitial | logotype | page head: "Content warning" kicker, h1 | the labels, note, actions |
-| Lookup error | logotype | page head: "Lookup" kicker, h1 | the form with its error |
-| Sign in | logotype | page head: "Sign in" kicker, h1, lede | handle form (the lookup form's shape) with "Start typing your handle…" and a served hint under it; suggestions from Bluesky as you type; errors in place |
-| Signing in | logotype | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
-| Sign-in failed | logotype | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
-| Status page | logotype | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
-| Editor `/write`, choosing | logotype | page head: "Write" kicker, h1 "Where did you eat?" | the search box ("Start typing…") with suggestions as you type and one primary "Search" for the plain path, a status line for where the search looks ("Searching near Brooklyn"), the results as place rows; or, with no location, a notice that search is off; then, under a hairline, "Or enter it yourself": Name, Address (optional), and a secondary "Continue with this place"; last, the Overture and DB-IP attribution |
-| Editor `/write`, writing | logotype | page head: "Write" kicker and the place's name (new), or "Edit" kicker and the write-up's title; a form-error summary when needed | optional preview (the document as readers see it, on a bright sheet under a "Preview" kicker); then the form: write-up pane left, visit pane right (Place, Visit, Links, Details, Bluesky groups), stacked under 56rem |
-| Photos `/write/{rkey}/photos` | logotype | page head: "Photos" kicker, h1 "Photos of {place}", lede ("Published. Add photos now, or skip" after a first publish) | the photos as rows (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "Skip for now" / "Done" / "← Back to the write-up" |
-| Delete `/write/{rkey}/delete` | logotype | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
-| Crosspost `/write/{rkey}/crosspost` | logotype | page head: "Bluesky" kicker, h1 "Post “title” to Bluesky" (or "… is on Bluesky"), lede | the post text field and one primary "Post to Bluesky"; or, before permission, one primary "Allow posting and continue"; secondary "← Skip for now" either way; posted: the thread link and a secondary way back |
-| Settings `/settings` | logotype | page head: "Settings" kicker, h1 "Your publication", lede | one chooser row: the name (linked to the front page) and the current address in the metadata voice, or, before there is one, the name it would get and "Made when you save"; then the form: name, description, the two radio choices for where it lives, one primary "Save" ("Create it" the first time) |
+| Chooser (`/at/{did}/`) | — | page head: "Publications" kicker, h1 author, lede | chooser rows |
+| No publications | — | page head: "Publications" kicker, h1 author | empty state |
+| Interstitial | — | page head: "Content warning" kicker, h1 | the labels, note, actions |
+| Lookup error | — | page head: "Lookup" kicker, h1 | the form with its error |
+| Sign in | — | page head: "Sign in" kicker, h1, lede | handle form (the lookup form's shape) with "Start typing your handle…" and a served hint under it; suggestions from Bluesky as you type; errors in place |
+| Signing in | — | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
+| Sign-in failed | — | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
+| Status page | — | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
+| Editor `/write`, choosing | — | page head: "Write" kicker, h1 "Where did you eat?" | the search box ("Start typing…") with suggestions as you type and one primary "Search" for the plain path, a status line for where the search looks ("Searching near Brooklyn"), the results as place rows; or, with no location, a notice that search is off; then, under a hairline, "Or enter it yourself": Name, Address (optional), and a secondary "Continue with this place"; last, the Overture and DB-IP attribution |
+| Editor `/write`, writing | — | page head: "Write" kicker and the place's name (new), or "Edit" kicker and the write-up's title; a form-error summary when needed | optional preview (the document as readers see it, on a bright sheet under a "Preview" kicker); then the form: write-up pane left, visit pane right (Place, Visit, Links, Details, Bluesky groups), stacked under 56rem |
+| Photos `/write/{rkey}/photos` | — | page head: "Photos" kicker, h1 "Photos of {place}", lede ("Published. Add photos now, or skip" after a first publish) | the photos as rows (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "Skip for now" / "Done" / "← Back to the write-up" |
+| Delete `/write/{rkey}/delete` | — | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
+| Crosspost `/write/{rkey}/crosspost` | — | page head: "Bluesky" kicker, h1 "Post “title” to Bluesky" (or "… is on Bluesky"), lede | the post text field and one primary "Post to Bluesky"; or, before permission, one primary "Allow posting and continue"; secondary "← Skip for now" either way; posted: the thread link and a secondary way back |
+| Settings `/settings` | — | page head: "Settings" kicker, h1 "Your publication", lede | one chooser row: the name (linked to the front page) and the current address in the metadata voice, or, before there is one, the name it would get and "Made when you save"; then the form: name, description, the two radio choices for where it lives, one primary "Save" ("Create it" the first time) |
 
 ### The editor
 

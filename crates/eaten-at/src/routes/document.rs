@@ -96,10 +96,10 @@ pub async fn document_page(
 
     Ok(layout::render(&Page {
         title: &[&page_meta.title, &publication.value.name],
-        masthead: Some(Masthead {
+        masthead: Masthead::RunningHead {
             name: &publication.value.name,
             href: &publication_path,
-        }),
+        },
         theme,
         nonce: Some(nonce.0),
         head: meta::head(&page_meta),
