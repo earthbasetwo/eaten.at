@@ -8,7 +8,7 @@ use maud::{html, Markup, PreEscaped, DOCTYPE};
 
 use crate::assets::css_path;
 use crate::theme::Theme;
-use crate::{page_title, APP_NAME, TAGLINE};
+use crate::{page_title, APP_NAME};
 
 /// Everything the shell needs to know about a page.
 #[derive(Debug, Clone, Default)]
@@ -19,12 +19,8 @@ pub struct Page<'a> {
     pub main: Markup,
     /// Extra `<head>` markup (meta tags, canonical links).
     pub head: Markup,
-    /// The name in the masthead. Defaults to the app's logotype over its
-    /// tagline, linking home; a publication's pages put the publication's
-    /// name there instead, as a running head.
-    pub masthead: Option<Masthead<'a>>,
-    /// Optional content for the site header's secondary slot.
-    pub header_aside: Markup,
+    /// What the page names at the top. Nothing, by default.
+    pub masthead: Masthead<'a>,
     /// Publication theme, already clamped, applied to the whole page.
     pub theme: Option<Theme>,
     /// CSP nonce for the inline theme style block. Without one the theme
@@ -38,11 +34,19 @@ pub struct Page<'a> {
     pub scripts: Vec<&'static str>,
 }
 
-/// What the masthead names and where it leads.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Masthead<'a> {
-    pub name: &'a str,
-    pub href: &'a str,
+/// What, if anything, a page names above its content.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Masthead<'a> {
+    /// No masthead: the page opens with its own content. Every page but
+    /// the signed-out landing page and a document works this way.
+    #[default]
+    None,
+    /// The app's logotype alone, centred at the top of the page where a
+    /// visitor first arrives. Not a masthead bar: no tagline, no rule.
+    Logotype,
+    /// A publication's name as a running head over a document, leading
+    /// back to the publication's front page.
+    RunningHead { name: &'a str, href: &'a str },
 }
 
 /// How wide `<main>`'s content column is.
@@ -77,15 +81,14 @@ pub fn render(page: &Page<'_>) -> Markup {
             }
             body {
                 a.skip-link href="#main" { "Skip to content" }
-                header.site-header {
-                    @match page.masthead {
-                        Some(masthead) => a.site-name.running-head href=(masthead.href) { (masthead.name) },
-                        None => {
-                            a.site-name.logotype href="/" { (APP_NAME) }
-                            p.tagline { (TAGLINE) }
-                        }
-                    }
-                    (page.header_aside)
+                @match page.masthead {
+                    Masthead::None => {}
+                    Masthead::Logotype => header.wordmark {
+                        a.site-name.logotype href="/" { (APP_NAME) }
+                    },
+                    Masthead::RunningHead { name, href } => header.site-header {
+                        a.site-name.running-head href=(href) { (name) }
+                    },
                 }
                 main #main { div class=(column) { (page.main) } }
                 footer.site-footer {
@@ -149,42 +152,59 @@ mod tests {
         .into_string();
         assert!(out.starts_with("<!DOCTYPE html>"));
         assert!(out.contains("<title>Doc — Pub — eaten.at</title>"));
-        for landmark in ["<header", "<main id=\"main\">", "<footer", "href=\"#main\""] {
+        for landmark in ["<main id=\"main\">", "<footer", "href=\"#main\""] {
             assert!(out.contains(landmark), "{landmark}");
         }
         assert!(out.contains(&format!("href=\"{}\"", css_path())), "{out}");
-        assert!(
-            out.contains(
-                "<a class=\"site-name logotype\" href=\"/\">eaten.at</a><p class=\"tagline\">The federated table</p>"
-            ),
-            "{out}"
-        );
+        // Nothing above the content by default; the app is named once,
+        // in the footer.
+        assert!(!out.contains("<header"), "{out}");
+        assert_eq!(out.matches("eaten.at").count(), 2, "{out}");
         assert!(!out.contains("data-theme"), "{out}");
         assert!(!out.contains("<style"), "{out}");
     }
 
     #[test]
-    fn masthead_can_name_a_publication() {
+    fn the_signed_out_landing_page_opens_with_the_logotype_alone() {
         let out = render(&Page {
-            title: &["Doc"],
+            title: &[],
             main: html! {},
-            masthead: Some(Masthead {
-                name: "Heavy <Rotation>",
-                href: "/at/did:plc:x/pub1/",
-            }),
+            masthead: Masthead::Logotype,
             ..Page::default()
         })
         .into_string();
         assert!(
             out.contains(
-                "<a class=\"site-name running-head\" href=\"/at/did:plc:x/pub1/\">Heavy &lt;Rotation&gt;</a>"
+                "<header class=\"wordmark\"><a class=\"site-name logotype\" href=\"/\">eaten.at</a></header>"
             ),
             "{out}"
         );
-        // The logotype and its tagline give way to the running head; the
-        // app is still named once, in the footer.
-        assert!(!out.contains("logotype"), "{out}");
+        // The logotype stands on its own: no tagline, no masthead bar.
+        assert!(!out.contains("site-header"), "{out}");
         assert!(!out.contains("tagline"), "{out}");
+    }
+
+    #[test]
+    fn a_document_names_its_publication_as_a_running_head() {
+        let out = render(&Page {
+            title: &["Doc"],
+            main: html! {},
+            masthead: Masthead::RunningHead {
+                name: "Heavy <Rotation>",
+                href: "/at/did:plc:x/pub1/",
+            },
+            ..Page::default()
+        })
+        .into_string();
+        assert!(
+            out.contains(
+                "<header class=\"site-header\"><a class=\"site-name running-head\" href=\"/at/did:plc:x/pub1/\">Heavy &lt;Rotation&gt;</a></header>"
+            ),
+            "{out}"
+        );
+        // The logotype is the landing page's alone; the app is still
+        // named once, in the footer.
+        assert!(!out.contains("logotype"), "{out}");
         assert_eq!(out.matches("eaten.at").count(), 2, "{out}");
     }
 

@@ -172,7 +172,6 @@
     --tracking-label: 0.16em;
     --tracking-button: 0.1em;
     --tracking-rating: 0.14em;
-    --tracking-tagline: 0.22em;
   }
 
   /* A publication theme sets the five channels on :root[data-theme] in
@@ -300,25 +299,25 @@
   .skip-link:focus { top: var(--space-s); }
   .skip-link:hover { color: var(--color-ink-fg); }
 
-  /* Masthead: the logotype centred over a tracked tagline, closed by a
-     double rule. On a publication's inner pages the logotype gives way
-     to the publication's name as a running head, in the serif. */
+  /* Running head: a document names its publication above the reading
+     column, in the serif, closed by a double rule. It is the only page
+     chrome above the content anywhere on the site. */
   .site-header {
-    display: flex; flex-direction: column; align-items: center; gap: var(--space-sm);
+    display: flex; flex-direction: column; align-items: center;
     padding: var(--masthead-top) var(--page-inline) var(--masthead-bottom);
     border-block-end: var(--rule-double);
+    text-align: center;
+  }
+  /* Wordmark: the landing page alone opens with the logotype, centred
+     and standing on its own — no tagline, no rule, no masthead bar. */
+  .wordmark {
+    padding: var(--masthead-top) var(--page-inline) 0;
     text-align: center;
   }
   .site-name { color: var(--color-ink); text-decoration: none; }
   .site-name:hover { color: var(--color-vermilion); text-decoration: none; }
   .logotype { font-family: var(--font-logotype); font-weight: 400; font-size: var(--text-logotype); line-height: 1; text-transform: lowercase; }
   .running-head { font-family: var(--font-serif); font-weight: 500; font-size: var(--text-masthead); line-height: 1.1; }
-  .tagline {
-    font-family: var(--font-mono); font-size: var(--text-label); line-height: 1.5;
-    letter-spacing: var(--tracking-tagline); text-transform: uppercase; color: var(--color-stone);
-    /* The tracking after the last letter would push the text off centre. */
-    margin-inline-end: calc(-1 * var(--tracking-tagline));
-  }
   .site-footer {
     padding: var(--space-m) var(--page-inline); border-block-start: var(--rule-hairline);
     color: var(--color-stone); font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em;

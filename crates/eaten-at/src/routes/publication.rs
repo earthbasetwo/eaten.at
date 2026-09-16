@@ -4,7 +4,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Redirect, Response};
 use eaten_at_web::components::{listing, publication_chooser, tag_links};
-use eaten_at_web::layout::{self, pagination, Masthead, Page};
+use eaten_at_web::layout::{self, pagination, Page};
 use eaten_at_web::meta;
 use maud::html;
 use serde::Deserialize;
@@ -107,8 +107,6 @@ pub async fn publication_page(
     let base = paths::publication(&did, &pub_rkey);
     let name = &publication.value.name;
 
-    // The front page carries the nameplate itself; the masthead above it
-    // names the site, so there is always a way back to the start.
     Ok(layout::render(&Page {
         title: &[name],
         theme: view::theme(&publication.value),
@@ -198,17 +196,10 @@ pub async fn tagged_page(
         .map(|visit_doc| view::listing_item(&did, &pub_rkey, visit_doc))
         .collect();
     let base = paths::tagged(&did, &pub_rkey, &tag);
-    let publication_path = paths::publication(&did, &pub_rkey);
     let name = &publication.value.name;
 
-    // An inner page of the publication, like a document: the masthead
-    // names the publication and leads back to its front page.
     Ok(layout::render(&Page {
         title: &[&format!("Tagged {display}"), name],
-        masthead: Some(Masthead {
-            name,
-            href: &publication_path,
-        }),
         theme: view::theme(&publication.value),
         nonce: Some(nonce.0),
         main: html! {

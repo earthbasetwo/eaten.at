@@ -114,8 +114,8 @@ it:
   page that bounces to `/login` fails),
 - logs a JavaScript error, an exception, or a CSP violation,
 - has a subresource that fails to load (`/favicon.ico` aside),
-- fails to load Newsreader or JetBrains Mono, or Evantic on a page that
-  carries the logotype, or
+- fails to load Newsreader or JetBrains Mono, or Evantic on the signed-out
+  landing page, which is the only one carrying the logotype, or
 - is wider than the viewport.
 
 Full-page screenshots of every view land in `target/visual-check/`. The

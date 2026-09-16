@@ -10,7 +10,7 @@ use eaten_at_atproto::lexicon::Publication;
 use eaten_at_atproto::repo::Record;
 use eaten_at_web::assets::{COMBOBOX_SCRIPT, FIND_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
 use eaten_at_web::components::{listing, lookup_form, tag_links, LookupForm};
-use eaten_at_web::layout::{self, Page};
+use eaten_at_web::layout::{self, Masthead, Page};
 use maud::{html, Markup};
 use serde::Deserialize;
 
@@ -55,6 +55,7 @@ pub async fn landing(
 fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
     layout::render(&Page {
         title: &[],
+        masthead: Masthead::Logotype,
         nonce: Some(nonce.0.clone()),
         scripts: vec![COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT],
         main: html! {
