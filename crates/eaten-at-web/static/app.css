@@ -73,6 +73,9 @@
   input, button, textarea, select { font: inherit; color: inherit; }
   p, h1, h2, h3, h4, h5, h6 { overflow-wrap: break-word; }
   ul[class], ol[class] { list-style: none; padding: 0; }
+  /* The hidden attribute wins over any display rule, so an island can
+     hide a flex row or a grid by setting it. */
+  [hidden] { display: none !important; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
@@ -475,6 +478,18 @@
   .landing-aside { font-size: var(--text-small); color: var(--color-ink-soft); }
   .landing-divider { margin-block: var(--section-gap); }
   .lookup .field-hint { margin-block-start: var(--space-s); }
+  /* Connect (plan 09): pressed, the sign-in link becomes the handle
+     field where it stood, with the caret already in it. The site's one
+     animation: the field arrives with a wash of the accent that settles
+     into the bright ground over a second, so the eye lands on the caret
+     and the placeholder. Colour only; nothing moves, and reduced motion
+     skips straight to the settled field. */
+  .connect-form input[name="handle"] { animation: connect-arrive 1.2s ease-out both; }
+  @keyframes connect-arrive {
+    from { opacity: 0; background-color: color-mix(in oklab, var(--color-vermilion) 12%, var(--color-paper-bright)); }
+    15% { opacity: 1; }
+    to { opacity: 1; background-color: var(--color-paper-bright); }
+  }
 
   /* The author's home (plan 11): the handle in the mono voice where a
      kicker would go, a small nameplate for the publication, the find

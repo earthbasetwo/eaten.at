@@ -8,8 +8,8 @@ use axum::response::{IntoResponse, Response};
 use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::Publication;
 use eaten_at_atproto::repo::Record;
-use eaten_at_web::assets::{COMBOBOX_SCRIPT, FIND_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
-use eaten_at_web::components::{listing, lookup_form, tag_links, LookupForm};
+use eaten_at_web::assets::{COMBOBOX_SCRIPT, CONNECT_SCRIPT, FIND_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
+use eaten_at_web::components::{connect, listing, lookup_form, tag_links, Connect, LookupForm};
 use eaten_at_web::layout::{self, Masthead, Page};
 use maud::{html, Markup};
 use serde::Deserialize;
@@ -50,14 +50,15 @@ pub async fn landing(
     Ok(response)
 }
 
-/// The pitch, one primary "Sign in", and the lookup form beneath a
-/// hairline as the way to read without signing in.
+/// The pitch, one primary "Connect" that becomes the handle field, and
+/// the lookup form beneath a hairline as the way to read without
+/// signing in.
 fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
     layout::render(&Page {
         title: &[],
         masthead: Masthead::Logotype,
         nonce: Some(nonce.0.clone()),
-        scripts: vec![COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT],
+        scripts: vec![COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT, CONNECT_SCRIPT],
         main: html! {
             div.page-head {
                 h1 { "Where have you eaten at?" }
@@ -72,10 +73,10 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
                     strong { "at" } "mosphere, where it belongs."
                 }
             }
-            div.actions.landing-actions {
-                a.button href="/login" { "Sign in" }
-                span.landing-aside { "with your Bluesky or AT Protocol account" }
-            }
+            (connect(&Connect {
+                appview,
+                aside: "to start writing",
+            }))
             hr.landing-divider;
             (lookup_form(&LookupForm {
                 label: "Or read someone's reviews",

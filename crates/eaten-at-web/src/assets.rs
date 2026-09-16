@@ -32,6 +32,12 @@ pub const HANDLE_TYPEAHEAD_SCRIPT: &str = include_str!("../static/handle-typeahe
 /// results swapped in after a pause in typing, without a reload.
 pub const FIND_SCRIPT: &str = include_str!("../static/find.js");
 
+/// Connect on the signed-out landing page (plan 09): the sign-in link
+/// swapped for the handle field in place, so signing in starts there.
+/// The field suggests handles too, so it needs [`COMBOBOX_SCRIPT`] and
+/// [`HANDLE_TYPEAHEAD_SCRIPT`] before it.
+pub const CONNECT_SCRIPT: &str = include_str!("../static/connect.js");
+
 /// Every inline script the site ships, all counted against the tripwire.
 pub const INLINE_SCRIPTS: &[&str] = &[
     EDITOR_SCRIPT,
@@ -39,6 +45,7 @@ pub const INLINE_SCRIPTS: &[&str] = &[
     HANDLE_TYPEAHEAD_SCRIPT,
     PLACE_SUGGEST_SCRIPT,
     FIND_SCRIPT,
+    CONNECT_SCRIPT,
 ];
 
 /// A tripwire on all inline JavaScript combined, in bytes (D43). Not a
@@ -275,6 +282,16 @@ mod tests {
                 "inline script must not close itself"
             );
         }
+    }
+
+    #[test]
+    fn the_hidden_attribute_beats_every_display_rule() {
+        // An island hides the connect row, a flex container, by setting
+        // `hidden`; without this the row's display rule would win.
+        assert!(
+            CSS_SOURCE.contains("[hidden] { display: none !important; }"),
+            "the reset must make [hidden] win"
+        );
     }
 
     #[test]
