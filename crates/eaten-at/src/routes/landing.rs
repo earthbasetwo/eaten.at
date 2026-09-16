@@ -60,10 +60,17 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
         scripts: vec![COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT],
         main: html! {
             div.page-head {
-                h1 { "AT where you ate." }
+                h1 { "Where have you eaten at?" }
                 p.lede {
-                    "Your reviews of places to eat, kept in your own AT Protocol "
-                    "repository and published as a small journal of your own."
+                    "We would like to know."
+                }
+                p.lede {
+                    "Well, not " em { "us" } ", exactly. But you have thoughts about food and there's a demanding public out there! Write about it here."
+
+                }
+                p.lede {
+                    "As for us, we don't actually care to know. We put all of your data in the "
+                    strong { "at" } "mosphere, where it belongs."
                 }
             }
             div.actions.landing-actions {
