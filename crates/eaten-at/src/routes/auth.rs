@@ -13,7 +13,6 @@ use axum::Form;
 use eaten_at_atproto::identity::{Did, Handle};
 use eaten_at_atproto::oauth::{CallbackParams, OAuthError, METADATA_PATH};
 use eaten_at_web::assets::{COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
-use eaten_at_web::components::HANDLE_HINT;
 use eaten_at_web::layout::{self, Page};
 use maud::{html, Markup};
 use serde::Deserialize;
@@ -79,7 +78,6 @@ fn login_page(
                         aria-describedby=[error.map(|_| "handle-error")] required;
                     button type="submit" { "Continue" }
                 }
-                p.meta.field-hint { (HANDLE_HINT) }
                 @if !return_to.is_empty() {
                     input type="hidden" name="return_to" value=(return_to);
                 }

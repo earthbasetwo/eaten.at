@@ -2,7 +2,9 @@
    input[data-typeahead] becomes a combobox whose source is
    app.bsky.actor.searchActorsTypeahead on the origin the attribute
    names, called without credentials. A handle not on Bluesky is still
-   typed in full; the form is untouched either way. */
+   typed in full; the form is untouched either way. Enter sends the
+   field: the highlighted suggestion when there is one, and otherwise
+   exactly what was typed, menu open or not. */
 (function () {
   "use strict";
   var inputs = document.querySelectorAll("input[data-typeahead]");
@@ -20,7 +22,8 @@
       render: function (actor) {
         return { label: actor.displayName || actor.handle, detail: "@" + actor.handle };
       },
-      pick: function (actor) { input.value = actor.handle; }
+      pick: function (actor) { input.value = actor.handle; },
+      send: true
     });
   });
 })();

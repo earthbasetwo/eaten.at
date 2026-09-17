@@ -193,6 +193,10 @@
     --box-size: 1rem;
     --check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M 0 8.5 L 2.8 8.5 L 6.2 13.5 L 12.2 2.2 L 16 2.2' stroke='%23d8401f' stroke-width='1.8' fill='none' stroke-linejoin='miter'/%3E%3C/svg%3E");
     --check-mark-disabled: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M 0 8.5 L 2.8 8.5 L 6.2 13.5 L 12.2 2.2 L 16 2.2' stroke='%23c9bfa8' stroke-width='1.8' fill='none' stroke-linejoin='miter'/%3E%3C/svg%3E");
+    /* The Return mark a field wears when Enter is how it is sent: the
+       key's own arrow, drawn to the same weight as the chevron and
+       masked so it takes whatever colour the field gives it. */
+    --return-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='12' viewBox='0 0 14 12'%3E%3Cpath d='M 6 4 L 3 7 L 6 10 M 3 7 L 12 7 L 12 1.5' stroke='%23000' stroke-width='1.4' fill='none' stroke-linecap='butt' stroke-linejoin='miter'/%3E%3C/svg%3E");
     /* A dropdown's chevron, masked so it takes the accent of the day. */
     --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M 1 1.5 L 6 6.5 L 11 1.5' stroke='%23000' stroke-width='1.8' fill='none' stroke-linecap='square'/%3E%3C/svg%3E");
     /* Focus: a soft ring, the accent at just over half strength, set a
@@ -611,6 +615,21 @@
   .lookup-row { display: flex; align-items: baseline; gap: var(--space-m); }
   .lookup-row input { flex: 1; min-inline-size: 0; }
   .lookup-row button { flex: none; }
+  /* A field sent with Return rather than a button wears the mark at
+     the end of its rule: the stone, so it reads as a note on the field
+     and not as its value, and out of the pointer's way. The field is
+     padded by the mark's own width plus a space, so what is typed never
+     runs under it. */
+  .return-rule { position: relative; display: block; flex: 1; min-inline-size: 0; font-size: var(--text-field); }
+  .return-rule input { padding-inline-end: 1.9em; }
+  .return-rule::after {
+    content: ""; position: absolute; pointer-events: none;
+    inset-inline-end: 0.15em; inset-block-start: 50%; translate: 0 -50%;
+    inline-size: 0.9em; block-size: 0.78em;
+    background: var(--color-stone);
+    -webkit-mask: var(--return-mark) no-repeat center / contain;
+    mask: var(--return-mark) no-repeat center / contain;
+  }
   .landing-note { margin-block-start: var(--space-l); max-inline-size: 34rem; }
   /* The landing page signed out: the one primary button with a quiet
      aside on its baseline, then a hairline before the lookup form. */

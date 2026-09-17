@@ -257,11 +257,6 @@ impl Default for LookupForm<'_> {
     }
 }
 
-/// The hint under a handle field with suggestions. Served in the HTML,
-/// so the second sentence is true with JavaScript off too.
-pub const HANDLE_HINT: &str =
-    "Suggestions from Bluesky appear as you type. Any AT Protocol handle works typed in full, and so does a DID.";
-
 /// The handle lookup form.
 pub fn lookup_form(form: &LookupForm<'_>) -> Markup {
     html! {
@@ -273,9 +268,6 @@ pub fn lookup_form(form: &LookupForm<'_>) -> Markup {
                     value=(form.value) data-typeahead=[form.typeahead]
                     aria-describedby=[form.error.map(|_| "handle-error")] required;
                 button.button-secondary[!form.primary] type="submit" { (form.button) }
-            }
-            @if form.typeahead.is_some() {
-                p.meta.field-hint { (HANDLE_HINT) }
             }
             @if let Some(error) = form.error {
                 p.form-error #handle-error role="alert" { (error) }
@@ -303,6 +295,10 @@ pub struct Connect<'a> {
 /// form posts where the sign-in page's does, and an error comes back on
 /// that page with the handle kept. Its field has its own id because the
 /// lookup form's `handle` shares the page.
+///
+/// The field carries no button: it is sent with Return, which the faint
+/// mark at the end of its rule says. That is the browser's own implicit
+/// submission, so it holds with the island's script and without it.
 pub fn connect(connect: &Connect<'_>) -> Markup {
     html! {
         div.connect data-connect {
@@ -313,13 +309,12 @@ pub fn connect(connect: &Connect<'_>) -> Markup {
             form.lookup.connect-form action="/login" method="post" hidden {
                 label.visually-hidden for="connect-handle" { "Your handle" }
                 div.lookup-row {
-                    input #connect-handle name="handle" type="text" inputmode="url" autocomplete="username"
-                        placeholder="Start typing your handle…"
-                        data-typeahead=(connect.appview)
-                        aria-describedby="connect-hint" required;
-                    button type="submit" { "Continue" }
+                    span.return-rule {
+                        input #connect-handle name="handle" type="text" inputmode="url" autocomplete="username"
+                            placeholder="Start typing your handle…"
+                            data-typeahead=(connect.appview) required;
+                    }
                 }
-                p.meta.field-hint #connect-hint { (HANDLE_HINT) }
             }
         }
     }

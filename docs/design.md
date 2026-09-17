@@ -387,6 +387,15 @@ drops below 16px, so mobile browsers do not zoom on focus. A field's
 **label** is a UI label: tracked mono capitals — in `ink-soft`, not the
 handoff's `stone`, because a label has to be read (see Palette).
 
+**Return mark** (`.return-rule` around an `input`). A field sent with
+Return rather than a button says so at the end of its own rule: the key's
+arrow at 0.9em in `stone`, an SVG mask (`--return-mark`) drawn to the
+chevron's weight, faint because it is a note on the field and not its
+value. The field is padded by the mark's width so what is typed never
+runs under it, and the mark takes no pointer events — it is a label, not
+a button. Only Connect's handle field wears it; every other field keeps
+its button.
+
 **Dropdown** (`.select-rule` around a `select`). A field whose answer is
 chosen rather than typed, so the handoff sets the chosen value the way it
 sets an action: the serif in *italic* on the same bare rule, with a
@@ -427,7 +436,9 @@ mono voice; the option under the pointer or the arrow key takes the paper
 and goes vermilion. The handoff sets a menu's items in italic, as
 actions; a suggestion is a name, not an action, so these stay roman. It
 appears only with JavaScript on and only while there are matches; the
-field it sits under works without it.
+field it sits under works without it. Return never swallows the send: it
+takes the highlighted row when there is one and what was typed when there
+is not, then submits the form either way.
 
 **Notice** (`.notice`). A bright sheet with a hairline, the serif at
 small size in `ink-soft`. Its links are the accent like any other.
@@ -448,7 +459,7 @@ hairline above: one sentence saying what the site is.
 
 | Page | Above the content | Opens with | Then |
 |---|---|---|---|
-| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect" with a small aside on its baseline, which becomes the sign-in form in place; a hairline; the lookup form with a secondary "Read" button, its hint, and handle suggestions as you type; a note in the metadata voice |
+| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect" with a small aside on its baseline, which becomes the sign-in form in place (that field carries the return mark and no button); a hairline; the lookup form with a secondary "Read" button and handle suggestions as you type; a note in the metadata voice |
 | Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new visit"; "Your publication": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent write-ups" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All write-ups →" when there are more; or, with no publication yet, one lede saying what it will be; then a hairline and one quiet line, Settings · Sign out |
 | Publication front page | — | nameplate | listing, notice if truncated, pagination |
 | Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
@@ -457,7 +468,7 @@ hairline above: one sentence saying what the site is.
 | No publications | — | page head: "Publications" kicker, h1 author | empty state |
 | Interstitial | — | page head: "Content warning" kicker, h1 | the labels, note, actions |
 | Lookup error | — | page head: "Lookup" kicker, h1 | the form with its error |
-| Sign in | — | page head: "Sign in" kicker, h1, lede | handle form (the lookup form's shape) with "Start typing your handle…" and a served hint under it; suggestions from Bluesky as you type; errors in place |
+| Sign in | — | page head: "Sign in" kicker, h1, lede | handle form (the lookup form's shape) with "Start typing your handle…"; suggestions from Bluesky as you type; errors in place |
 | Signing in | — | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
 | Sign-in failed | — | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
 | Status page | — | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
