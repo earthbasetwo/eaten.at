@@ -76,6 +76,8 @@
         if (Object.prototype.hasOwnProperty.call(saved.data, el.name)) {
           el.value = saved.data[el.name];
           grow(el);
+          /* Said aloud, for an island that draws the field. */
+          el.dispatchEvent(new Event("change", { bubbles: true }));
         }
       });
       box.remove();

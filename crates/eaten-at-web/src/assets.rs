@@ -38,9 +38,15 @@ pub const FIND_SCRIPT: &str = include_str!("../static/find.js");
 /// [`HANDLE_TYPEAHEAD_SCRIPT`] before it.
 pub const CONNECT_SCRIPT: &str = include_str!("../static/connect.js");
 
+/// Filed under, in the editor's writing state: the tags field's comma
+/// list as chips, one slot for the next tag. The list still submits
+/// as the text the server reads.
+pub const TAGS_SCRIPT: &str = include_str!("../static/tags.js");
+
 /// Every inline script the site ships, all counted against the tripwire.
 pub const INLINE_SCRIPTS: &[&str] = &[
     EDITOR_SCRIPT,
+    TAGS_SCRIPT,
     COMBOBOX_SCRIPT,
     HANDLE_TYPEAHEAD_SCRIPT,
     PLACE_SUGGEST_SCRIPT,

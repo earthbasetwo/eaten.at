@@ -2926,7 +2926,7 @@ async fn each_editor_state_carries_its_own_nonced_scripts_and_nothing_else_chang
         "the form stands on its own"
     );
 
-    // Writing: the draft island alone.
+    // Writing: the draft island, then the tags island.
     let response = router(state.clone())
         .oneshot(
             Request::post("/write")
@@ -2939,10 +2939,19 @@ async fn each_editor_state_carries_its_own_nonced_scripts_and_nothing_else_chang
         .unwrap();
     let (nonce, body) = nonce_and_body(response).await;
     let editor = inlined(&nonce, eaten_at_web::assets::EDITOR_SCRIPT);
-    assert_eq!(body.matches("<script").count(), 1, "{body}");
-    assert!(body.contains(&editor), "{body}");
-    let without = body.replace(&editor, "");
+    let tags = inlined(&nonce, eaten_at_web::assets::TAGS_SCRIPT);
+    assert_eq!(body.matches("<script").count(), 2, "{body}");
+    assert!(body.contains(&editor) && body.contains(&tags), "{body}");
+    assert!(
+        body.find(&editor) < body.find(&tags),
+        "the draft island comes first"
+    );
+    let without = body.replace(&editor, "").replace(&tags, "");
     assert!(!without.contains("<script"));
+    assert!(
+        without.contains("<input id=\"tags\" name=\"tags\" type=\"text\""),
+        "the tags stay a text field the server reads: {without}"
+    );
     assert!(
         !without.contains("class=\"notice restore\""),
         "the banner is the script's to add"
