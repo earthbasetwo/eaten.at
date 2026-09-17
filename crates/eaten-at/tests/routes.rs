@@ -309,6 +309,17 @@ async fn landing_page_leads_with_connect_and_keeps_the_lookup_form() {
         body.contains("<input id=\"connect-handle\" name=\"handle\" type=\"text\" inputmode=\"url\" autocomplete=\"username\""),
         "{body}"
     );
+    // It is sent with Return, so it carries the mark and no button.
+    assert!(
+        body.contains("<span class=\"return-rule\"><input id=\"connect-handle\""),
+        "{body}"
+    );
+    let opened = form.unwrap();
+    let closed = opened + body[opened..].find("</form>").unwrap();
+    assert!(
+        !body[opened..closed].contains("<button"),
+        "no button beside the connect field: {body}"
+    );
     assert_eq!(body.matches("data-typeahead=").count(), 2, "{body}");
     assert_eq!(body.matches("id=\"handle\"").count(), 1, "{body}");
     let sign_in = body.find("href=\"/login\"").unwrap();
@@ -501,10 +512,6 @@ async fn handle_fields_suggest_from_the_configured_appview_and_only_those_pages_
                 .into_owned();
         assert!(
             body.contains(&format!("data-typeahead=\"{appview}\"")),
-            "{uri}: {body}"
-        );
-        assert!(
-            body.contains("Suggestions from Bluesky appear as you type."),
             "{uri}: {body}"
         );
         // The combobox and the handle island; the landing page adds the

@@ -1,7 +1,14 @@
 /* A combobox over a text input (plan 10): a listbox injected under the
    field and filled by a source the page names, following the WAI-ARIA
    pattern (arrow keys move, Enter picks, Escape closes). The form it
-   enhances works without it; this only saves typing. */
+   enhances works without it; this only saves typing.
+
+   Enter never swallows the send. With a row highlighted it takes that
+   row; with none it leaves what was typed alone. Either way, a source
+   that asks for it (opts.send) then submits the form, so the field
+   answers Enter the same whether the reader chose a suggestion or
+   ignored the menu. A source whose pick submits on its own leaves
+   opts.send unset. */
 window.eaCombobox = function (input, opts) {
   "use strict";
   var id = input.id + "-list";
@@ -79,15 +86,27 @@ window.eaCombobox = function (input, opts) {
     });
   }
 
+  function submit(form) {
+    if (form.requestSubmit) form.requestSubmit();
+    else form.submit();
+  }
+
   input.addEventListener("input", function () {
     clearTimeout(timer);
     timer = setTimeout(search, opts.delay);
   });
   input.addEventListener("keydown", function (e) {
+    /* An input method is mid-word: Enter and the arrows belong to it,
+       not to the menu. */
+    if (e.isComposing || e.keyCode === 229) return;
     if (list.hidden) return;
     if (e.key === "ArrowDown") { e.preventDefault(); highlight((active + 1) % items.length); }
     else if (e.key === "ArrowUp") { e.preventDefault(); highlight((active - 1 + items.length) % items.length); }
-    else if (e.key === "Enter") { if (active >= 0) { e.preventDefault(); pick(active); } }
+    else if (e.key === "Enter") {
+      if (active >= 0) pick(active); else close();
+      if (opts.send && input.form) { e.preventDefault(); submit(input.form); }
+      else if (active >= 0) e.preventDefault();
+    }
     else if (e.key === "Escape") { close(); }
   });
   input.addEventListener("blur", function () { setTimeout(close, 150); });
