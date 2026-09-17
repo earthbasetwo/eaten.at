@@ -75,8 +75,9 @@ a class in that file.
    suggest handles as you type from the Bluesky AppView (D42), the
    editor suggests places as you type through this site's own endpoint
    (D45), the author's home applies its find as you type, and the
-   editor keeps a draft. Without any of them, a handle typed in full, a
-   Search button, a Find button, and a plain form do the same work.
+   editor keeps a draft and files tags as chips. Without any of them, a
+   handle typed in full, a Search button, a Find button, and a plain
+   form do the same work.
    Nothing asks the browser for its location: the search looks near
    where the request is from (D44). Fonts are self-hosted and
    content-hashed, so no page makes a third-party request except the
@@ -439,6 +440,14 @@ appears only with JavaScript on and only while there are matches; the
 field it sits under works without it. Return never swallows the send: it
 takes the highlighted row when there is one and what was typed when there
 is not, then submits the form either way.
+
+**Filed under** (`.tags-sentence`, `.tag-field`, `.chip`). The editor's
+tags as a sentence with a blank in it: "Filed under" in soft ink, the
+blank a short hairline holding the comma list. With script, an island
+files what is typed as chips before the blank on Return or a comma,
+each a word on a hairline, commas between, vermilion and struck through
+under the pointer, that takes itself out. The list submits as the text
+it always was.
 
 **Notice** (`.notice`). A bright sheet with a hairline, the serif at
 small size in `ink-soft`. Its links are the accent like any other.

@@ -769,6 +769,28 @@
   .field-hint a { color: var(--color-vermilion); text-decoration: underline; text-decoration-color: color-mix(in oklab, currentColor 40%, transparent); }
   .field-hint a:hover { text-decoration-color: currentColor; }
   .field-group > * + * { margin-block-start: var(--space-m); }
+  /* Filed under (the tags): a sentence with a blank in it. Without
+     script the blank is the comma list on a hairline; the island files
+     chips before it, each a word underlined by a hairline that strikes
+     itself out under the pointer, and the blank takes the next tag. */
+  .tags-sentence {
+    font-family: var(--font-serif); font-size: var(--text-field); line-height: 1.55; color: var(--color-ink);
+  }
+  .tags-sentence > label { color: var(--color-ink-soft); }
+  .tag-field, .tag-chips { display: inline; }
+  .chip {
+    display: inline; font: inherit; color: var(--color-ink); background: none; border: 0; padding: 0; box-shadow: none;
+    text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em; text-decoration-color: var(--color-hairline);
+  }
+  .chip::after { content: none; }
+  .chip:hover { color: var(--color-vermilion); text-decoration: line-through; box-shadow: none; }
+  .tag-field input {
+    display: inline; inline-size: auto; min-inline-size: 3ch; max-inline-size: 100%; field-sizing: content;
+    padding: 0; box-shadow: inset 0 -1px var(--color-hairline);
+  }
+  .tag-field input:hover, .tag-field input:focus-visible { box-shadow: inset 0 -1px var(--color-ink); }
+  .field-invalid .tag-field input { box-shadow: var(--field-rule-invalid); }
+  @supports not (field-sizing: content) { .tag-field input { inline-size: 6ch; } }
   .editor-body { min-block-size: 24rem; font-size: var(--text-prose); line-height: 1.6; resize: vertical; }
   input[type="file"] { font-family: var(--font-serif); font-size: var(--text-small); color: var(--color-ink-soft); }
   input[type="file"]::file-selector-button {
