@@ -631,12 +631,11 @@
     mask: var(--return-mark) no-repeat center / contain;
   }
   .landing-note { margin-block-start: var(--space-l); max-inline-size: 34rem; }
-  /* The landing page signed out: the one primary button with a quiet
-     aside on its baseline, then a hairline before the lookup form. */
+  /* The landing page signed out: the one primary button, which says in
+     its own line what pressing it is for, then a hairline before the
+     lookup form. */
   .landing-actions { margin-block-start: 0; align-items: baseline; }
-  .landing-aside { font-size: var(--text-small); color: var(--color-ink-soft); }
   .landing-divider { margin-block: var(--section-gap); }
-  .lookup .field-hint { margin-block-start: var(--space-s); }
   /* Connect (plan 09): pressed, the sign-in link becomes the handle
      field where it stood, with the caret already in it. The site's one
      animation, and the rule draws it: the 2px of vermilion under

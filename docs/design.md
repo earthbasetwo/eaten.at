@@ -459,7 +459,7 @@ hairline above: one sentence saying what the site is.
 
 | Page | Above the content | Opens with | Then |
 |---|---|---|---|
-| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect" with a small aside on its baseline, which becomes the sign-in form in place (that field carries the return mark and no button); a hairline; the lookup form with a secondary "Read" button and handle suggestions as you type; a note in the metadata voice |
+| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect to start writing", which becomes the sign-in form in place (that field carries the return mark and no button); a hairline; the lookup form with a secondary "Read" button and handle suggestions as you type; a note in the metadata voice |
 | Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new visit"; "Your publication": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent write-ups" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All write-ups →" when there are more; or, with no publication yet, one lede saying what it will be; then a hairline and one quiet line, Settings · Sign out |
 | Publication front page | — | nameplate | listing, notice if truncated, pagination |
 | Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
@@ -521,7 +521,9 @@ Signed in, the landing page is the author's home (plan 11). Its last
 line, under a hairline, is the only place settings and sign-out appear:
 "Settings · Sign out" in the metadata voice, the second a link button.
 Signed out there is no account line: the page's primary action is
-"Connect" (plan 09), which becomes the sign-in form in place.
+"Connect to start writing" (plan 09), which becomes the sign-in form in
+place. The action carries its own reason — the phrase is the button, not
+an aside beside it — so the line reads as one.
 
 ## Accessibility and constraints
 

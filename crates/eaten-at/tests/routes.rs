@@ -290,11 +290,15 @@ async fn landing_page_leads_with_connect_and_keeps_the_lookup_form() {
     assert_eq!(status, StatusCode::OK);
     assert!(body.contains("<main id=\"main\">"), "{body}");
     // One primary action, and it is the way in (plan 09): a link to the
-    // sign-in page, which the island swaps for the sign-in form.
+    // sign-in page, which the island swaps for the sign-in form. It says
+    // in its own line what pressing it is for, so nothing sits beside it.
     assert!(
-        body.contains("<a class=\"button connect-button\" href=\"/login\">Connect</a>"),
+        body.contains(
+            "<a class=\"button connect-button\" href=\"/login\">Connect to start writing</a>"
+        ),
         "{body}"
     );
+    assert!(!body.contains("landing-aside"), "{body}");
     assert_eq!(
         body.matches("class=\"button connect-button\"").count(),
         1,
