@@ -282,19 +282,20 @@ pub fn lookup_form(form: &LookupForm<'_>) -> Markup {
 pub struct Connect<'a> {
     /// The `AppView` origin the handle field suggests from (D42).
     pub appview: &'a str,
-    /// The quiet aside on the button's baseline.
-    pub aside: &'a str,
+    /// What the one primary action says: "Connect" and what pressing it
+    /// is for, in the one phrase, so the line carries its own reason.
+    pub label: &'a str,
 }
 
 /// The connect component.
 ///
-/// Without script it is a link to the sign-in page beside its aside;
-/// the sign-in form is in the markup but hidden. The island hides the
-/// link, shows the form, and focuses the field, so the swap happens
-/// where the button stood and the caret is already in the field. The
-/// form posts where the sign-in page's does, and an error comes back on
-/// that page with the handle kept. Its field has its own id because the
-/// lookup form's `handle` shares the page.
+/// Without script it is a link to the sign-in page; the sign-in form is
+/// in the markup but hidden. The island hides the link, shows the form,
+/// and focuses the field, so the swap happens where the button stood
+/// and the caret is already in the field. The form posts where the
+/// sign-in page's does, and an error comes back on that page with the
+/// handle kept. Its field has its own id because the lookup form's
+/// `handle` shares the page.
 ///
 /// The field carries no button: it is sent with Return, which the faint
 /// mark at the end of its rule says. That is the browser's own implicit
@@ -303,8 +304,7 @@ pub fn connect(connect: &Connect<'_>) -> Markup {
     html! {
         div.connect data-connect {
             div.actions.landing-actions.connect-idle {
-                a.button.connect-button href="/login" { "Connect" }
-                span.landing-aside { (connect.aside) }
+                a.button.connect-button href="/login" { (connect.label) }
             }
             form.lookup.connect-form action="/login" method="post" hidden {
                 label.visually-hidden for="connect-handle" { "Your handle" }

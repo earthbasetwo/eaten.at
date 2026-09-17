@@ -75,7 +75,7 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
             }
             (connect(&Connect {
                 appview,
-                aside: "to start writing",
+                label: "Connect to start writing",
             }))
             hr.landing-divider;
             (lookup_form(&LookupForm {
