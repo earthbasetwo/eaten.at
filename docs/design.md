@@ -229,9 +229,12 @@ Motion: 160ms ease-out (`--ease`) on color, background, border, and an
 action's rule. Nothing lifts, scales, or slides, except the primary
 action's arrow, which eases 3px to the right on hover (the Typeset
 handoff's one movement; its 150ms is taken as the site's 160). The one
-animation is the connect field's arrival (below), colour only.
-`prefers-reduced-motion` removes the transitions and holds the arrow
-still.
+animation is Connect (below): pressed, the rule under the button grows
+in place over 280ms into the rule under the handle field, which arrives
+selected, while the label fades out, the form fades in, and the block
+eases to the form's height so nothing below jumps.
+`prefers-reduced-motion` removes the transitions, holds the arrow
+still, and cuts Connect straight to the form.
 
 ## Components
 
@@ -522,8 +525,7 @@ Signed out there is no account line: the page's primary action is
   Publication themes are clamped to WCAG AA (`theme::MIN_CONTRAST`) on
   every surface their text sits on.
 - `prefers-reduced-motion` disables the transitions, holds the primary
-  arrow still, and cuts the one animation, the connect field's arrival,
-  to its settled state.
+  arrow still, and cuts the one animation, Connect, to a plain swap.
 - Newsreader and JetBrains Mono are subset to Latin and Latin Extended;
   Evantic is one file. All use `font-display: swap` and fall back to
   Georgia and the system mono. The licences are in

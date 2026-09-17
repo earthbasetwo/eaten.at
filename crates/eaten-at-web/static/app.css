@@ -200,6 +200,7 @@
        rule turns vermilion and doubles instead (see the fields). */
     --focus-ring: 2px solid color-mix(in oklab, var(--color-vermilion) 55%, transparent);
     --ease: 160ms ease-out;
+    --connect-time: 280ms; /* the connect rule's travel, and the block's */
     --touch-target: 44px;
     --tracking-label: 0.16em;
     --tracking-button: 0.1em;
@@ -619,17 +620,30 @@
   .lookup .field-hint { margin-block-start: var(--space-s); }
   /* Connect (plan 09): pressed, the sign-in link becomes the handle
      field where it stood, with the caret already in it. The site's one
-     animation: the field arrives with a wash of the accent that settles
-     into the paper over a second, so the eye lands on the caret and the
-     placeholder. A field has no ground of its own now, so the wash
-     settles to transparent. Colour only; nothing moves, and reduced
-     motion skips straight to the settled field. */
-  .connect-form input[name="handle"] { animation: connect-arrive 1.2s ease-out both; }
-  @keyframes connect-arrive {
-    from { opacity: 0; background-color: color-mix(in oklab, var(--color-vermilion) 12%, var(--color-paper)); }
-    15% { opacity: 1; }
-    to { opacity: 1; background-color: transparent; }
+     animation, and the rule draws it: the 2px of vermilion under
+     "Connect" grows in place into the 2px under the field, which
+     arrives selected, so the line never leaves the page. The label
+     fades as the rule sets out; the field, its button, and its hint
+     fade in as it lands; and the block eases to the form's height so
+     nothing below jumps. The script measures both ends and moves one
+     rule (.connect-rule) between them, holding the row out of the flow
+     while the form takes its place. In flight, neither the button nor
+     the field shows a rule of its own: the moving one is the rule.
+     Reduced motion collapses every transition here to a cut. */
+  .connect-live { position: relative; overflow: hidden; transition: height var(--connect-time) ease-out; }
+  .connect-live .connect-idle {
+    position: absolute; inset-block-start: 0; inset-inline: 0; pointer-events: none;
+    transition: opacity 120ms ease-out;
   }
+  .connect-live .connect-button { box-shadow: none; transition: none; }
+  .connect-live .connect-form { opacity: 0; transition: opacity 160ms ease-out 120ms; }
+  .connect-live .connect-form input[name="handle"] { box-shadow: none; transition: none; }
+  .connect-rule {
+    position: absolute; block-size: 2px; background: var(--color-vermilion); pointer-events: none;
+    transition: left var(--connect-time) ease-out, top var(--connect-time) ease-out, width var(--connect-time) ease-out;
+  }
+  .connect-arriving .connect-idle { opacity: 0; }
+  .connect-arriving .connect-form { opacity: 1; }
 
   /* The author's home (plan 11): the handle in the mono voice where a
      kicker would go, a small nameplate for the publication, the find
