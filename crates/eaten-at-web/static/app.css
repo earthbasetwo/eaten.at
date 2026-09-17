@@ -132,6 +132,7 @@
     --text-button:    clamp(0.6875rem, 0.652rem + 0.145vw, 0.75rem);   /* 11 → 12, the rating and the document footer */
     --text-action:    clamp(1rem,      0.929rem + 0.29vw,  1.125rem);  /* 16 → 18, the primary action */
     --text-action-small: clamp(0.9375rem, 0.902rem + 0.145vw, 1rem);   /* 15 → 16, every other action */
+    --text-field:     clamp(1rem,      0.965rem + 0.145vw, 1.0625rem); /* 16 → 17, what is typed and what is chosen */
     --text-small:     0.875rem;                                         /* 14, interface text */
     --text-body:      clamp(0.875rem,  0.84rem + 0.145vw,  0.9375rem); /* 14 → 15 */
     --text-lede:      1rem;                                             /* 16 */
@@ -141,7 +142,7 @@
     --text-masthead:  clamp(1.375rem,  1.234rem + 0.58vw,  1.625rem);  /* 22 → 26, the running head */
     --text-title:     clamp(1.75rem,   1.538rem + 0.87vw,  2.125rem);  /* 28 → 34, the page title */
     --text-nameplate: clamp(2rem,      1.717rem + 1.159vw, 2.5rem);    /* 32 → 40, a publication's name */
-    --text-logotype:  clamp(2.5rem,    2.076rem + 1.739vw, 3.25rem);   /* 40 → 52 */
+    --text-logotype:  clamp(2.5rem,    1.935rem + 2.319vw, 3.5rem);    /* 40 → 56 */
 
     /* Space, on an 8px grid. */
     --space-xs: 0.25rem;  /*  4 */
@@ -173,12 +174,31 @@
     --rule-ink: 1px solid var(--color-ink);
     --rule-hairline: 1px solid var(--color-hairline);
     --rule-double: 3px double var(--color-ink);
+    /* A field is a rule, not a box: 1px of ink under what is typed,
+       thickening to ink on hover and to vermilion when it has focus. */
+    --field-rule: inset 0 -1px var(--color-ink);
+    --field-rule-strong: inset 0 -2px var(--color-ink);
+    --field-rule-focus: inset 0 -2px var(--color-vermilion);
+    --field-rule-invalid: inset 0 -1px var(--color-vermilion);
+    --field-rule-disabled: inset 0 -1px var(--color-disabled);
+    /* The one shadow in the system: a menu's hard offset, printed rather
+       than floating, in place of a blur. */
+    --menu-shadow: 3px 3px 0 var(--color-hairline);
+    /* The box a checkbox or a radio draws, and the pen-stroke check
+       inside it: a mark with a short tail in and a long one out, drawn as
+       an SVG because a font glyph does not centre. The stroke is the
+       vermilion literal — a data URL cannot read a custom property — and
+       is the one colour a publication theme does not reach. No themed
+       page carries a form; see docs/design.md. */
+    --box-size: 1rem;
+    --check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M 0 8.5 L 2.8 8.5 L 6.2 13.5 L 12.2 2.2 L 16 2.2' stroke='%23d8401f' stroke-width='1.8' fill='none' stroke-linejoin='miter'/%3E%3C/svg%3E");
+    --check-mark-disabled: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M 0 8.5 L 2.8 8.5 L 6.2 13.5 L 12.2 2.2 L 16 2.2' stroke='%23c9bfa8' stroke-width='1.8' fill='none' stroke-linejoin='miter'/%3E%3C/svg%3E");
+    /* A dropdown's chevron, masked so it takes the accent of the day. */
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M 1 1.5 L 6 6.5 L 11 1.5' stroke='%23000' stroke-width='1.8' fill='none' stroke-linecap='square'/%3E%3C/svg%3E");
     /* Focus: a soft ring, the accent at just over half strength, set a
-       little away from the thing; a field instead takes a thin vermilion
-       border, a light rounding, and a faint halo (see the fields). */
+       little away from the thing; a field takes no ring at all — its own
+       rule turns vermilion and doubles instead (see the fields). */
     --focus-ring: 2px solid color-mix(in oklab, var(--color-vermilion) 55%, transparent);
-    --focus-halo: 0 0 0 3px color-mix(in oklab, var(--color-vermilion) 14%, transparent), 0 1px 3px color-mix(in oklab, var(--color-ink) 8%, transparent);
-    --focus-radius: 3px;
     --ease: 160ms ease-out;
     --touch-target: 44px;
     --tracking-label: 0.16em;
@@ -299,30 +319,95 @@
     button:hover::after, .button:hover::after { transform: none; }
   }
 
-  /* Fields: a bright well with a hairline. The size never drops below
-     16px, so mobile browsers do not zoom in on focus. */
-  input[type="text"], input[type="url"], input[type="search"], textarea, select {
+  /* Fields: a bare rule, not a box. What is typed sits on the paper with
+     1px of ink under it; nothing is filled, bordered, or rounded. The
+     rule thickens to 2px of ink under the pointer and turns 2px of
+     vermilion when the field has focus, so a field never takes a ring:
+     its own rule is the selected state. Because the rule is an inset
+     shadow rather than a border, thickening it moves no text. The size
+     never drops below 16px, so mobile browsers do not zoom in on focus. */
+  input[type="text"], input[type="url"], input[type="search"], input[type="date"], textarea, select {
     inline-size: 100%;
-    font-family: var(--font-serif); font-size: max(1rem, var(--text-body));
-    background: var(--color-paper-bright); color: var(--color-ink);
-    border: var(--rule-hairline); border-radius: 0;
-    padding: 0.55em 0.8em;
-    transition: border-color var(--ease), border-radius var(--ease), box-shadow var(--ease);
+    font-family: var(--font-serif); font-size: var(--text-field); line-height: 1.55;
+    display: block; background: transparent; color: var(--color-ink);
+    border: 0; border-radius: 0;
+    padding: 0.375rem 0; /* 6px above and below the rule */
+    box-shadow: var(--field-rule);
+    transition: box-shadow var(--ease), color var(--ease);
   }
-  input[type="text"]:hover, input[type="url"]:hover, input[type="search"]:hover, textarea:hover, select:hover {
-    border-color: var(--color-stone);
+  input[type="text"]:hover, input[type="url"]:hover, input[type="search"]:hover,
+  input[type="date"]:hover, textarea:hover, select:hover {
+    box-shadow: var(--field-rule-strong);
   }
-  /* A focused field: no ring outside the box. The hairline itself turns
-     vermilion, the corners soften, and a faint halo lifts it a little,
-     so the selected state is quieter than a second frame around it. */
   input[type="text"]:focus-visible, input[type="url"]:focus-visible, input[type="search"]:focus-visible,
   input[type="date"]:focus-visible, textarea:focus-visible, select:focus-visible {
     outline: none;
-    border-color: var(--color-vermilion); border-radius: var(--focus-radius);
-    box-shadow: var(--focus-halo);
+    box-shadow: var(--field-rule-focus);
   }
-  input::placeholder, textarea::placeholder { color: var(--color-stone); opacity: 1; }
-  input[type="checkbox"], input[type="radio"] { accent-color: var(--color-vermilion); }
+  input[type="text"]:disabled, input[type="url"]:disabled, input[type="search"]:disabled,
+  input[type="date"]:disabled, textarea:disabled, select:disabled {
+    color: var(--color-disabled); box-shadow: var(--field-rule-disabled); cursor: default;
+  }
+  /* A placeholder is not the answer, so it is set the way an absence is:
+     the serif in italic, in the metadata voice. */
+  input::placeholder, textarea::placeholder {
+    font-style: italic; color: var(--color-stone); opacity: 1;
+  }
+
+  /* A dropdown is a field whose answer is chosen rather than typed, so
+     its value is set as an action is — the serif in italic — with a
+     vermilion chevron at the end of the rule. The menu a native select
+     opens belongs to the browser and cannot be styled; the site's own
+     menu is the combobox's listbox, which takes the paper menu below. */
+  select {
+    appearance: none;
+    font-style: italic;
+    padding-inline-end: 1.5em;
+    cursor: pointer;
+  }
+  .select-rule { position: relative; display: block; font-size: var(--text-field); }
+  .select-rule::after {
+    content: ""; position: absolute; pointer-events: none;
+    inset-inline-end: 0.15em; inset-block-start: 50%; translate: 0 -50%;
+    inline-size: 0.6em; block-size: 0.4em;
+    background: var(--color-vermilion);
+    -webkit-mask: var(--chevron) no-repeat center / contain;
+    mask: var(--chevron) no-repeat center / contain;
+  }
+  .select-rule:has(select:disabled)::after { background: var(--color-disabled); }
+
+  /* Checkbox: a 16px square of ink-thin rule, empty on the paper, that
+     takes the bright surface and a vermilion pen-stroke when it is
+     checked. A radio is the same box drawn round, with a dot instead of
+     the stroke — the handoff draws only the checkbox, and leaving the
+     radio to the browser beside it would read as two systems. */
+  input[type="checkbox"], input[type="radio"] {
+    appearance: none; flex: none;
+    inline-size: var(--box-size); block-size: var(--box-size);
+    border: var(--rule-ink); border-radius: 0;
+    background: transparent no-repeat center / contain;
+    cursor: pointer;
+    transition: background-color var(--ease), border-color var(--ease);
+  }
+  input[type="radio"] { border-radius: 50%; }
+  input[type="checkbox"]:checked {
+    background-color: var(--color-paper-bright); background-image: var(--check-mark);
+  }
+  input[type="radio"]:checked {
+    background-color: var(--color-paper-bright);
+    background-image: radial-gradient(circle at center, var(--color-vermilion) 0 0.22rem, transparent 0.22rem);
+  }
+  input[type="checkbox"]:disabled, input[type="radio"]:disabled {
+    border-color: var(--color-disabled); cursor: default;
+  }
+  input[type="checkbox"]:disabled:checked { background-image: var(--check-mark-disabled); }
+  input[type="radio"]:disabled:checked {
+    background-image: radial-gradient(circle at center, var(--color-disabled) 0 0.22rem, transparent 0.22rem);
+  }
+  /* The date field opens the browser's own picker; its indicator is the
+     browser's glyph, so it is quieted rather than redrawn. */
+  input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.45; cursor: pointer; }
+  input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 0.8; }
 
   /* The metadata voice: mono, small, stone. A kicker is the same voice
      in tracked capitals, sitting above a title or naming a section. */
@@ -535,14 +620,15 @@
   /* Connect (plan 09): pressed, the sign-in link becomes the handle
      field where it stood, with the caret already in it. The site's one
      animation: the field arrives with a wash of the accent that settles
-     into the bright ground over a second, so the eye lands on the caret
-     and the placeholder. Colour only; nothing moves, and reduced motion
-     skips straight to the settled field. */
+     into the paper over a second, so the eye lands on the caret and the
+     placeholder. A field has no ground of its own now, so the wash
+     settles to transparent. Colour only; nothing moves, and reduced
+     motion skips straight to the settled field. */
   .connect-form input[name="handle"] { animation: connect-arrive 1.2s ease-out both; }
   @keyframes connect-arrive {
-    from { opacity: 0; background-color: color-mix(in oklab, var(--color-vermilion) 12%, var(--color-paper-bright)); }
+    from { opacity: 0; background-color: color-mix(in oklab, var(--color-vermilion) 12%, var(--color-paper)); }
     15% { opacity: 1; }
-    to { opacity: 1; background-color: var(--color-paper-bright); }
+    to { opacity: 1; background-color: transparent; }
   }
 
   /* The author's home (plan 11): the handle in the mono voice where a
@@ -574,18 +660,31 @@
   .tertiary a, .tertiary .link-button { color: var(--color-ink-soft); }
   .tertiary a:hover, .tertiary .link-button:hover { color: var(--color-vermilion); }
 
-  /* Combobox (plan 10): the listbox an island puts under a field. A
-     bright sheet with a hairline; the active option takes the paper. */
+  /* Combobox (plan 10): the listbox an island puts under a field, and
+     the one menu the site draws itself, so it is the handoff's paper
+     menu — the bright surface inside a 1px ink rule, square, carried a
+     little off the page by a hard offset shadow rather than a blur, the
+     one shadow the system allows. Options are hairlined apart; the one
+     under the pointer or the arrow key takes the paper and the accent.
+     A suggestion is a name, not an action, so it stays roman. */
   .combobox-list {
-    list-style: none; margin: var(--space-xs) 0 0; padding: var(--space-xs);
-    background: var(--color-paper-bright); border: var(--rule-hairline);
+    list-style: none; margin: var(--space-xs) 0 0; padding: 0;
+    background: var(--color-paper-bright); border: var(--rule-ink);
+    box-shadow: var(--menu-shadow);
   }
   .combobox-option {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs) var(--space-s);
-    padding: var(--space-s) var(--space-sm); cursor: pointer;
+    padding: var(--space-s) var(--space-m); cursor: pointer;
+    transition: background-color var(--ease), color var(--ease);
   }
-  .combobox-option:hover, .combobox-option[aria-selected="true"] { background: var(--color-paper); }
-  .combobox-label { color: var(--color-ink); }
+  .combobox-option + .combobox-option { border-block-start: var(--rule-hairline); }
+  .combobox-option:hover, .combobox-option[aria-selected="true"] {
+    background: var(--color-paper); color: var(--color-vermilion);
+  }
+  .combobox-option:hover .combobox-label, .combobox-option[aria-selected="true"] .combobox-label {
+    color: var(--color-vermilion);
+  }
+  .combobox-label { color: var(--color-ink); transition: color var(--ease); }
   .combobox-detail {
     font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em;
     color: var(--color-stone);
@@ -618,7 +717,13 @@
     text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--color-ink-soft);
   }
   .field > legend { margin-block-end: var(--space-xs); }
-  .field-invalid input, .field-invalid textarea, .field-invalid select { border-color: var(--color-vermilion); }
+  /* A field in error: the rule goes vermilion with the message, and
+     doubles like any other field once it has focus. */
+  .field-invalid input, .field-invalid textarea, .field-invalid select { box-shadow: var(--field-rule-invalid); }
+  .field-invalid input:hover, .field-invalid textarea:hover, .field-invalid select:hover,
+  .field-invalid input:focus-visible, .field-invalid textarea:focus-visible, .field-invalid select:focus-visible {
+    box-shadow: var(--field-rule-focus);
+  }
   .field-error { font-size: var(--text-small); font-weight: 500; color: var(--color-vermilion); }
   /* A hint is read, not scanned, so it is the text voice at the small
      size, in the soft ink that passes contrast. */
@@ -690,12 +795,18 @@
   .photo-row-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--action-gap); }
   .hosting-form { margin-block-start: var(--space-m); max-inline-size: 34rem; }
   .hosting-form > * + * { margin-block-start: var(--space-m); }
+  /* A choice is the box and its label on one line, the whole row
+     clickable because the row is the label. The label is the serif at
+     16px, the size the handoff sets beside the box. */
   .choice {
     display: flex; gap: var(--space-s); align-items: baseline;
-    font-family: var(--font-serif); font-size: var(--text-body); font-weight: 400;
+    font-family: var(--font-serif); font-size: 1rem; font-weight: 400; line-height: 1.55;
     color: var(--color-ink); letter-spacing: 0; text-transform: none;
+    cursor: pointer;
   }
-  .subdomain { align-items: center; }
+  .choice:has(input:disabled) { color: var(--color-disabled); cursor: default; }
+  /* The subdomain and the host it sits under read as one line, so they
+     share a baseline and the rule runs under the typed part alone. */
   .subdomain input { flex: 1; min-inline-size: 0; }
   .hosting-form .actions { margin-block-start: var(--space-m); }
   .search-results { margin-block-start: var(--space-s); display: grid; gap: var(--space-xs); }
