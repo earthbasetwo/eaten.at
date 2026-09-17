@@ -119,6 +119,8 @@
     /* Text on a vermilion fill, and on an ink fill. */
     --color-vermilion-fg: #fdfbf4;
     --color-ink-fg: var(--color-paper-bright);
+    /* A disabled action's label and rule (Typeset handoff 6a). */
+    --color-disabled: #c9bfa8;
 
     --font-logotype: "Evantic", Georgia, "Times New Roman", serif;
     --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
@@ -127,7 +129,9 @@
     /* Type: 390px → 1080px viewport. */
     --text-mono:      clamp(0.625rem,  0.59rem + 0.145vw,  0.6875rem); /* 10 → 11, metadata */
     --text-label:     clamp(0.625rem,  0.59rem + 0.145vw,  0.6875rem); /* 10 → 11, tracked capitals */
-    --text-button:    clamp(0.6875rem, 0.652rem + 0.145vw, 0.75rem);   /* 11 → 12 */
+    --text-button:    clamp(0.6875rem, 0.652rem + 0.145vw, 0.75rem);   /* 11 → 12, the rating and the document footer */
+    --text-action:    clamp(1rem,      0.929rem + 0.29vw,  1.125rem);  /* 16 → 18, the primary action */
+    --text-action-small: clamp(0.9375rem, 0.902rem + 0.145vw, 1rem);   /* 15 → 16, every other action */
     --text-small:     0.875rem;                                         /* 14, interface text */
     --text-body:      clamp(0.875rem,  0.84rem + 0.145vw,  0.9375rem); /* 14 → 15 */
     --text-lede:      1rem;                                             /* 16 */
@@ -169,7 +173,12 @@
     --rule-ink: 1px solid var(--color-ink);
     --rule-hairline: 1px solid var(--color-hairline);
     --rule-double: 3px double var(--color-ink);
-    --focus-ring: 2px solid var(--color-vermilion);
+    /* Focus: a soft ring, the accent at just over half strength, set a
+       little away from the thing; a field instead takes a thin vermilion
+       border, a light rounding, and a faint halo (see the fields). */
+    --focus-ring: 2px solid color-mix(in oklab, var(--color-vermilion) 55%, transparent);
+    --focus-halo: 0 0 0 3px color-mix(in oklab, var(--color-vermilion) 14%, transparent), 0 1px 3px color-mix(in oklab, var(--color-ink) 8%, transparent);
+    --focus-radius: 3px;
     --ease: 160ms ease-out;
     --touch-target: 44px;
     --tracking-label: 0.16em;
@@ -192,6 +201,7 @@
     --color-hairline: color-mix(in oklab, var(--color-ink) 14%, var(--color-paper));
     --color-vermilion: rgb(var(--theme-accent));
     --color-vermilion-fg: rgb(var(--theme-accent-fg));
+    --color-disabled: color-mix(in oklab, var(--color-ink) 24%, var(--color-paper));
   }
 }
 
@@ -219,7 +229,7 @@
     transition: color var(--ease), background-color var(--ease), border-color var(--ease);
   }
   a:hover { text-decoration: underline; }
-  :focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  :focus-visible { outline: var(--focus-ring); outline-offset: 3px; }
   code, pre { font-family: var(--font-mono); font-size: 0.85em; }
   pre {
     overflow-x: auto; padding: var(--space-m);
@@ -230,22 +240,64 @@
   time { font-variant-numeric: tabular-nums; }
   small { font-size: var(--text-small); }
 
-  /* Buttons: rectangles in the mono voice, capitals tracked. The primary
-     is the page's one action, filled with vermilion; a secondary is
-     outlined in ink. Hovering inverts fill and outline. */
-  button, .button, .button-secondary {
-    display: inline-flex; align-items: center; justify-content: center; gap: var(--space-s);
-    font-family: var(--font-mono); font-size: var(--text-button); font-weight: 400;
-    line-height: 1.2; letter-spacing: var(--tracking-button); text-transform: uppercase; text-decoration: none;
-    background: var(--color-vermilion); color: var(--color-vermilion-fg);
-    border: 1px solid var(--color-vermilion); border-radius: 0;
-    padding: 0.6875rem 1.375rem;
+  /* Buttons: typeset (the Typeset handoff, 6a). An action is a label in
+     the serif italic on a rule, with no box and no fill. The primary is
+     the page's one action: larger, on a 2px vermilion rule, with a
+     vermilion arrow after it that the stylesheet adds, so no primary is
+     ever without one and none reads it aloud. Every other action is on a
+     1px ink rule; a quiet one is soft ink on a hairline. The rule is an
+     inset shadow rather than a border so thickening it on hover moves no
+     text. Hovering thickens the rule and eases the arrow right; pressing
+     turns the label vermilion; disabled, label and rule go faint. */
+  button, .button, .button-secondary, .button-quiet, .button-link, .actions > .link-button, .pagination a {
+    position: relative; display: inline-block;
+    font-family: var(--font-serif); font-style: italic; font-weight: 400; font-size: var(--text-action-small);
+    line-height: 1.2; letter-spacing: 0; text-transform: none; text-decoration: none; text-align: start;
+    color: var(--color-ink); background: none;
+    border: 0; border-radius: 0; padding: 0 0 2px; margin: 0;
+    box-shadow: inset 0 -1px var(--color-ink);
     cursor: pointer;
-    transition: color var(--ease), background-color var(--ease), border-color var(--ease);
+    transition: color var(--ease), box-shadow var(--ease);
   }
-  button:hover, .button:hover { background: transparent; color: var(--color-vermilion); text-decoration: none; }
-  .button-secondary { background: transparent; color: var(--color-ink); border-color: var(--color-ink); }
-  .button-secondary:hover { background: var(--color-ink); color: var(--color-ink-fg); text-decoration: none; }
+  button, .button { font-size: var(--text-action); box-shadow: inset 0 -2px var(--color-vermilion); }
+  button::after, .button::after {
+    content: "→" / ""; display: inline-block; margin-inline-start: 0.35em;
+    color: var(--color-vermilion); transition: transform var(--ease);
+  }
+  button:hover, .button:hover { box-shadow: inset 0 -3px var(--color-vermilion); text-decoration: none; }
+  button:hover::after, .button:hover::after { transform: translateX(3px); }
+  .button-secondary, .button-quiet, .button-link, .actions > .link-button, .pagination a {
+    font-size: var(--text-action-small); box-shadow: inset 0 -1px var(--color-ink);
+  }
+  .button-secondary::after, .button-quiet::after, .button-link::after, .actions > .link-button::after, .pagination a::after { content: none; }
+  .button-secondary:hover, .button-link:hover, .actions > .link-button:hover, .pagination a:hover {
+    box-shadow: inset 0 -2px var(--color-ink); text-decoration: none;
+  }
+  .button-quiet { color: var(--color-ink-soft); box-shadow: inset 0 -1px var(--color-hairline); }
+  .button-quiet:hover { box-shadow: inset 0 -2px var(--color-hairline); text-decoration: none; }
+  button:active, .button:active, .button-secondary:active, .button-quiet:active, .button-link:active, .actions > .link-button:active, .pagination a:active {
+    color: var(--color-vermilion);
+  }
+  button:disabled, .button[aria-disabled="true"] {
+    color: var(--color-disabled); box-shadow: inset 0 -2px var(--color-disabled); cursor: default;
+  }
+  button:disabled::after, .button[aria-disabled="true"]::after { color: var(--color-disabled); transform: none; }
+  .button-secondary:disabled, .button-quiet:disabled, .button-secondary[aria-disabled="true"], .button-quiet[aria-disabled="true"] {
+    box-shadow: inset 0 -1px var(--color-disabled);
+  }
+  /* A button that reads as a link, for a POST that sits in a sentence.
+     It takes the sentence's voice; in an .actions row it is a secondary. */
+  .link-button {
+    position: static; display: inline;
+    background: none; border: 0; padding: 0; border-radius: 0; box-shadow: none;
+    font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--color-vermilion);
+    cursor: pointer;
+  }
+  .link-button::before, .link-button::after { content: none; }
+  .link-button:hover { background: none; box-shadow: none; color: var(--color-vermilion); text-decoration: underline; }
+  @media (prefers-reduced-motion: reduce) {
+    button:hover::after, .button:hover::after { transform: none; }
+  }
 
   /* Fields: a bright well with a hairline. The size never drops below
      16px, so mobile browsers do not zoom in on focus. */
@@ -255,10 +307,19 @@
     background: var(--color-paper-bright); color: var(--color-ink);
     border: var(--rule-hairline); border-radius: 0;
     padding: 0.55em 0.8em;
-    transition: border-color var(--ease);
+    transition: border-color var(--ease), border-radius var(--ease), box-shadow var(--ease);
   }
   input[type="text"]:hover, input[type="url"]:hover, input[type="search"]:hover, textarea:hover, select:hover {
     border-color: var(--color-stone);
+  }
+  /* A focused field: no ring outside the box. The hairline itself turns
+     vermilion, the corners soften, and a faint halo lifts it a little,
+     so the selected state is quieter than a second frame around it. */
+  input[type="text"]:focus-visible, input[type="url"]:focus-visible, input[type="search"]:focus-visible,
+  input[type="date"]:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: none;
+    border-color: var(--color-vermilion); border-radius: var(--focus-radius);
+    box-shadow: var(--focus-halo);
   }
   input::placeholder, textarea::placeholder { color: var(--color-stone); opacity: 1; }
   input[type="checkbox"], input[type="radio"] { accent-color: var(--color-vermilion); }
@@ -270,8 +331,16 @@
   .meta a, .kicker a { color: inherit; }
   .meta a:hover, .kicker a:hover { color: var(--color-vermilion); }
 
+  /* Touch: the visible action is a line of text, so on a phone a halo
+     around it takes the tap; it changes no layout and the rule stays
+     tight to the label. */
   @media (max-width: 40rem) {
-    button, .button, .button-secondary { min-block-size: var(--touch-target); }
+    button::before, .button::before, .button-secondary::before, .button-quiet::before,
+    .button-link::before, .actions > .link-button::before, .pagination a::before {
+      content: ""; position: absolute; inset-inline: 0;
+      inset-block: calc((1.2em + 2px - var(--touch-target)) / 2);
+    }
+    .link-button::before { content: none; }
   }
 }
 
@@ -440,25 +509,10 @@
     margin-block-start: var(--space-s);
   }
 
-  /* Actions: one primary button at most, every other action a secondary.
-     A button that must be a POST joins them as a secondary too. */
-  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-s) var(--space-sm); margin-block-start: var(--space-l); }
-  .button-link, .actions > .link-button {
-    display: inline-flex; align-items: center; justify-content: center;
-    font-family: var(--font-mono); font-size: var(--text-button); font-weight: 400; line-height: 1.2;
-    letter-spacing: var(--tracking-button); text-transform: uppercase;
-    color: var(--color-ink); background: transparent; text-decoration: none;
-    border: var(--rule-ink); border-radius: 0;
-    padding: 0.6875rem 1.375rem;
-    cursor: pointer;
-    transition: color var(--ease), background-color var(--ease), border-color var(--ease);
-  }
-  .button-link:hover, .actions > .link-button:hover {
-    background: var(--color-ink); color: var(--color-ink-fg); text-decoration: none;
-  }
-  @media (max-width: 40rem) {
-    .button-link, .actions > .link-button { min-block-size: var(--touch-target); }
-  }
+  /* Actions: one primary at most, every other action a secondary, on a
+     shared baseline. A button that must be a POST joins them as a
+     secondary too. */
+  .actions { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-s) var(--space-l); margin-block-start: var(--space-l); }
   .delete-form > .field, .delete-form > .field-hint { flex-basis: 100%; }
   .interstitial { max-inline-size: var(--measure); }
   .interstitial > * + * { margin-block-start: var(--space-m); }
@@ -468,7 +522,7 @@
   .lookup { max-inline-size: 34rem; }
   /* A kicker used as a field's label is read, so it is the soft ink. */
   .lookup-label { display: block; margin-block-end: var(--space-s); color: var(--color-ink-soft); }
-  .lookup-row { display: flex; gap: var(--space-s); }
+  .lookup-row { display: flex; align-items: baseline; gap: var(--space-m); }
   .lookup-row input { flex: 1; min-inline-size: 0; }
   .lookup-row button { flex: none; }
   .landing-note { margin-block-start: var(--space-l); max-inline-size: 34rem; }
@@ -538,14 +592,6 @@
   }
   .account { margin-block-start: var(--space-m); display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: baseline; }
   .inline-form { display: inline; }
-  /* A button that reads as a link, for actions that must be a POST. */
-  .link-button {
-    display: inline; min-block-size: 0;
-    background: none; border: 0; padding: 0; border-radius: 0;
-    font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--color-vermilion);
-    cursor: pointer;
-  }
-  .link-button:hover { background: none; color: var(--color-vermilion); text-decoration: underline; }
 
   /* Editor: the write-up on the left, the visit on the right, stacked
      when the column is narrow. Every control is a plain form element with
@@ -589,12 +635,13 @@
   .editor-body { min-block-size: 24rem; font-size: var(--text-prose); line-height: 1.6; resize: vertical; }
   input[type="file"] { font-family: var(--font-serif); font-size: var(--text-small); color: var(--color-ink-soft); }
   input[type="file"]::file-selector-button {
-    font-family: var(--font-mono); font-size: var(--text-button); letter-spacing: var(--tracking-button); text-transform: uppercase;
-    color: var(--color-ink); background: transparent; border: var(--rule-ink); border-radius: 0;
-    padding: 0.5rem 1rem; margin-inline-end: var(--space-sm); cursor: pointer;
-    transition: color var(--ease), background-color var(--ease);
+    font-family: var(--font-serif); font-style: italic; font-size: var(--text-action-small); line-height: 1.2;
+    color: var(--color-ink); background: none; border: 0; border-radius: 0;
+    padding: 0 0 2px; margin-inline-end: var(--space-sm); cursor: pointer;
+    box-shadow: inset 0 -1px var(--color-ink);
+    transition: box-shadow var(--ease);
   }
-  input[type="file"]::file-selector-button:hover { background: var(--color-ink); color: var(--color-ink-fg); }
+  input[type="file"]::file-selector-button:hover { box-shadow: inset 0 -2px var(--color-ink); }
   .rows > * + * { margin-block-start: var(--space-m); }
   .row { display: grid; gap: var(--space-s); grid-template-columns: minmax(0, 1fr); padding-block-end: var(--space-m); border-block-end: var(--rule-hairline); }
   .row-remove { justify-self: start; color: var(--color-ink-soft); }
@@ -610,7 +657,6 @@
      looks, the results as rows, and the way out by hand. */
   .editor-choosing { max-inline-size: var(--column); }
   .editor-choosing > * + * { margin-block-start: var(--space-m); }
-  .search-field .lookup-row { align-items: center; }
   .editor-choosing .search-field, .editor-choosing .locate-status, .editor-choosing .results { max-inline-size: 34rem; }
   /* With suggestions on, the Search button is the no-JS path only. */
   .js-suggesting .search-field button { display: none; }
@@ -652,27 +698,15 @@
   .subdomain { align-items: center; }
   .subdomain input { flex: 1; min-inline-size: 0; }
   .hosting-form .actions { margin-block-start: var(--space-m); }
-  .search-box .lookup-row { align-items: center; }
   .search-results { margin-block-start: var(--space-s); display: grid; gap: var(--space-xs); }
   .search-results li { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-s); align-items: baseline; }
 
-  /* Pagination: two secondary buttons, newest left, older right. */
+  /* Pagination: two secondary actions, newest left, older right. */
   .pagination {
-    display: flex; justify-content: space-between; gap: var(--space-m);
+    display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-m);
     margin-block-start: var(--section-gap);
   }
-  .pagination a {
-    display: inline-flex; align-items: center;
-    font-family: var(--font-mono); font-size: var(--text-button); line-height: 1.2;
-    letter-spacing: var(--tracking-button); text-transform: uppercase;
-    color: var(--color-ink); text-decoration: none;
-    border: var(--rule-ink);
-    padding: 0.6875rem 1.375rem;
-    transition: color var(--ease), background-color var(--ease), border-color var(--ease);
-  }
-  .pagination a:hover { background: var(--color-ink); color: var(--color-ink-fg); text-decoration: none; }
   .pagination a[rel="next"] { margin-inline-start: auto; }
-  @media (max-width: 40rem) { .pagination a { min-block-size: var(--touch-target); } }
 
   /* Document page: kicker (the date), title, the visit, prose, footer. */
   .document > .kicker { margin-block-end: var(--space-s); }

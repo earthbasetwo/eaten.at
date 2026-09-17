@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #F6F1E5; font-family: 'Newsreader', serif; color: #1C1914; }
+  a { color: #D8401F; text-decoration: none; }
+  a:hover { color: #D8401F; text-decoration: underline; }
+</style>
+</helmet>
+<div style="max-width:640px;margin:0 auto;padding:56px 32px">
+  <div style="border-bottom:3px double #1C1914;padding-bottom:16px">
+    <div style="font-family:'Newsreader',serif;font-weight:500;font-size:30px;line-height:1.1">Typeset buttons</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.22em;color:#988D75;margin-top:8px">EATEN.AT · BUTTON STYLE REFERENCE · 6A</div>
+  </div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:40px 0 16px">PRIMARY</div>
+  <span style="font-family:'Newsreader',serif;font-style:italic;font-size:18px;color:#1C1914;box-shadow:inset 0 -2px #D8401F;padding-bottom:2px;cursor:pointer" style-hover="box-shadow:inset 0 -3px #D8401F">Write a review <span style="color:#D8401F">→</span></span>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin-top:14px">Newsreader italic 18px · 2px vermilion rule · vermilion arrow · one per view</div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:40px 0 16px">SECONDARY + QUIET</div>
+  <div style="display:flex;gap:32px;align-items:baseline">
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:16px;color:#1C1914;box-shadow:inset 0 -1px #1C1914;padding-bottom:2px;cursor:pointer" style-hover="box-shadow:inset 0 -2px #1C1914">Follow</span>
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:16px;color:#4A4336;box-shadow:inset 0 -1px #DDD5C2;padding-bottom:2px;cursor:pointer" style-hover="box-shadow:inset 0 -2px #DDD5C2">Share</span>
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:16px;color:#C9BFA8;box-shadow:inset 0 -1px #C9BFA8;padding-bottom:2px">Disabled</span>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin-top:14px">Secondary: 1px ink rule · Quiet: ink-soft + hairline rule · Disabled: #C9BFA8</div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:40px 0 16px">STATES</div>
+  <div style="display:flex;gap:32px;align-items:baseline;flex-wrap:wrap">
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:16px;color:#1C1914;box-shadow:inset 0 -2px #D8401F;padding-bottom:2px">Rest <span style="color:#D8401F">→</span></span>
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:16px;color:#1C1914;box-shadow:inset 0 -3px #D8401F;padding-bottom:2px">Hover <span style="color:#D8401F;display:inline-block;transform:translateX(3px)">→</span></span>
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:16px;color:#D8401F;box-shadow:inset 0 -2px #D8401F;padding-bottom:2px">Active <span style="color:#D8401F">→</span></span>
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:16px;color:#1C1914;box-shadow:inset 0 -2px #D8401F;padding-bottom:2px;outline:2px solid #D8401F;outline-offset:2px">Focus <span style="color:#D8401F">→</span></span>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin-top:14px">Hover: rule 2→3px, arrow +3px right, 150ms ease-out · Active: label goes vermilion · Focus: 2px vermilion outline</div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:40px 0 16px">IN CONTEXT</div>
+  <div style="border-top:1px solid #1C1914;padding-top:14px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <div style="font-family:'Newsreader',serif;font-weight:500;font-size:21px">Lupetta</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#D8401F">SUPERB</div>
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin:4px 0 10px">@mara.food.social · roman · $$</div>
+    <div style="font-family:'Newsreader',serif;font-size:15px;line-height:1.6;color:#332E24">Go on a Tuesday, sit at the counter, order whatever the chalkboard says. The cacio e pepe is the best outside Testaccio.</div>
+    <div style="display:flex;gap:24px;margin-top:14px;align-items:baseline">
+      <span style="font-family:'Newsreader',serif;font-style:italic;font-size:15px;color:#1C1914;box-shadow:inset 0 -2px #D8401F;padding-bottom:1px;cursor:pointer">Reply <span style="color:#D8401F">→</span></span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#988D75">♥ 84</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#988D75">⇄ 6</span>
+    </div>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin:14px 0 56px">Counters (♥ ⇄) stay plain mono text — only real actions get the typeset treatment.</div>
+</div>
+</x-dc>
+</body>
+</html>

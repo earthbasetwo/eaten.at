@@ -10,7 +10,12 @@ Evantic logotype. Hierarchy comes from type and rules, not from colour,
 boxes, or shadows.
 
 The handoff fixes style, not layout. Its tokens are applied exactly; the
-page structure is eaten.at's own and predates it. The reference page in the
+page structure is eaten.at's own and predates it. Buttons follow a second
+handoff, Typeset (`docs/design-handoff/typeset-buttons/`, adopted
+2026-09-15): actions set as magazine type on a rule, in place of
+Masthead's boxed mono buttons. Its reference page shows hover states
+through `style-hover` attributes its runtime applied (`support.js`,
+likewise not kept); the rest states render as plain HTML. The reference page in the
 handoff folder opens in a browser as plain HTML (its viewer runtime,
 `support.js`, was not kept and is not needed; the page's Google Fonts
 links are the only thing it fetches).
@@ -26,12 +31,13 @@ a class in that file.
 2. **Two voices, and a signature.** Everything read is the serif
    (Newsreader): titles and names at weight 500, text at 400. Everything
    *about* the content (dates, handles, DIDs, URLs, labels, ratings) and
-   everything *pressed* (buttons, chips) is small mono (JetBrains Mono),
-   in capitals when it labels. The logotype alone is Evantic, always
+   a chip is small mono (JetBrains Mono), in capitals when it labels.
+   Everything *pressed* is the serif in italic on a rule: an action is
+   typeset, not boxed. The logotype alone is Evantic, always
    lowercase, and it is never used for anything else. A reader can tell
    content from chrome by typeface alone.
 3. **Vermilion is scarce.** The accent is for the rating, links, active
-   states, and one primary action per page. Never a large fill, a
+   states, and the rule and arrow under one primary action per page. Never a large fill, a
    heading, a border, or a background (except a field's error state and
    the form error's rule).
 4. **Rules, not boxes.** Things a reader picks between (write-ups,
@@ -78,7 +84,8 @@ there is no hue but vermilion.
 | `--color-ink-soft` | `#4A4336` | ledes, hints, field labels, notices, quiet links |
 | `--color-stone` | `#988D75` | the mono metadata voice: dates, handles, URLs, kickers, placeholders |
 | `--color-hairline` | `#DDD5C2` | minor rules, every bright surface's border |
-| `--color-vermilion` | `#D8401F` | links, the primary button, active states, the rating |
+| `--color-vermilion` | `#D8401F` | links, the primary action's rule and arrow, active states, the rating |
+| `--color-disabled` | `#C9BFA8` | a disabled action's label and rule, and nothing else |
 
 Contrast on the default grounds:
 
@@ -91,9 +98,10 @@ Contrast on the default grounds:
   on paper-bright, and paper-bright on a vermilion fill is the same
   4.34.** The handoff calls its colours final and the palette is applied
   as given. It passes the 3:1 large-text bar everywhere, and every use
-  of it is either short and tracked capitals (the rating, a button), a
-  link that underlines on hover, or a link inside prose that keeps a
-  faint underline at rest. Darkening it to reach 4.5 is a one-token
+  of it is either short and tracked capitals (the rating), a link that
+  underlines on hover, a link inside prose that keeps a faint underline
+  at rest, or the rule and arrow under a primary action, which are not
+  text; an action's label is ink. Darkening it to reach 4.5 is a one-token
   change if that is ever wanted; `theme.rs` has a test recording the
   ratio so the number does not drift unnoticed.
 
@@ -123,8 +131,8 @@ not, which is how its vermilion stays as the handoff drew it.
 | Face | Weights | Role |
 |---|---|---|
 | Evantic Regular | one face, bundled | the logotype `eaten.at`, lowercase, and nothing else |
-| Newsreader | 200–800 variable with optical sizes, roman and italic; 500 and 400 used | titles, names, and the running head at 500; text, ledes, hints, notices, comment text, and fields at 400 |
-| JetBrains Mono | 400–500 | metadata, kickers, labels, buttons, chips, the rating, the document footer |
+| Newsreader | 200–800 variable with optical sizes, roman and italic; 500 and 400 used | titles, names, and the running head at 500; text, ledes, hints, notices, comment text, and fields at 400; actions in italic at 400 |
+| JetBrains Mono | 400–500 | metadata, kickers, labels, chips, the rating, the document footer, the skip link |
 
 Newsreader's optical size axis follows the font size, so small text gets
 the text cut and titles the display cut without anything asking for it.
@@ -134,7 +142,9 @@ Sizes are fluid between a 390px and a 1080px viewport.
 |---|---|---|
 | `--text-mono` | 10 → 11 | metadata lines, bylines, the site footer, tag chips |
 | `--text-label` | 10 → 11 | kickers and field labels: tracked capitals |
-| `--text-button` | 11 → 12 | buttons, pagination, the rating, the document footer |
+| `--text-button` | 11 → 12 | the rating, the document footer, the skip link |
+| `--text-action` | 16 → 18 | the primary action |
+| `--text-action-small` | 15 → 16 | every other action |
 | `--text-small` | 14 | excerpts, comment text, hints, notices, the address |
 | `--text-body` | 14 → 15 | the interface, choice labels, a comment's author |
 | `--text-lede` | 16 | ledes, a publication's description |
@@ -155,12 +165,12 @@ Rules:
 - Prose is 16px, the top of the handoff's 14–16 range, in `ink-body`, at
   `--measure` (640px).
 - The mono voice is `stone` with `letter-spacing: 0.04em`. Capitals are
-  always tracked: kickers and field labels at 0.16em, buttons at 0.1em,
-  the rating at 0.14em. A **kicker** (`.kicker`) sits above a title or
-  names a section; it is one of the few places capitals appear, with
-  buttons, labels, and the rating.
+  always tracked: kickers and field labels at 0.16em, the skip link at
+  0.1em, the rating at 0.14em. A **kicker** (`.kicker`) sits above a
+  title or names a section; it is one of the few places capitals appear,
+  with labels and the rating.
 - Italic serif marks a *description* (a publication's description on its
-  nameplate) or an *absence* (an empty state).
+  nameplate), an *absence* (an empty state), or an *action* (a button).
 
 ## Space and shape
 
@@ -186,12 +196,17 @@ Shape: **square corners everywhere.** Three rules do the separating:
 | `--rule-hairline` | 1px solid hairline | between rows, above the site footer, around every bright surface |
 | `--rule-double` | 3px double ink | under a running head and under a publication's nameplate |
 
-Elevation: none. A bright surface has a hairline and nothing else.
+Elevation: none. A bright surface has a hairline and nothing else. The
+one exception is a focused field, which softens its corners to 3px and
+takes a faint halo while it has focus (see Field).
 
-Motion: 160ms ease-out (`--ease`) on color, background, and border only.
-Nothing lifts, scales, or slides, and `prefers-reduced-motion` removes even
-that. The one animation is the connect field's arrival (below), and it
-too is colour only.
+Motion: 160ms ease-out (`--ease`) on color, background, border, and an
+action's rule. Nothing lifts, scales, or slides, except the primary
+action's arrow, which eases 3px to the right on hover (the Typeset
+handoff's one movement; its 150ms is taken as the site's 160). The one
+animation is the connect field's arrival (below), colour only.
+`prefers-reduced-motion` removes the transitions and holds the arrow
+still.
 
 ## Components
 
@@ -303,33 +318,30 @@ at metadata size, `ink-soft`, the tag as the author wrote it. On hover
 the border and text turn `ink`. The same chip on the front page, the
 author's home, and in the document footer.
 
-**Buttons.** Rectangles in the mono voice at button size, capitals
-tracked at 0.1em, padded 11px by 22px. Hovering inverts fill and outline.
-- **Primary** (`button`, `.button`): filled with vermilion, `paper-bright`
-  text. At most one per page: it is the page's one action. On hover the
-  fill drops and the outline and text are vermilion.
+**Buttons.** Typeset: an action is a label in the serif italic on a
+rule, with no box and no fill (the Typeset handoff, 6a). The rule is an
+inset shadow, not a border, so thickening it on hover moves no text.
+Pressing turns the label vermilion. Disabled, label and rule go
+`--color-disabled` and nothing happens on hover.
+- **Primary** (`button`, `.button`): `--text-action`, `ink`, on a 2px
+  vermilion rule, followed by a vermilion arrow the stylesheet adds with
+  empty alternative text, so no primary is without one and none reads it
+  aloud. At most one per page: it is the page's one action. On hover the
+  rule goes to 3px and the arrow eases 3px right.
 - **Secondary** (`.button-secondary`, `.button-link`, `.pagination a`,
-  and a `.link-button` placed directly in an `.actions` row): a 1px ink
-  outline, `ink` text, transparent. On hover it fills with ink and the
-  text is `paper-bright`. Any second action is a secondary, with a
-  leading arrow when it goes back.
-- **Touch targets:** below 40rem every button is at least 44px tall.
+  and a `.link-button` placed directly in an `.actions` row):
+  `--text-action-small`, `ink`, on a 1px ink rule, no arrow. On hover the
+  rule goes to 2px. Any second action is a secondary, with a leading
+  arrow in its text when it goes back.
+- **Quiet** (`.button-quiet`): a secondary in `ink-soft` on a hairline
+  rule, for an action a page wants to offer without weight. Defined by
+  the handoff; no page uses it yet.
+- **Touch targets:** below 40rem every action carries an invisible halo
+  that makes its tap 44px tall without moving the rule from the label.
 
-Actions sit in an `.actions` row with 8–12px gaps.
-
-**Connect** (`.connect`). The signed-out landing page's way in: one
-primary "Connect" with a quiet aside on its baseline. Pressed, the
-button and aside give way to the sign-in form where they stood (the
-handle field with "Start typing your handle…", a primary "Continue" at
-its end, the served hint under it, suggestions as you type), and the
-caret is already in the field. The field arrives with a wash of
-vermilion at 12% that settles into `paper-bright` over 1.2s, fading in
-over the first 160ms: the site's one animation, colour only, so the eye
-lands on the caret without anything moving; reduced motion skips to the
-settled field. Without script the button is a link to the sign-in page
-and the form stays hidden. A modified or middle click keeps the link.
-The form posts where the sign-in page's does, so an error comes back on
-that page with the handle kept.
+Actions sit in an `.actions` row on a shared baseline, 24px apart. An
+action beside a field (`.lookup-row`) shares the field's baseline, 16px
+from it.
 
 **Link button** (`.link-button`). A button dressed as an inline link, for
 a POST that sits in a sentence (sign out, restore a draft, remove a row).
@@ -337,7 +349,9 @@ a POST that sits in a sentence (sign out, restore a draft, remove a row).
 **Field** (`input`, `textarea`, `select`). A bright well with a hairline,
 square, the serif at 16px or more (so mobile browsers do not zoom on
 focus), placeholder in `stone`. The border turns `stone` on hover and
-vermilion when invalid. Checkboxes and radios take the accent. A field's
+vermilion when invalid. Focused, it takes no ring: the hairline itself
+turns vermilion, the corners soften to 3px, and a faint halo (the accent
+at 14% for 3px, and a 1px shadow of ink at 8%) lifts it a little. Checkboxes and radios take the accent. A field's
 **label** is a UI label: tracked mono capitals in `ink-soft`.
 
 **Live find** (`.find`, `.find-results`). On the author's home, the
@@ -361,7 +375,7 @@ vermilion rule on the leading edge, `ink` text.
 **Empty state** (`.empty`). One italic serif line in `ink-soft`, centred,
 with room around it, where the content would have been.
 
-**Pagination** (`.pagination`). Two secondary buttons: "← Newest" left
+**Pagination** (`.pagination`). Two secondary actions: "← Newest" left
 and "Older →" right.
 
 **Site footer** (`.site-footer`). The mono voice in `stone`, centred,
@@ -440,12 +454,15 @@ Signed out there is no account line: the page's primary action is
 - Landmarks on every page: skip link, `header`, `main#main`, `footer`;
   `nav` elements carry an `aria-label` naming their scope ("Tags in this
   publication", "Links", "Pagination").
-- Focus is a 2px vermilion outline, offset 2px, on every focusable thing.
+- Focus is a 2px ring of the accent at 55%, offset 3px, on every
+  focusable thing but a field, which shows focus in its own border and
+  halo instead.
 - Contrast: see the palette notes, including the vermilion shortfall.
   Publication themes are clamped to WCAG AA (`theme::MIN_CONTRAST`) on
   every surface their text sits on.
-- `prefers-reduced-motion` disables the transitions and cuts the one
-  animation, the connect field's arrival, to its settled state.
+- `prefers-reduced-motion` disables the transitions, holds the primary
+  arrow still, and cuts the one animation, the connect field's arrival,
+  to its settled state.
 - Newsreader and JetBrains Mono are subset to Latin and Latin Extended;
   Evantic is one file. All use `font-display: swap` and fall back to
   Georgia and the system mono. The licences are in
@@ -465,8 +482,9 @@ Signed out there is no account line: the page's primary action is
   in the serif at body size.
 - Do make a thing a reader chooses between a row under a rule. Don't box
   it, and don't box a section of a page.
-- Do use vermilion for a link, the primary button, the rating, or an
-  error. Don't use it for a heading, a fill, a border, or a background.
+- Do use vermilion for a link, the primary action's rule and arrow, the
+  rating, or an error. Don't use it for a heading, a fill, a border, a
+  background, or an action's label.
 - Do use size for hierarchy in the serif. Don't go bolder than 500.
 - Do track capitals. Don't set capitals in the serif, or untracked.
 - Do use Evantic for `eaten.at`, lowercase. Don't use it for anything
