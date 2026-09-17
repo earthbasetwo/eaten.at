@@ -10,15 +10,27 @@ Evantic logotype. Hierarchy comes from type and rules, not from colour,
 boxes, or shadows.
 
 The handoff fixes style, not layout. Its tokens are applied exactly; the
-page structure is eaten.at's own and predates it. Buttons follow a second
-handoff, Typeset (`docs/design-handoff/typeset-buttons/`, adopted
+page structure is eaten.at's own and predates it. Buttons followed a
+second handoff, Typeset (`docs/design-handoff/typeset-buttons/`, adopted
 2026-09-15): actions set as magazine type on a rule, in place of
-Masthead's boxed mono buttons. Its reference page shows hover states
-through `style-hover` attributes its runtime applied (`support.js`,
-likewise not kept); the rest states render as plain HTML. The reference page in the
-handoff folder opens in a browser as plain HTML (its viewer runtime,
-`support.js`, was not kept and is not needed; the page's Google Fonts
-links are the only thing it fetches).
+Masthead's boxed mono buttons.
+
+The system was then gathered into one document,
+`docs/design-handoff/system-v2/`, adopted 2026-09-17. It restates
+Masthead and Typeset unchanged and settles the controls the first two
+left open: a text field is a **bare rule** rather than a boxed well, a
+dropdown is a typeset trigger over a printed paper menu, and a checkbox
+is a hairline square with a pen-stroke check. Those three are what
+2026-09-17 changed; everything else it says was already here.
+
+A handoff's reference page opens in a browser as plain HTML. The viewer
+runtime the design tool shipped with it (`support.js`) is not kept and is
+not needed: hover states are `style-hover` attributes that runtime
+applied, and the rest render as themselves. In the v2 page two specimens,
+the dropdown and the checkbox, are driven by that runtime and show their
+`{{ … }}` bindings instead of a control; the README carries every value
+they would have demonstrated. A reference page's Google Fonts links are
+the only thing it fetches.
 
 The stylesheet is `crates/eaten-at-web/static/app.css`, a single file
 in cascade layers with no build step. Everything named here is a token or
@@ -43,10 +55,14 @@ a class in that file.
 4. **Rules, not boxes.** Things a reader picks between (write-ups,
    publications, places, photos) are rows on the paper: a 1px ink rule
    above the first, hairlines between the rest. Sections open with a 1px
-   ink rule; mastheads close with a 3px double one. The one raised
-   surface is `paper-bright`, for fields, sheets, and the visit's fact
-   box, with a hairline and square corners. Nothing has a radius, a
-   shadow, a lift, or a scale.
+   ink rule; mastheads close with a 3px double one. A field is a rule
+   too: what is typed sits on the paper with 1px of ink beneath it, not
+   inside a well. The raised surface, `paper-bright`, is kept for the
+   few things that really do sit on top of the page — a menu, a checked
+   box, a sheet, the visit's fact box — with a rule and square corners.
+   Nothing has a radius, a lift, or a scale, and the one shadow in the
+   system is a menu's hard 3px offset, which is a printed edge rather
+   than a blur.
 5. **Same shape everywhere.** Every page opens the same way: a small
    mono kicker, then the title, then the content. A listing row is a
    small document page. A chooser row is a small listing row.
@@ -78,14 +94,14 @@ there is no hue but vermilion.
 | Token | Hex | Use |
 |---|---|---|
 | `--color-paper` | `#F6F1E5` | page ground (ivory stock) |
-| `--color-paper-bright` | `#FDFBF4` | fields, sheets, panels, the visit's fact box, the text on ink and vermilion fills |
-| `--color-ink` | `#1C1914` | titles, strong text, rules, the logotype, secondary buttons |
+| `--color-paper-bright` | `#FDFBF4` | menus, a checked box, sheets, the visit's fact box, the text on ink and vermilion fills |
+| `--color-ink` | `#1C1914` | titles, strong text, rules, a field's rule, the logotype, secondary buttons |
 | `--color-ink-body` | `#332E24` | a write-up's text, excerpts, comment text |
 | `--color-ink-soft` | `#4A4336` | ledes, hints, field labels, notices, quiet links |
 | `--color-stone` | `#988D75` | the mono metadata voice: dates, handles, URLs, kickers, placeholders |
 | `--color-hairline` | `#DDD5C2` | minor rules, every bright surface's border |
 | `--color-vermilion` | `#D8401F` | links, the primary action's rule and arrow, active states, the rating |
-| `--color-disabled` | `#C9BFA8` | a disabled action's label and rule, and nothing else |
+| `--color-disabled` | `#C9BFA8` | a disabled action's or field's label and rule, and nothing else |
 
 Contrast on the default grounds:
 
@@ -145,6 +161,7 @@ Sizes are fluid between a 390px and a 1080px viewport.
 | `--text-button` | 11 → 12 | the rating, the document footer, the skip link |
 | `--text-action` | 16 → 18 | the primary action |
 | `--text-action-small` | 15 → 16 | every other action |
+| `--text-field` | 16 → 17 | what is typed into a field and what a dropdown shows as chosen |
 | `--text-small` | 14 | excerpts, comment text, hints, notices, the address |
 | `--text-body` | 14 → 15 | the interface, choice labels, a comment's author |
 | `--text-lede` | 16 | ledes, a publication's description |
@@ -154,7 +171,7 @@ Sizes are fluid between a 390px and a 1080px viewport.
 | `--text-masthead` | 22 → 26 | the running head |
 | `--text-title` | 28 → 34 | the page title (h1) |
 | `--text-nameplate` | 32 → 40 | a publication's name on its own front page |
-| `--text-logotype` | 40 → 52 | the logotype |
+| `--text-logotype` | 40 → 56 | the logotype |
 
 Rules:
 
@@ -196,9 +213,17 @@ Shape: **square corners everywhere.** Three rules do the separating:
 | `--rule-hairline` | 1px solid hairline | between rows, above the site footer, around every bright surface |
 | `--rule-double` | 3px double ink | under a running head and under a publication's nameplate |
 
-Elevation: none. A bright surface has a hairline and nothing else. The
-one exception is a focused field, which softens its corners to 3px and
-takes a faint halo while it has focus (see Field).
+A field draws its rule as an inset shadow rather than a border, the way
+an action does, so thickening it moves no text: `--field-rule` (1px ink),
+`--field-rule-strong` (2px ink, under the pointer), `--field-rule-focus`
+(2px vermilion), `--field-rule-invalid` (1px vermilion), and
+`--field-rule-disabled`.
+
+Elevation: none, with one exception. A bright surface has a hairline and
+nothing else; a menu — the only thing the site draws over the page — has
+a 1px ink rule and `--menu-shadow`, a hard `3px 3px 0` offset in the
+hairline. It is a printed edge, not a blur: nothing in the system is lit
+from above.
 
 Motion: 160ms ease-out (`--ease`) on color, background, border, and an
 action's rule. Nothing lifts, scales, or slides, except the primary
@@ -346,13 +371,44 @@ from it.
 **Link button** (`.link-button`). A button dressed as an inline link, for
 a POST that sits in a sentence (sign out, restore a draft, remove a row).
 
-**Field** (`input`, `textarea`, `select`). A bright well with a hairline,
-square, the serif at 16px or more (so mobile browsers do not zoom on
-focus), placeholder in `stone`. The border turns `stone` on hover and
-vermilion when invalid. Focused, it takes no ring: the hairline itself
-turns vermilion, the corners soften to 3px, and a faint halo (the accent
-at 14% for 3px, and a 1px shadow of ink at 8%) lifts it a little. Checkboxes and radios take the accent. A field's
-**label** is a UI label: tracked mono capitals in `ink-soft`.
+**Field** — "bare rule" (`input`, `textarea`). Not a box: what is typed
+sits on the paper at `--text-field` in the serif, with nothing behind it
+and 1px of ink under it, 6px below the text. Under the pointer the rule
+goes to 2px of ink; with focus it goes to 2px of vermilion, and that is
+the whole selected state — a field takes no ring, because its own rule is
+the ring. Invalid, the rule and the message go vermilion, and focus still
+doubles it. Disabled, the text and the rule go `--color-disabled`. The
+placeholder is the serif in *italic* in `stone`: a placeholder is an
+absence, and italic is how this system sets an absence. The size never
+drops below 16px, so mobile browsers do not zoom on focus. A field's
+**label** is a UI label: tracked mono capitals — in `ink-soft`, not the
+handoff's `stone`, because a label has to be read (see Palette).
+
+**Dropdown** (`.select-rule` around a `select`). A field whose answer is
+chosen rather than typed, so the handoff sets the chosen value the way it
+sets an action: the serif in *italic* on the same bare rule, with a
+vermilion chevron at the rule's end. The chevron is an SVG mask filled
+with `--color-vermilion`, so it follows a publication's accent; the
+wrapper exists only to give it somewhere to sit. **The menu a native
+`select` opens belongs to the browser and cannot be styled** — the
+handoff's paper menu is drawn where the site draws its own list, the
+combobox below. Choosing without script is worth more than a matching
+popup (D3).
+
+**Choice** (`.choice`). A checkbox or a radio and its label on one line,
+the row clickable because the row *is* the label: the serif at 16px in
+`ink`, 8px from the box. The **box** is 16px square (`--box-size`), 1px
+of ink, empty on the paper; checked, it takes `paper-bright` and a
+vermilion pen-stroke with a short tail in and a long tail out
+(`--check-mark`, the handoff's path, drawn as an SVG because a font glyph
+does not centre). A **radio** is the same box drawn round with a
+vermilion dot instead of the stroke: the handoff draws only the checkbox,
+and a browser-default radio beside a hand-drawn check would read as two
+systems. Disabled, the box and the label go `--color-disabled`.
+`--check-mark` is a data URL and so carries the vermilion literal — the
+one colour in the stylesheet a publication theme does not reach. Nothing
+themed carries a form, so it is never seen; the radio's dot, which is a
+gradient, follows the theme as everything else does.
 
 **Live find** (`.find`, `.find-results`). On the author's home, the
 results under the find form are swapped in after a pause in typing,
@@ -360,11 +416,15 @@ without a reload; the address bar follows, and the form still submits
 as a form. The results region is `aria-live`.
 
 **Combobox** (`.combobox-list`, `.combobox-option`). A listbox an island
-puts under a text field: a bright sheet with a hairline, one option per
-row with the name in the serif and a detail (the handle) in the mono
-voice. The active option takes the paper. It appears only with
-JavaScript on and only while there are matches; the field it sits under
-works without it.
+puts under a text field, and the only menu the site draws itself, so it
+is the handoff's **paper menu**: `paper-bright` inside a 1px ink rule,
+square, carried off the page by `--menu-shadow`. One option per row,
+hairlined apart, the name in the serif and a detail (the handle) in the
+mono voice; the option under the pointer or the arrow key takes the paper
+and goes vermilion. The handoff sets a menu's items in italic, as
+actions; a suggestion is a name, not an action, so these stay roman. It
+appears only with JavaScript on and only while there are matches; the
+field it sits under works without it.
 
 **Notice** (`.notice`). A bright sheet with a hairline, the serif at
 small size in `ink-soft`. Its links are the accent like any other.
@@ -455,8 +515,9 @@ Signed out there is no account line: the page's primary action is
   `nav` elements carry an `aria-label` naming their scope ("Tags in this
   publication", "Links", "Pagination").
 - Focus is a 2px ring of the accent at 55%, offset 3px, on every
-  focusable thing but a field, which shows focus in its own border and
-  halo instead.
+  focusable thing but a field, which shows focus by doubling its own rule
+  in vermilion. The handoff asks for the ring at full strength and 2px
+  offset; it was quieted on 2026-09-15 and stays that way.
 - Contrast: see the palette notes, including the vermilion shortfall.
   Publication themes are clamped to WCAG AA (`theme::MIN_CONTRAST`) on
   every surface their text sits on.
@@ -482,6 +543,8 @@ Signed out there is no account line: the page's primary action is
   in the serif at body size.
 - Do make a thing a reader chooses between a row under a rule. Don't box
   it, and don't box a section of a page.
+- Do let a field be a rule on the paper. Don't box it, fill it, or round
+  it, and don't put a ring around it when it takes focus.
 - Do use vermilion for a link, the primary action's rule and arrow, the
   rating, or an error. Don't use it for a heading, a fill, a border, a
   background, or an action's label.
@@ -491,3 +554,20 @@ Signed out there is no account line: the page's primary action is
   else, and don't set the logotype in any other face.
 - Do let a page be short. Don't fill an empty state with instructions.
 - Do keep the column at 720px. Don't add a wide variant for a listing.
+
+## What the handoff asks for and the site does not
+
+Everything in the v2 handoff is applied except the following, each of
+which is a decision this project already took and has not reversed.
+
+| The handoff | The site | Why |
+|---|---|---|
+| A masthead bar: the logotype over a tracked mono tagline, closed by the double rule | No site chrome above a page; the signed-out landing page alone carries the logotype, with no tagline and no bar, and a document carries its publication's name | 2026-09-16: a reader on someone's write-up should see that publication, not this site |
+| Ratings as POOR / FAIR / GOOD / GREAT / SUPERB | Solid / Recommended / Strongly Recommended / Can't Miss | D4: the scale is the record's, not the stylesheet's. The *rendering* — the word alone, tracked mono capitals in vermilion — is the handoff's, exactly |
+| A feed row's metadata as `@handle · cuisine · $$` | The date and the place name | The listing is one author's publication, so the handle is not news on it; the price band is a fact of the visit and sits in the visit's fact box |
+| Action row counters `♥ 84 ⇄ 6` in the mono voice | Nothing | D5 and D6: there are no likes or reposts here, and comments live on Bluesky |
+| A field's label in `stone` | `ink-soft` | `stone` is 2.9:1 on paper. A label has to be read; `stone` is for metadata that is scanned |
+| Focus-visible: a 2px vermilion outline at 2px offset | The accent at 55%, offset 3px | 2026-09-15 |
+| Links with no underline at rest | A link inside prose keeps a faint underline | Colour alone does not mark a link in a paragraph |
+| Multi-select filter chips, typeset, as an alternative for tag filters | The tag chip stays the small mono badge it is | The handoff offers the chip as an alternative, and nothing here filters by several tags at once: a tag chip is a link to a tag page |
+| Google Fonts for Newsreader and JetBrains Mono | The same faces, subset and served from `/static/` | The CSP keeps every request same-origin |

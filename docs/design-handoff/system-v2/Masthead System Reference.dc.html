@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @font-face { font-family: 'Evantic'; src: url('Evantic-Regular.ttf') format('truetype'); }
+  body { margin: 0; background: #F6F1E5; font-family: 'Newsreader', serif; color: #1C1914; }
+  input::placeholder { font-family: 'Newsreader', serif; font-style: italic; color: #988D75; opacity: 1; }
+  a { color: #D8401F; text-decoration: none; }
+  a:hover { color: #D8401F; text-decoration: underline; }
+</style>
+</helmet>
+<div style="max-width:680px;margin:0 auto;padding:56px 32px">
+  <div style="text-align:center;border-bottom:3px double #1C1914;padding-bottom:20px">
+    <div style="font-family:'Evantic',serif;font-size:56px;line-height:1">eaten.at</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.22em;color:#988D75;margin-top:12px">THE FEDERATED TABLE · DESIGN SYSTEM REFERENCE</div>
+  </div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:44px 0 12px">COLOR</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:10px">
+    <div><div style="height:52px;background:#F6F1E5;border:1px solid #DDD5C2"></div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:6px">paper</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75">#F6F1E5</div></div>
+    <div><div style="height:52px;background:#FDFBF4;border:1px solid #DDD5C2"></div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:6px">paper-bright</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75">#FDFBF4</div></div>
+    <div><div style="height:52px;background:#1C1914"></div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:6px">ink</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75">#1C1914</div></div>
+    <div><div style="height:52px;background:#332E24"></div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:6px">ink-body</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75">#332E24</div></div>
+    <div><div style="height:52px;background:#988D75"></div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:6px">stone</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75">#988D75</div></div>
+    <div><div style="height:52px;background:#DDD5C2"></div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:6px">hairline</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75">#DDD5C2</div></div>
+    <div><div style="height:52px;background:#D8401F"></div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:6px">vermilion</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75">#D8401F</div></div>
+  </div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:44px 0 12px">TYPE</div>
+  <div style="border-top:1px solid #1C1914;padding-top:18px">
+    <div style="font-family:'Evantic',serif;font-size:40px;line-height:1">eaten.at</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin:4px 0 20px">Evantic Regular — logotype only, always lowercase</div>
+    <div style="font-family:'Newsreader',serif;font-weight:500;font-size:30px;line-height:1.15">Where locals actually eat</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin:4px 0 20px">Newsreader 500 — headlines, restaurant names</div>
+    <div style="font-size:15px;line-height:1.6;color:#332E24">The tortellini in brodo arrived steaming, and the room went quiet for a moment.</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin:4px 0 20px">Newsreader 400 — body and review text</div>
+    <div style="font-family:'Newsreader',serif;font-style:italic;font-size:17px">Write a review <span style="color:#D8401F">→</span></div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin:4px 0 20px">Newsreader italic — action labels</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#4A4336;letter-spacing:0.08em">@mara.food.social · did:plc:4f…9a2 · roman · $$</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin-top:4px">JetBrains Mono — metadata, handles, labels, ratings</div>
+  </div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:44px 0 12px">BUTTONS · TYPESET</div>
+  <div style="border-top:1px solid #1C1914;padding-top:18px;display:flex;gap:32px;align-items:baseline;flex-wrap:wrap">
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:18px;color:#1C1914;box-shadow:inset 0 -2px #D8401F;padding-bottom:2px;cursor:pointer" style-hover="box-shadow:inset 0 -3px #D8401F">Write a review <span style="color:#D8401F">→</span></span>
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:16px;color:#1C1914;box-shadow:inset 0 -1px #1C1914;padding-bottom:2px;cursor:pointer" style-hover="box-shadow:inset 0 -2px #1C1914">Follow</span>
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:16px;color:#4A4336;box-shadow:inset 0 -1px #DDD5C2;padding-bottom:2px;cursor:pointer">Share</span>
+    <span style="font-family:'Newsreader',serif;font-style:italic;font-size:16px;color:#C9BFA8;box-shadow:inset 0 -1px #C9BFA8;padding-bottom:2px">Disabled</span>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin-top:14px">Primary: 2px vermilion rule + arrow · Secondary: 1px ink rule · Quiet: hairline · Hover thickens rule (box-shadow, no text shift)</div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:44px 0 12px">TEXT INPUT · BARE RULE</div>
+  <div style="border-top:1px solid #1C1914;padding-top:18px;display:flex;flex-direction:column;gap:24px">
+    <input type="text" placeholder="Search restaurants…" style="width:100%;box-sizing:border-box;background:transparent;border:none;outline:none;box-shadow:inset 0 -1px #1C1914;padding:6px 0;font-family:'Newsreader',serif;font-size:17px;color:#1C1914" style-focus="box-shadow:inset 0 -2px #D8401F">
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin-bottom:6px">RESTAURANT</div>
+      <input type="text" value="Lupetta" style="width:100%;box-sizing:border-box;background:transparent;border:none;outline:none;box-shadow:inset 0 -1px #1C1914;padding:6px 0;font-family:'Newsreader',serif;font-size:17px;color:#1C1914" style-focus="box-shadow:inset 0 -2px #D8401F">
+    </div>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin-top:14px">1px ink rule at rest → 2px vermilion on focus · italic stone placeholder · mono caps label above</div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:44px 0 12px">DROPDOWN · TYPESET TRIGGER + PAPER MENU</div>
+  <div style="border-top:1px solid #1C1914;padding-top:18px">
+    <div style="position:relative">
+      <span onClick="{{ toggleDd }}" style="font-family:'Newsreader',serif;font-style:italic;font-size:17px;color:#1C1914;box-shadow:inset 0 -1px #1C1914;padding-bottom:2px;cursor:pointer">{{ ddVal }} <span style="color:#D8401F;font-style:normal;font-size:13px">{{ ddChev }}</span></span>
+      <sc-if value="{{ ddOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;top:32px;left:0;min-width:220px;background:#FDFBF4;border:1px solid #1C1914;box-shadow:3px 3px 0 #DDD5C2;z-index:5">
+          <sc-for list="{{ ddOptions }}" as="opt" hint-placeholder-count="4">
+            <div onClick="{{ opt.pick }}" style="padding:10px 16px;font-family:'Newsreader',serif;font-style:italic;font-size:15px;color:{{ opt.color }};border-bottom:1px solid #DDD5C2;cursor:pointer" style-hover="background:#F6F1E5;color:#D8401F">{{ opt.label }}</div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin-top:48px">Live — click to open. Paper-bright menu, 1px ink border, hard 3px offset shadow, selected item in vermilion.</div>
+  </div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:44px 0 12px">CHECKBOX · HAIRLINE BOX + TAILED CHECK</div>
+  <div style="border-top:1px solid #1C1914;padding-top:18px;display:flex;flex-direction:column;gap:12px">
+    <div onClick="{{ toggleCk1 }}" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+      <span style="width:16px;height:16px;border:1px solid #1C1914;display:inline-flex;align-items:center;justify-content:center;background:{{ ck1Bg }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" style="display:block;opacity:{{ ck1Op }}">
+          <path d="M 0 8.5 L 2.8 8.5 L 6.2 13.5 L 12.2 2.2 L 16 2.2" stroke="#D8401F" stroke-width="1.8" fill="none" stroke-linejoin="miter"></path>
+        </svg>
+      </span>
+      <span style="font-family:'Newsreader',serif;font-size:16px;color:#1C1914">Vegetarian friendly</span>
+    </div>
+    <div onClick="{{ toggleCk2 }}" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+      <span style="width:16px;height:16px;border:1px solid #1C1914;display:inline-flex;align-items:center;justify-content:center;background:{{ ck2Bg }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" style="display:block;opacity:{{ ck2Op }}">
+          <path d="M 0 8.5 L 2.8 8.5 L 6.2 13.5 L 12.2 2.2 L 16 2.2" stroke="#D8401F" stroke-width="1.8" fill="none" stroke-linejoin="miter"></path>
+        </svg>
+      </span>
+      <span style="font-family:'Newsreader',serif;font-size:16px;color:#1C1914">Takes reservations</span>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;margin-top:8px">
+      <span style="width:32px;height:32px;border:2px solid #1C1914;display:inline-flex;align-items:center;justify-content:center;background:#FDFBF4">
+        <svg width="32" height="32" viewBox="0 0 16 16" style="display:block">
+          <path d="M 0 8.5 L 2.8 8.5 L 6.2 13.5 L 12.2 2.2 L 16 2.2" stroke="#D8401F" stroke-width="1.8" fill="none" stroke-linejoin="miter"></path>
+        </svg>
+      </span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75">2× — custom SVG mark, tails flush to both edges; never a font glyph</span>
+    </div>
+  </div>
+
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#988D75;margin:44px 0 12px">REVIEW ENTRY · IN CONTEXT</div>
+  <div style="border-top:1px solid #1C1914;padding-top:14px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <div style="font-family:'Newsreader',serif;font-weight:500;font-size:22px">Lupetta</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#D8401F">SUPERB</div>
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin:4px 0 10px">@mara.food.social · roman · $$</div>
+    <div style="font-size:15px;line-height:1.6;color:#332E24">Go on a Tuesday, sit at the counter, order whatever the chalkboard says. The cacio e pepe is the best outside Testaccio.</div>
+    <div style="display:flex;gap:24px;margin-top:14px;align-items:baseline">
+      <span style="font-family:'Newsreader',serif;font-style:italic;font-size:15px;color:#1C1914;box-shadow:inset 0 -2px #D8401F;padding-bottom:1px;cursor:pointer">Reply <span style="color:#D8401F">→</span></span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#988D75"><span style="color:#D8401F">♥ 84</span></span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#988D75">⇄ 6</span>
+    </div>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#988D75;margin:14px 0 56px">Feed rows, not cards: 1px ink rule separators · word rating in vermilion mono caps · counters plain mono, vermilion when active</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { ddOpen: false, ddVal: 'Sort by: Newest', ck1: true, ck2: false };
+  renderVals() {
+    const s = this.state;
+    const tgl = (k) => () => this.setState(p => ({ [k]: !p[k] }));
+    const items = ['Sort by: Newest', 'Sort by: Highest rated', 'Sort by: Most discussed', 'Sort by: Nearest'];
+    return {
+      toggleDd: tgl('ddOpen'), ddOpen: s.ddOpen, ddVal: s.ddVal, ddChev: s.ddOpen ? '⌃' : '⌄',
+      ddOptions: items.map(label => ({
+        label, color: label === s.ddVal ? '#D8401F' : '#1C1914',
+        pick: () => this.setState({ ddVal: label, ddOpen: false })
+      })),
+      toggleCk1: tgl('ck1'), ck1Op: s.ck1 ? 1 : 0, ck1Bg: s.ck1 ? '#FDFBF4' : 'transparent',
+      toggleCk2: tgl('ck2'), ck2Op: s.ck2 ? 1 : 0, ck2Bg: s.ck2 ? '#FDFBF4' : 'transparent'
+    };
+  }
+}
+</script>
+</body>
+</html>

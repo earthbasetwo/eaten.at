@@ -115,11 +115,13 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                                 autocomplete="off" aria-describedby=[described(errors, "place_address")];
                         }))
                         (field("place_price", "Price (optional)", errors, &html! {
-                            select #place_price name="place_price" aria-describedby=[described(errors, "place_price")] {
-                                option value="" selected[form.place_price.trim().is_empty()] { "Not said" }
-                                @for band in 1..=4u8 {
-                                    option value=(band) selected[form.place_price.trim() == band.to_string()] {
-                                        ("$".repeat(usize::from(band)))
+                            span.select-rule {
+                                select #place_price name="place_price" aria-describedby=[described(errors, "place_price")] {
+                                    option value="" selected[form.place_price.trim().is_empty()] { "Not said" }
+                                    @for band in 1..=4u8 {
+                                        option value=(band) selected[form.place_price.trim() == band.to_string()] {
+                                            ("$".repeat(usize::from(band)))
+                                        }
                                     }
                                 }
                             }
@@ -598,15 +600,17 @@ impl<K: KnownValue + PartialEq> KnownSelect<'_, K> {
         html! {
             div.field.field-invalid[errors.get(name).is_some()] {
                 label.kicker for=(name) { (self.label) }
-                select id=(name) name=(name) aria-describedby=[described(errors, name)] {
-                    option value="" selected[*self.choice == Choice::None] { (self.none_label) }
-                    @for value in K::ALL {
-                        option value=(value.as_str()) selected[*self.choice == Choice::Known(*value)] {
-                            (value.display_name())
+                span.select-rule {
+                    select id=(name) name=(name) aria-describedby=[described(errors, name)] {
+                        option value="" selected[*self.choice == Choice::None] { (self.none_label) }
+                        @for value in K::ALL {
+                            option value=(value.as_str()) selected[*self.choice == Choice::Known(*value)] {
+                                (value.display_name())
+                            }
                         }
-                    }
-                    @if let Choice::Foreign(value) = self.choice {
-                        option value=(value) selected { (value) }
+                        @if let Choice::Foreign(value) = self.choice {
+                            option value=(value) selected { (value) }
+                        }
                     }
                 }
                 @if let Some(message) = errors.get(name) {
