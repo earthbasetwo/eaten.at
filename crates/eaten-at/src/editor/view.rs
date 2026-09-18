@@ -1,5 +1,6 @@
-//! The editor page: two panes where width allows, the write-up on the
-//! left and the visit on the right, every control a plain form element.
+//! The editor page: one column — the place, the date, the title, the
+//! write-up, and what the visit adds — every control a plain form
+//! element.
 
 use eaten_at_atproto::lexicon::{KnownValue, Rating};
 use eaten_at_web::components::{tag_links, visit_card, visit_links, Link};
@@ -99,68 +100,66 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                 (preview)
             }
         }
-        form.editor method="post" action=(page.action_path) novalidate {
-            div.editor-panes {
-                (writing_pane(form, errors))
-                div.editor-pane.editor-visit {
-                    fieldset.editor-group {
-                        legend.kicker { "Place" }
-                        (place_source(form))
-                        (field("place_name", "Name", errors, &html! {
-                            input #place_name name="place_name" type="text" value=(form.place_name) required
-                                aria-describedby=[described(errors, "place_name")];
-                        }))
-                        (field("place_address", "Address (optional)", errors, &html! {
-                            input #place_address name="place_address" type="text" value=(form.place_address)
-                                autocomplete="off" aria-describedby=[described(errors, "place_address")];
-                        }))
-                        (field("place_price", "Price (optional)", errors, &html! {
-                            span.select-rule {
-                                select #place_price name="place_price" aria-describedby=[described(errors, "place_price")] {
-                                    option value="" selected[form.place_price.trim().is_empty()] { "Not said" }
-                                    @for band in 1..=4u8 {
-                                        option value=(band) selected[form.place_price.trim() == band.to_string()] {
-                                            ("$".repeat(usize::from(band)))
-                                        }
-                                    }
-                                }
+        form.editor.editor-single method="post" action=(page.action_path) novalidate {
+            (place_head(form, errors))
+            (field("visited_on", "Date", errors, &html! {
+                input #visited_on name="visited_on" type="date" value=(form.visited_on) required
+                    aria-describedby=[described(errors, "visited_on")];
+            }))
+            (field("title", "Title (optional)", errors, &html! {
+                input #title name="title" type="text" value=(form.title)
+                    placeholder=(form.place_name.trim())
+                    aria-describedby=[described(errors, "title")];
+            }))
+            div.field-block {
+                (field("body", "Write-up", errors, &html! {
+                    textarea #body.editor-body name="body" rows="24" required
+                        aria-describedby=[described(errors, "body")] { (form.body) }
+                }))
+                p.meta.field-hint { "Markdown. Headings, emphasis, lists, links, and quotes render; raw HTML does not." }
+            }
+            div.field-block {
+                (field("description", "Excerpt (optional)", errors, &html! {
+                    textarea #description name="description" rows="3"
+                        aria-describedby=[described(errors, "description")] { (form.description) }
+                }))
+                p.meta.field-hint { "Shown in listings and link previews. Left blank, the first paragraph stands in." }
+            }
+            (field("place_price", "Price (optional)", errors, &html! {
+                span.select-rule {
+                    select #place_price name="place_price" aria-describedby=[described(errors, "place_price")] {
+                        option value="" selected[form.place_price.trim().is_empty()] { "Not said" }
+                        @for band in 1..=4u8 {
+                            option value=(band) selected[form.place_price.trim() == band.to_string()] {
+                                ("$".repeat(usize::from(band)))
                             }
-                        }))
-                        @if let Some(message) = errors.get("gers_id") {
-                            p.field-error id="gers_id-error" { (message) }
                         }
-                        input type="hidden" name="place_mode" value=(form.place_mode.value());
-                        input type="hidden" name="gers_id" value=(form.gers_id);
-                        input type="hidden" name="lat_e6" value=(form.lat_e6);
-                        input type="hidden" name="lon_e6" value=(form.lon_e6);
-                    }
-                    fieldset.editor-group {
-                        legend.kicker { "Visit" }
-                        (field("visited_on", "Date", errors, &html! {
-                            input #visited_on name="visited_on" type="date" value=(form.visited_on) required
-                                aria-describedby=[described(errors, "visited_on")];
-                        }))
-                        (meal_select(form, errors))
-                        (rating_choice(form, errors))
-                    }
-                    fieldset.editor-group {
-                        legend.kicker { "Links" }
-                        (links(form, errors))
-                    }
-                    fieldset.editor-group {
-                        legend.kicker { "Details" }
-                        (field("tags", "Tags (optional)", errors, &html! {
-                            input #tags name="tags" type="text" value=(form.tags)
-                                placeholder="notes, short, one long sit"
-                                aria-describedby=[described(errors, "tags")];
-                        }))
-                        p.meta.field-hint { "Separate tags with commas." }
-                    }
-                    fieldset.editor-group {
-                        legend.kicker { "Bluesky" }
-                        (bluesky(form, errors, &page.crosspost))
                     }
                 }
+            }))
+            fieldset.editor-group {
+                legend.kicker { "Visit" }
+                (meal_select(form, errors))
+                (rating_choice(form, errors))
+            }
+            fieldset.editor-group {
+                legend.kicker { "Links" }
+                (links(form, errors))
+            }
+            fieldset.editor-group {
+                legend.kicker { "Details" }
+                div.field-block {
+                    (field("tags", "Tags (optional)", errors, &html! {
+                        input #tags name="tags" type="text" value=(form.tags)
+                            placeholder="notes, short, one long sit"
+                            aria-describedby=[described(errors, "tags")];
+                    }))
+                    p.meta.field-hint { "Separate tags with commas." }
+                }
+            }
+            fieldset.editor-group {
+                legend.kicker { "Bluesky" }
+                (bluesky(form, errors, &page.crosspost))
             }
             div.actions {
                 button type="submit" name="action" value=(Action::Publish.value()) {
@@ -172,6 +171,35 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
                     a.button-link href=(format!("{}/delete", page.action_path)) { "Delete" }
                 }
             }
+        }
+    }
+}
+
+/// The head of the form: the place the write-up is about, its name at
+/// the left margin and its address at the right, then the line saying
+/// where the place came from and the fields a pick fills that nothing
+/// types.
+fn place_head(form: &EditorForm, errors: &FieldErrors) -> Markup {
+    html! {
+        div.editor-place {
+            div.editor-identity {
+                (field("place_name", "Name", errors, &html! {
+                    input #place_name name="place_name" type="text" value=(form.place_name) required
+                        aria-describedby=[described(errors, "place_name")];
+                }))
+                (field("place_address", "Address (optional)", errors, &html! {
+                    input #place_address name="place_address" type="text" value=(form.place_address)
+                        autocomplete="off" aria-describedby=[described(errors, "place_address")];
+                }))
+            }
+            (place_source(form))
+            @if let Some(message) = errors.get("gers_id") {
+                p.field-error id="gers_id-error" { (message) }
+            }
+            input type="hidden" name="place_mode" value=(form.place_mode.value());
+            input type="hidden" name="gers_id" value=(form.gers_id);
+            input type="hidden" name="lat_e6" value=(form.lat_e6);
+            input type="hidden" name="lon_e6" value=(form.lon_e6);
         }
     }
 }
@@ -337,30 +365,6 @@ fn carried(form: &EditorForm) -> Markup {
         (hidden("tags", &form.tags))
         @if form.crosspost { (hidden("crosspost", "1")) }
         (hidden("post_text", &form.post_text))
-    }
-}
-
-/// The left pane: title, write-up, excerpt.
-fn writing_pane(form: &EditorForm, errors: &FieldErrors) -> Markup {
-    html! {
-        div.editor-pane.editor-writing {
-            (field("title", "Title (optional)", errors, &html! {
-                input #title name="title" type="text" value=(form.title)
-                    placeholder=(form.place_name.trim())
-                    aria-describedby=[described(errors, "title")];
-            }))
-            p.meta.field-hint { "Left blank, the place's name is the title." }
-            (field("body", "Write-up", errors, &html! {
-                textarea #body.editor-body name="body" rows="24" required
-                    aria-describedby=[described(errors, "body")] { (form.body) }
-            }))
-            p.meta.field-hint { "Markdown. Headings, emphasis, lists, links, and quotes render; raw HTML does not." }
-            (field("description", "Excerpt (optional)", errors, &html! {
-                textarea #description name="description" rows="3"
-                    aria-describedby=[described(errors, "description")] { (form.description) }
-            }))
-            p.meta.field-hint { "Shown in listings and link previews. Left blank, the first paragraph stands in." }
-        }
     }
 }
 
