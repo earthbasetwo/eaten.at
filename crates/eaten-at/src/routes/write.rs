@@ -14,7 +14,7 @@ use axum::Form;
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::at_eaten::Preferences;
-use eaten_at_web::assets::{COMBOBOX_SCRIPT, EDITOR_SCRIPT, PLACE_SUGGEST_SCRIPT};
+use eaten_at_web::assets::{COMBOBOX_SCRIPT, EDITOR_SCRIPT, PLACE_SUGGEST_SCRIPT, TAGS_SCRIPT};
 use eaten_at_web::layout::{self, urlencoding, Page};
 use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
@@ -143,11 +143,12 @@ fn render(
         .map(|e| e.visit_doc.document().title.as_str())
         .or_else(|| Some(form.place_name.trim()).filter(|name| !name.is_empty()));
     // The choosing state suggests places; the writing state keeps a
-    // draft and grows its textareas. Each ships only its own island.
+    // draft, grows its textareas, and files tags as chips. Each ships
+    // only its own islands.
     let scripts = if form.place_mode == PlaceMode::Choosing {
         vec![COMBOBOX_SCRIPT, PLACE_SUGGEST_SCRIPT]
     } else {
-        vec![EDITOR_SCRIPT]
+        vec![EDITOR_SCRIPT, TAGS_SCRIPT]
     };
     let page = layout::render(&Page {
         title: &[if editing.is_some() { "Edit" } else { "Write" }],

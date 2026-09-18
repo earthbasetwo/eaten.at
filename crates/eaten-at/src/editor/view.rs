@@ -148,14 +148,7 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
             }
             fieldset.editor-group {
                 legend.kicker { "Details" }
-                div.field-block {
-                    (field("tags", "Tags (optional)", errors, &html! {
-                        input #tags name="tags" type="text" value=(form.tags)
-                            placeholder="notes, short, one long sit"
-                            aria-describedby=[described(errors, "tags")];
-                    }))
-                    p.meta.field-hint { "Separate tags with commas." }
-                }
+                (tags_line(form, errors))
             }
             fieldset.editor-group {
                 legend.kicker { "Bluesky" }
@@ -200,6 +193,29 @@ fn place_head(form: &EditorForm, errors: &FieldErrors) -> Markup {
             input type="hidden" name="gers_id" value=(form.gers_id);
             input type="hidden" name="lat_e6" value=(form.lat_e6);
             input type="hidden" name="lon_e6" value=(form.lon_e6);
+        }
+    }
+}
+
+/// Filed under: the tags as a sentence with a blank in it. Without
+/// script the blank is the comma list on its rule; the tags island
+/// files what is typed as chips before the blank.
+fn tags_line(form: &EditorForm, errors: &FieldErrors) -> Markup {
+    html! {
+        div.field.tags-line.field-invalid[errors.get("tags").is_some()] {
+            p.tags-sentence {
+                label for="tags" { "Filed under" }
+                " "
+                span.tag-field {
+                    input #tags name="tags" type="text" value=(form.tags)
+                        placeholder="notes, short, one long sit" autocomplete="off"
+                        aria-describedby=[described(errors, "tags")];
+                }
+                "."
+            }
+            @if let Some(message) = errors.get("tags") {
+                p.field-error id="tags-error" { (message) }
+            }
         }
     }
 }
