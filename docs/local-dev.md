@@ -122,6 +122,25 @@ Full-page screenshots of every view land in `target/visual-check/`. The
 script exits non-zero on any failure. Chrome is found in the usual install
 locations, or set `CHROME` to its executable.
 
+## Exporting a page to work on its design
+
+With `just dev-env` running:
+
+```
+just export-page                            # the editor for the first seeded write-up
+just export-page /write                     # any path, signed in
+just export-page /write choose.html         # under a name of your own
+```
+
+This writes one self-contained HTML file into `target/export/`: the
+server's own markup with the stylesheet folded in and every web font
+embedded as a data URL, so the file opens away from the app and looks
+exactly as the page does — something to hand to a designer or a design
+tool. Links in it still point at the app's paths and so go nowhere from a
+file; everything that decides how the page looks travels with it. Like the
+visual check, it builds from the working tree and starts the app on its own
+port (3101, `EXPORT_PORT`).
+
 Signing in skips OAuth. `dev-session <did>` writes the same browser-session
 row a completed sign-in writes into `EATEN_AT_DB` and prints the cookie; it
 refuses to run unless `EATEN_AT_DEV_INSECURE=1` and the public URL is a
