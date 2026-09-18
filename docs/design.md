@@ -474,7 +474,7 @@ and "Older →" right.
 | Sign-in failed | — | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
 | Status page | — | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
 | Editor `/write`, choosing | — | page head: "Write" kicker, h1 "Where did you eat?" | the search box ("Start typing…") with suggestions as you type and one primary "Search" for the plain path, a status line for where the search looks ("Searching near Brooklyn"), the results as place rows; or, with no location, a notice that search is off; then, under a hairline, "Or enter it yourself": Name, Address (optional), and a secondary "Continue with this place"; last, the Overture and DB-IP attribution |
-| Editor `/write`, writing | — | page head: "Write" kicker and the place's name (new), or "Edit" kicker and the write-up's title; a form-error summary when needed | optional preview (the document as readers see it, on a bright sheet under a "Preview" kicker); then the form: write-up pane left, visit pane right (Place, Visit, Links, Details, Bluesky groups), stacked under 56rem |
+| Editor `/write`, writing | — | page head: "Write" kicker and the place's name (new), or "Edit" kicker and the write-up's title; a form-error summary when needed | optional preview (the document as readers see it, on a bright sheet under a "Preview" kicker); then the form, one column: the place's name and address on one line, where the place came from, the date, the title, the write-up, the excerpt, the price, then the Visit, Links, Details, and Bluesky groups |
 | Photos `/write/{rkey}/photos` | — | page head: "Photos" kicker, h1 "Photos of {place}", lede ("Published. Add photos now, or skip" after a first publish) | the photos as rows (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "Skip for now" / "Done" / "← Back to the write-up" |
 | Delete `/write/{rkey}/delete` | — | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
 | Crosspost `/write/{rkey}/crosspost` | — | page head: "Bluesky" kicker, h1 "Post “title” to Bluesky" (or "… is on Bluesky"), lede | the post text field and one primary "Post to Bluesky"; or, before permission, one primary "Allow posting and continue"; secondary "← Skip for now" either way; posted: the thread link and a secondary way back |
@@ -482,9 +482,13 @@ and "Older →" right.
 
 ### The editor
 
-The editor is the one page on the wide column (`--column-wide`): two
-panes need the room.
+The editor is one column (`--column`), read top to bottom: the place the
+write-up is about, then the date, the title, the write-up, the excerpt,
+the price, and, in groups, everything else the visit carries.
 
+- **The place** heads the form as one line, `.editor-identity`: its name
+  at the left margin, its address set against the right the way an
+  address sits on a card. Under 36rem they stack, both at the left.
 - **Controls** are plain form elements. A field's label is tracked mono
   capitals in `ink-soft`; a group's legend is the serif at 500 and
   row-title size.
@@ -493,13 +497,15 @@ panes need the room.
   control, and the control's border takes the accent too.
 - **Choosing a place** comes first for a new write-up: suggestions as
   you type, the plain search, or a name and address by hand, all on
-  one page. The Place group of the writing state opens with a mono
+  one page. Under the name and address of the writing state runs a mono
   line saying where the place came from ("Matched to an Overture Maps
   listing." or "Entered by hand") and a "Change place" link button
   that returns to choosing with everything else kept.
 - **Repeated fields** (links) are rows separated by hairlines, each
   ending in a "Remove" link button. Adding a row is a "+ Add a link"
   link button.
+- **The title** is optional: its placeholder is the place's name, and
+  left blank that is the title the record gets. Nothing else says so.
 - **Choices.** The date is a plain date input. The price band, the meal,
   and each link's kind ("Official site" or "Other") are selects. A
   select never offers free text; where a record carries a value from

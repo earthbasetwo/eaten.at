@@ -732,12 +732,30 @@
   .account { margin-block-start: var(--space-m); display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: baseline; }
   .inline-form { display: inline; }
 
-  /* Editor: the write-up on the left, the visit on the right, stacked
-     when the column is narrow. Every control is a plain form element with
-     its problem beneath it. */
-  .editor-panes { display: grid; gap: var(--space-xl) var(--space-l); grid-template-columns: minmax(0, 1fr); margin-block-start: var(--space-l); }
-  @media (min-width: 56rem) { .editor-panes { grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr); } }
-  .editor-pane > * + * { margin-block-start: var(--space-m); }
+  /* Editor: one column, read top to bottom. The place the write-up is
+     about heads it — its name at the left margin, its address at the
+     right — then the date, the title, the write-up, the excerpt, the
+     price, and, in groups, everything else the visit carries. Every
+     control is a plain form element with its problem beneath it. */
+  .editor-single { max-inline-size: var(--column); }
+  .editor-single > * + * { margin-block-start: var(--space-l); }
+  /* A group of the visit's own fields, and the actions that close the
+     form, stand further off than one field from the next. */
+  .editor-single > .editor-group, .editor-single > .actions { margin-block-start: var(--space-xl); }
+  /* The place's name and address share a line, the address set against
+     the right margin the way an address is on a card; they stack, both
+     at the left margin, when the column is too narrow to share. */
+  .editor-place > * + * { margin-block-start: var(--space-s); }
+  .editor-identity { display: grid; gap: var(--space-m) var(--space-l); grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 36rem) {
+    .editor-identity { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .editor-identity > .field + .field, .editor-identity > .field + .field input { text-align: end; }
+  }
+  /* A field and the line that explains it are one item in the column. */
+  .field-block > .field-hint { margin-block-start: var(--space-xs); }
+  /* A short answer does not need the whole column: a date and a dropdown
+     take the width their answer asks for, and their rule ends there. */
+  .editor .field:has(> input[type="date"]), .editor .field:has(> .select-rule) { max-inline-size: 16rem; }
   .editor-group { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
   .editor-group + .editor-group { margin-block-start: var(--space-xl); }
   .editor-group > legend {

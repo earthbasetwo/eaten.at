@@ -15,7 +15,7 @@ use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::at_eaten::Preferences;
 use eaten_at_web::assets::{COMBOBOX_SCRIPT, EDITOR_SCRIPT, PLACE_SUGGEST_SCRIPT};
-use eaten_at_web::layout::{self, urlencoding, Page, Width};
+use eaten_at_web::layout::{self, urlencoding, Page};
 use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -151,7 +151,6 @@ fn render(
     };
     let page = layout::render(&Page {
         title: &[if editing.is_some() { "Edit" } else { "Write" }],
-        width: Width::Wide,
         nonce: Some(nonce.to_owned()),
         scripts,
         main: view::page(&EditorPage {
