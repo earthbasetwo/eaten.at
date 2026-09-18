@@ -76,6 +76,15 @@ visual-check:
     set -a; . ./.env.dev; set +a
     node scripts/visual-check.mjs
 
+# Export one page as a single self-contained HTML file (stylesheet and
+# fonts inlined) into target/export/. Defaults to the editor for the first
+# seeded write-up; pass a path, and optionally a file name, to pick another.
+export-page *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; . ./.env.dev; set +a
+    node scripts/export-page.mjs {{ARGS}}
+
 # Publish to the local network and verify via the overridden _lexicon TXT
 lexicons-publish-dev:
     #!/usr/bin/env bash
