@@ -480,13 +480,6 @@
   .site-name:hover { color: var(--color-vermilion); text-decoration: none; }
   .logotype { font-family: var(--font-logotype); font-weight: 400; font-size: var(--text-logotype); line-height: 1; text-transform: lowercase; }
   .running-head { font-family: var(--font-serif); font-weight: 500; font-size: var(--text-masthead); line-height: 1.1; }
-  .site-footer {
-    padding: var(--space-m) var(--page-inline); border-block-start: var(--rule-hairline);
-    color: var(--color-stone); font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em;
-    text-align: center;
-  }
-  .site-footer a { color: inherit; }
-  .site-footer a:hover { color: var(--color-vermilion); }
 
   /* Page head: an optional kicker, the title, an optional lede. Every
      page that is not a document or a publication front page opens with
@@ -630,24 +623,34 @@
     -webkit-mask: var(--return-mark) no-repeat center / contain;
     mask: var(--return-mark) no-repeat center / contain;
   }
-  .landing-note { margin-block-start: var(--space-l); max-inline-size: 34rem; }
   /* The landing page signed out: the one primary button, which says in
      its own line what pressing it is for, then a hairline before the
-     lookup form. */
+     second way in. */
   .landing-actions { margin-block-start: 0; align-items: baseline; }
   .landing-divider { margin-block: var(--section-gap); }
-  /* Connect (plan 09): pressed, the sign-in link becomes the handle
-     field where it stood, with the caret already in it. The site's one
-     animation, and the rule draws it: the 2px of vermilion under
-     "Connect" grows in place into the 2px under the field, which
-     arrives selected, so the line never leaves the page. The label
-     fades as the rule sets out; the field, its button, and its hint
-     fade in as it lands; and the block eases to the form's height so
-     nothing below jumps. The script measures both ends and moves one
+  /* Connect (plan 09): pressed, a way in becomes the handle field where
+     its button stood, with the caret already in it. Both ways in are
+     drawn this way — signing in to write, and looking someone up to
+     read — and a block that cannot say its whole reason on its button
+     takes a line above it (.connect-intro), outside the block because
+     the row is lifted to the block's top corner in flight.
+
+     The site's one animation, and the rule draws it: the rule under the
+     button grows in place into the 2px of vermilion under the field,
+     which arrives selected, so the line never leaves the page. Where
+     the two ends differ the rule grows and reddens on the way: the
+     primary sets out on its own 2px of vermilion, a secondary on 1px of
+     ink, and both land on the field's rule. The label fades as the rule
+     sets out; the field fades in as it lands; and the block eases to the
+     form's height so nothing below jumps. The script measures both ends,
+     reads both thicknesses from the two properties below, and moves one
      rule (.connect-rule) between them, holding the row out of the flow
      while the form takes its place. In flight, neither the button nor
      the field shows a rule of its own: the moving one is the rule.
      Reduced motion collapses every transition here to a cut. */
+  .connect { --connect-rule-from: 2px; --connect-rule-to: 2px; --connect-rule-ink: var(--color-vermilion); }
+  .connect-read { --connect-rule-from: 1px; --connect-rule-ink: var(--color-ink); }
+  .connect-intro { margin-block-end: var(--space-m); }
   .connect-live { position: relative; overflow: hidden; transition: height var(--connect-time) ease-out; }
   .connect-live .connect-idle {
     position: absolute; inset-block-start: 0; inset-inline: 0; pointer-events: none;
@@ -656,10 +659,15 @@
   .connect-live .connect-button { box-shadow: none; transition: none; }
   .connect-live .connect-form { opacity: 0; transition: opacity 160ms ease-out 120ms; }
   .connect-live .connect-form input[name="handle"] { box-shadow: none; transition: none; }
+  /* The script writes the thickness as a physical height, because the
+     measurements it places the rule by are physical. */
   .connect-rule {
-    position: absolute; block-size: 2px; background: var(--color-vermilion); pointer-events: none;
-    transition: left var(--connect-time) ease-out, top var(--connect-time) ease-out, width var(--connect-time) ease-out;
+    position: absolute; height: var(--connect-rule-from); background: var(--connect-rule-ink); pointer-events: none;
+    transition: left var(--connect-time) ease-out, top var(--connect-time) ease-out,
+      width var(--connect-time) ease-out, height var(--connect-time) ease-out,
+      background-color var(--connect-time) ease-out;
   }
+  .connect-arriving .connect-rule { background: var(--color-vermilion); }
   .connect-arriving .connect-idle { opacity: 0; }
   .connect-arriving .connect-form { opacity: 1; }
 

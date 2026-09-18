@@ -91,13 +91,6 @@ pub fn render(page: &Page<'_>) -> Markup {
                     },
                 }
                 main #main { div class=(column) { (page.main) } }
-                footer.site-footer {
-                    p {
-                        a href="/" { (APP_NAME) }
-                        " renders write-ups published on the AT Protocol. "
-                        "Every document belongs to its author."
-                    }
-                }
                 @for script in &page.scripts {
                     script nonce=[page.nonce.as_deref()] { (PreEscaped(script)) }
                 }
@@ -152,14 +145,16 @@ mod tests {
         .into_string();
         assert!(out.starts_with("<!DOCTYPE html>"));
         assert!(out.contains("<title>Doc — Pub — eaten.at</title>"));
-        for landmark in ["<main id=\"main\">", "<footer", "href=\"#main\""] {
+        for landmark in ["<main id=\"main\">", "href=\"#main\""] {
             assert!(out.contains(landmark), "{landmark}");
         }
         assert!(out.contains(&format!("href=\"{}\"", css_path())), "{out}");
-        // Nothing above the content by default; the app is named once,
-        // in the footer.
+        // Nothing above the content by default and nothing below it: the
+        // shell is the skip link and the content. A page that names the
+        // app does it itself, and the title always does.
         assert!(!out.contains("<header"), "{out}");
-        assert_eq!(out.matches("eaten.at").count(), 2, "{out}");
+        assert!(!out.contains("<footer"), "{out}");
+        assert_eq!(out.matches("eaten.at").count(), 1, "{out}");
         assert!(!out.contains("data-theme"), "{out}");
         assert!(!out.contains("<style"), "{out}");
     }
@@ -202,10 +197,10 @@ mod tests {
             ),
             "{out}"
         );
-        // The logotype is the landing page's alone; the app is still
-        // named once, in the footer.
+        // The logotype is the landing page's alone; here the app is
+        // named in the title and nowhere else.
         assert!(!out.contains("logotype"), "{out}");
-        assert_eq!(out.matches("eaten.at").count(), 2, "{out}");
+        assert_eq!(out.matches("eaten.at").count(), 1, "{out}");
     }
 
     #[test]

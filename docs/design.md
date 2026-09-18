@@ -70,18 +70,19 @@ a class in that file.
    replaces paper, ink, and vermilion; layout, type, spacing, and shape
    are fixed.
 7. **Server-rendered, no script.** Nothing here needs JavaScript. A
-   few islands make pages quicker: the landing page's Connect button
-   becomes the sign-in form in place, the sign-in and landing pages
-   suggest handles as you type from the Bluesky AppView (D42), the
-   editor suggests places as you type through this site's own endpoint
-   (D45), the author's home applies its find as you type, and the
-   editor keeps a draft. Without any of them, a handle typed in full, a
-   Search button, a Find button, and a plain form do the same work.
-   Nothing asks the browser for its location: the search looks near
-   where the request is from (D44). Fonts are self-hosted and
-   content-hashed, so no page makes a third-party request except the
-   two handle pages' one call to the AppView, which their policy alone
-   allows; the strict CSP holds everywhere else.
+   few islands make pages quicker: the landing page's two Connect
+   buttons become the sign-in and the lookup field in place, the
+   sign-in, lookup, and landing pages suggest handles as you type from
+   the Bluesky AppView (D42), the editor suggests places as you type
+   through this site's own endpoint (D45), the author's home applies
+   its find as you type, and the editor keeps a draft. Without any of
+   them, a handle typed in full, a Search button, a Find button, and a
+   plain form do the same work. Nothing asks the browser for its
+   location: the search looks near where the request is from (D44).
+   Fonts are self-hosted and content-hashed, so no page makes a
+   third-party request except the three handle pages' one call to the
+   AppView, which their policy alone allows; the strict CSP holds
+   everywhere else.
 8. **Light only.** Masthead is one palette. The site does not follow the
    system's dark preference.
 
@@ -156,7 +157,7 @@ Sizes are fluid between a 390px and a 1080px viewport.
 
 | Token | Mobile → desktop | Use |
 |---|---|---|
-| `--text-mono` | 10 → 11 | metadata lines, bylines, the site footer, tag chips |
+| `--text-mono` | 10 → 11 | metadata lines, bylines, tag chips |
 | `--text-label` | 10 → 11 | kickers and field labels: tracked capitals |
 | `--text-button` | 11 → 12 | the rating, the document footer, the skip link |
 | `--text-action` | 16 → 18 | the primary action |
@@ -210,7 +211,7 @@ Shape: **square corners everywhere.** Three rules do the separating:
 | Rule | Value | Use |
 |---|---|---|
 | `--rule-ink` | 1px solid ink | above a list of rows, above a section, a blockquote's edge |
-| `--rule-hairline` | 1px solid hairline | between rows, above the site footer, around every bright surface |
+| `--rule-hairline` | 1px solid hairline | between rows, around every bright surface |
 | `--rule-double` | 3px double ink | under a running head and under a publication's nameplate |
 
 A field draws its rule as an inset shadow rather than a border, the way
@@ -229,10 +230,13 @@ Motion: 160ms ease-out (`--ease`) on color, background, border, and an
 action's rule. Nothing lifts, scales, or slides, except the primary
 action's arrow, which eases 3px to the right on hover (the Typeset
 handoff's one movement; its 150ms is taken as the site's 160). The one
-animation is Connect (below): pressed, the rule under the button grows
-in place over 280ms into the rule under the handle field, which arrives
-selected, while the label fades out, the form fades in, and the block
-eases to the form's height so nothing below jumps.
+animation is Connect (below), which both of the landing page's ways in
+are drawn with: pressed, the rule under the button grows in place over
+280ms into the rule under the handle field, which arrives selected,
+while the label fades out, the form fades in, and the block eases to
+the form's height so nothing below jumps. A secondary's rule reddens
+and thickens on the way, 1px of ink setting out and 2px of vermilion
+landing.
 `prefers-reduced-motion` removes the transitions, holds the arrow
 still, and cuts Connect straight to the form.
 
@@ -393,8 +397,8 @@ arrow at 0.9em in `stone`, an SVG mask (`--return-mark`) drawn to the
 chevron's weight, faint because it is a note on the field and not its
 value. The field is padded by the mark's width so what is typed never
 runs under it, and the mark takes no pointer events — it is a label, not
-a button. Only Connect's handle field wears it; every other field keeps
-its button.
+a button. Only the handle fields a Connect block reveals wear it; every
+other field keeps its button.
 
 **Dropdown** (`.select-rule` around a `select`). A field whose answer is
 chosen rather than typed, so the handoff sets the chosen value the way it
@@ -452,14 +456,11 @@ with room around it, where the content would have been.
 **Pagination** (`.pagination`). Two secondary actions: "← Newest" left
 and "Older →" right.
 
-**Site footer** (`.site-footer`). The mono voice in `stone`, centred,
-hairline above: one sentence saying what the site is.
-
 ## Page recipes
 
 | Page | Above the content | Opens with | Then |
 |---|---|---|---|
-| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect to start writing", which becomes the sign-in form in place (that field carries the return mark and no button); a hairline; the lookup form with a secondary "Read" button and handle suggestions as you type; a note in the metadata voice |
+| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect to start writing", which becomes the sign-in form in place (that field carries the return mark and no button); a hairline; a second connect, drawn the same but secondary — one line in the lede's voice over a "Look up a friend" button that becomes the field for someone else's handle; both fields suggest handles as you type |
 | Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new visit"; "Your publication": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent write-ups" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All write-ups →" when there are more; or, with no publication yet, one lede saying what it will be; then a hairline and one quiet line, Settings · Sign out |
 | Publication front page | — | nameplate | listing, notice if truncated, pagination |
 | Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
@@ -467,7 +468,7 @@ hairline above: one sentence saying what the site is.
 | Chooser (`/at/{did}/`) | — | page head: "Publications" kicker, h1 author, lede | chooser rows |
 | No publications | — | page head: "Publications" kicker, h1 author | empty state |
 | Interstitial | — | page head: "Content warning" kicker, h1 | the labels, note, actions |
-| Lookup error | — | page head: "Lookup" kicker, h1 | the form with its error |
+| Lookup `/lookup` | — | page head: "Lookup" kicker, h1 ("Whose write-ups?", or "That doesn't look like a handle") | the form, with its error when there is one |
 | Sign in | — | page head: "Sign in" kicker, h1, lede | handle form (the lookup form's shape) with "Start typing your handle…"; suggestions from Bluesky as you type; errors in place |
 | Signing in | — | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
 | Sign-in failed | — | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
@@ -523,11 +524,14 @@ line, under a hairline, is the only place settings and sign-out appear:
 Signed out there is no account line: the page's primary action is
 "Connect to start writing" (plan 09), which becomes the sign-in form in
 place. The action carries its own reason — the phrase is the button, not
-an aside beside it — so the line reads as one.
+an aside beside it — so the line reads as one. Under the hairline,
+reading is offered the same way and secondary, with one line above it
+where the button alone could not carry the tone.
 
 ## Accessibility and constraints
 
-- Landmarks on every page: skip link, `header`, `main#main`, `footer`;
+- Landmarks on every page: skip link, `header` where a page names
+  something above its content, and `main#main`;
   `nav` elements carry an `aria-label` naming their scope ("Tags in this
   publication", "Links", "Pagination").
 - Focus is a 2px ring of the accent at 55%, offset 3px, on every
