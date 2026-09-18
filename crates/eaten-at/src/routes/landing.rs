@@ -1,5 +1,5 @@
-//! `GET /` — signed out, the pitch and the way in, with a handle lookup
-//! as the secondary action (plan 09); signed in, the author's home:
+//! `GET /` — signed out, the pitch and the two ways in, each one button
+//! that becomes a handle field (plan 09); signed in, the author's home:
 //! one primary "Write a new visit", their publication with its recent
 //! write-ups and a way to find one, and settings last (plan 11).
 
@@ -9,7 +9,7 @@ use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::Publication;
 use eaten_at_atproto::repo::Record;
 use eaten_at_web::assets::{COMBOBOX_SCRIPT, CONNECT_SCRIPT, FIND_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
-use eaten_at_web::components::{connect, listing, lookup_form, tag_links, Connect, LookupForm};
+use eaten_at_web::components::{connect, listing, tag_links, Connect, ConnectWay};
 use eaten_at_web::layout::{self, Masthead, Page};
 use maud::{html, Markup};
 use serde::Deserialize;
@@ -50,9 +50,10 @@ pub async fn landing(
     Ok(response)
 }
 
-/// The pitch, one primary "Connect" that becomes the handle field, and
-/// the lookup form beneath a hairline as the way to read without
-/// signing in.
+/// The pitch, one primary "Connect" that becomes the reader's own
+/// handle field, and beneath a hairline the same treatment for reading
+/// without signing in: a line, then one secondary button that becomes a
+/// field for someone else's handle.
 fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
     layout::render(&Page {
         title: &[],
@@ -75,19 +76,17 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
             }
             (connect(&Connect {
                 appview,
+                way: ConnectWay::Write,
+                intro: None,
                 label: "Connect to start writing",
             }))
             hr.landing-divider;
-            (lookup_form(&LookupForm {
-                label: "Or read someone's reviews",
-                button: "Read",
-                primary: false,
-                typeahead: Some(appview),
-                ..LookupForm::default()
+            (connect(&Connect {
+                appview,
+                way: ConnectWay::Read,
+                intro: Some("Oh, so you're one of the demanding public, eh?"),
+                label: "Look up a friend",
             }))
-            p.meta.landing-note {
-                "Every review stays in its author's repository; this site only reads."
-            }
         },
         ..Page::default()
     })

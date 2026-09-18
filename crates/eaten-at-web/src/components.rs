@@ -276,42 +276,141 @@ pub fn lookup_form(form: &LookupForm<'_>) -> Markup {
     }
 }
 
-/// The way in on the signed-out landing page (plan 09): one primary
-/// "Connect" that, pressed, becomes the handle field in place.
+/// Which way in a [`connect`] block opens. Both of the signed-out
+/// landing page's actions are drawn this way; only the destination, the
+/// voice of the field, and whether the action is the page's primary
+/// differ.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectWay {
+    /// Sign in to write: the reader's own handle, posted where the
+    /// sign-in page posts.
+    Write,
+    /// Read someone else: their handle, sent to the lookup route as the
+    /// plain GET that form has always been.
+    Read,
+}
+
+impl ConnectWay {
+    /// Where the button leads without script, and where the field is
+    /// sent with it.
+    const fn action(self) -> &'static str {
+        match self {
+            Self::Write => "/login",
+            Self::Read => "/lookup",
+        }
+    }
+
+    const fn method(self) -> &'static str {
+        match self {
+            Self::Write => "post",
+            Self::Read => "get",
+        }
+    }
+
+    /// The field's id. Both blocks share the page, so neither may take
+    /// the bare `handle` the lookup page's own form uses.
+    const fn field_id(self) -> &'static str {
+        match self {
+            Self::Write => "connect-handle",
+            Self::Read => "lookup-handle",
+        }
+    }
+
+    /// The field's label, read by assistive technology alone: the button
+    /// above it has already said what this is for.
+    const fn field_label(self) -> &'static str {
+        match self {
+            Self::Write => "Your handle",
+            Self::Read => "Their handle",
+        }
+    }
+
+    const fn placeholder(self) -> &'static str {
+        match self {
+            Self::Write => "Start typing your handle…",
+            Self::Read => "Start typing their handle…",
+        }
+    }
+
+    /// Only the reader's own handle is theirs to fill in.
+    const fn autocomplete(self) -> &'static str {
+        match self {
+            Self::Write => "username",
+            Self::Read => "off",
+        }
+    }
+
+    /// The block's classes. Reading is drawn as the secondary way in,
+    /// which the moving rule reads as well: it sets out from 1px of ink
+    /// rather than the primary's 2px of vermilion.
+    const fn block_class(self) -> &'static str {
+        match self {
+            Self::Write => "connect",
+            Self::Read => "connect connect-read",
+        }
+    }
+
+    /// The button's classes. At most one action on a page is the primary
+    /// (see the actions rule in `app.css`); writing wins it.
+    const fn button_class(self) -> &'static str {
+        match self {
+            Self::Write => "button connect-button",
+            Self::Read => "button-secondary connect-button",
+        }
+    }
+}
+
+/// A way in on the signed-out landing page (plan 09): one button that,
+/// pressed, becomes a handle field in place.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Connect<'a> {
     /// The `AppView` origin the handle field suggests from (D42).
     pub appview: &'a str,
-    /// What the one primary action says: "Connect" and what pressing it
-    /// is for, in the one phrase, so the line carries its own reason.
+    /// Which way in this one opens.
+    pub way: ConnectWay,
+    /// A line above the button, in the lede's voice, for a block whose
+    /// button cannot carry its whole reason. `None` leaves the button
+    /// to speak for itself.
+    pub intro: Option<&'a str>,
+    /// What the action says: the verb and what pressing it is for, in
+    /// the one phrase, so the line carries its own reason.
     pub label: &'a str,
 }
 
 /// The connect component.
 ///
-/// Without script it is a link to the sign-in page; the sign-in form is
-/// in the markup but hidden. The island hides the link, shows the form,
-/// and focuses the field, so the swap happens where the button stood
-/// and the caret is already in the field. The form posts where the
-/// sign-in page's does, and an error comes back on that page with the
-/// handle kept. Its field has its own id because the lookup form's
-/// `handle` shares the page.
+/// Without script it is a link to the page the field would send to; the
+/// form is in the markup but hidden. The island hides the link, shows
+/// the form, and focuses the field, so the swap happens where the button
+/// stood and the caret is already in the field. The form is sent where
+/// that page's own form sends, and an error comes back on that page with
+/// the handle kept.
+///
+/// The intro, when there is one, is a sibling of the block rather than
+/// part of it: the island lifts the button's row out of the flow to the
+/// block's top corner while the form takes its place, and a line inside
+/// the block would be what the row landed on.
 ///
 /// The field carries no button: it is sent with Return, which the faint
 /// mark at the end of its rule says. That is the browser's own implicit
 /// submission, so it holds with the island's script and without it.
 pub fn connect(connect: &Connect<'_>) -> Markup {
+    let way = connect.way;
     html! {
-        div.connect data-connect {
+        @if let Some(intro) = connect.intro {
+            p.lede.connect-intro { (intro) }
+        }
+        div class=(way.block_class()) data-connect {
             div.actions.landing-actions.connect-idle {
-                a.button.connect-button href="/login" { (connect.label) }
+                a class=(way.button_class()) href=(way.action()) { (connect.label) }
             }
-            form.lookup.connect-form action="/login" method="post" hidden {
-                label.visually-hidden for="connect-handle" { "Your handle" }
+            form.lookup.connect-form action=(way.action()) method=(way.method()) hidden {
+                label.visually-hidden for=(way.field_id()) { (way.field_label()) }
                 div.lookup-row {
                     span.return-rule {
-                        input #connect-handle name="handle" type="text" inputmode="url" autocomplete="username"
-                            placeholder="Start typing your handle…"
+                        input id=(way.field_id()) name="handle" type="text" inputmode="url"
+                            autocomplete=(way.autocomplete())
+                            placeholder=(way.placeholder())
                             data-typeahead=(connect.appview) required;
                     }
                 }

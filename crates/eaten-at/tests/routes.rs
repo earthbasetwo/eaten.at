@@ -284,7 +284,7 @@ fn one_publication() -> Repo {
 }
 
 #[tokio::test]
-async fn landing_page_leads_with_connect_and_keeps_the_lookup_form() {
+async fn landing_page_draws_both_ways_in_as_connect_blocks() {
     let server = mount(&Repo::default()).await;
     let (status, _, body) = get(&state_for(&server, StaticDns::new()), "/").await;
     assert_eq!(status, StatusCode::OK);
@@ -325,16 +325,41 @@ async fn landing_page_leads_with_connect_and_keeps_the_lookup_form() {
         "no button beside the connect field: {body}"
     );
     assert_eq!(body.matches("data-typeahead=").count(), 2, "{body}");
-    assert_eq!(body.matches("id=\"handle\"").count(), 1, "{body}");
-    let sign_in = body.find("href=\"/login\"").unwrap();
-    let lookup = body.find("action=\"/lookup\"").unwrap();
-    assert!(sign_in < lookup, "connect comes first: {body}");
-    // The lookup form is still there, secondary, and a plain GET form.
+    // Reading is the same treatment, secondary: a line, then one button
+    // that becomes the field for someone else's handle, a plain GET form
+    // sent with Return. Neither field takes the bare `handle` id, which
+    // belongs to the lookup page's own form.
     assert!(
-        body.contains("<button class=\"button-secondary\" type=\"submit\">Read</button>"),
+        body.contains(
+            "<p class=\"lede connect-intro\">Oh, so you're one of the demanding public, eh?</p>\
+             <div class=\"connect connect-read\" data-connect>"
+        ),
         "{body}"
     );
-    assert!(body.contains("Or read someone"), "{body}");
+    assert!(
+        body.contains(
+            "<a class=\"button-secondary connect-button\" href=\"/lookup\">Look up a friend</a>"
+        ),
+        "{body}"
+    );
+    let read =
+        body.find("<form class=\"lookup connect-form\" action=\"/lookup\" method=\"get\" hidden>");
+    assert!(read.is_some(), "{body}");
+    assert!(
+        body.contains("<span class=\"return-rule\"><input id=\"lookup-handle\" name=\"handle\" type=\"text\" inputmode=\"url\" autocomplete=\"off\""),
+        "{body}"
+    );
+    let opened = read.unwrap();
+    let closed = opened + body[opened..].find("</form>").unwrap();
+    assert!(
+        !body[opened..closed].contains("<button"),
+        "no button beside the lookup field: {body}"
+    );
+    assert_eq!(body.matches("id=\"handle\"").count(), 0, "{body}");
+    assert!(!body.contains("lookup-label"), "no labelled form: {body}");
+    let sign_in = body.find("href=\"/login\"").unwrap();
+    let lookup = body.find("href=\"/lookup\"").unwrap();
+    assert!(sign_in < lookup, "connect comes first: {body}");
     assert!(
         !body.contains("class=\"meta account\""),
         "no account line signed out: {body}"
@@ -540,11 +565,21 @@ async fn handle_fields_suggest_from_the_configured_appview_and_only_those_pages_
                 "{uri}: the handle island comes before connect"
             );
         }
-        // The form itself is unchanged: a plain submit still works.
-        assert!(
-            body.contains("id=\"handle\" name=\"handle\""),
-            "{uri}: {body}"
-        );
+        // The form itself is unchanged: a plain submit still works. The
+        // landing page's two are the connect blocks' own fields, which
+        // leave the bare id to the lookup page's form.
+        let field = if uri == "/" {
+            "id=\"lookup-handle\" name=\"handle\""
+        } else {
+            "id=\"handle\" name=\"handle\""
+        };
+        assert!(body.contains(field), "{uri}: {body}");
+        if uri == "/" {
+            assert!(
+                body.contains("id=\"connect-handle\" name=\"handle\""),
+                "{uri}: {body}"
+            );
+        }
     }
     // Nowhere else.
     let server = mount(&one_publication()).await;
@@ -575,6 +610,18 @@ async fn lookup_form_redirects_to_handle_route_or_rejects_garbage() {
     let (status, _, body) = get(&state, "/lookup?handle=not%20a%20handle").await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(body.contains("role=\"alert\""), "{body}");
+    assert!(body.contains("not a handle"), "the handle is kept: {body}");
+    // No handle at all is not an error: it is where the landing page's
+    // "Look up a friend" leads without script, so it asks.
+    let (status, location, body) = get(&state, "/lookup").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(location, None);
+    assert!(body.contains("<h1>Whose write-ups?</h1>"), "{body}");
+    assert!(!body.contains("role=\"alert\""), "{body}");
+    assert!(body.contains("id=\"handle\" name=\"handle\""), "{body}");
+    let (status, _, body) = get(&state, "/lookup?handle=%20%20").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(!body.contains("role=\"alert\""), "{body}");
 }
 
 #[tokio::test]

@@ -23,38 +23,65 @@ pub struct LookupQuery {
 }
 
 /// `GET /lookup?handle=` — validate and bounce to `/@{handle}`.
+///
+/// Asked for with no handle at all it is not an error: that is where the
+/// landing page's "Look up a friend" leads without the script that would
+/// have turned it into a field in place, so the page it lands on is the
+/// form itself, asking.
 pub async fn lookup(
     State(state): State<AppState>,
     Query(query): Query<LookupQuery>,
     nonce: Nonce,
 ) -> Response {
-    match Handle::parse(&query.handle) {
-        Ok(handle) => Redirect::to(&paths::handle_lookup(&handle)).into_response(),
-        Err(err) => {
-            let appview = state.appview_origin();
-            let page = layout::render(&Page {
-                title: &["Lookup"],
-                nonce: Some(nonce.0.clone()),
-                scripts: vec![COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT],
-                main: html! {
-                    div.page-head {
-                        p.kicker { "Lookup" }
-                        h1 { "That doesn't look like a handle" }
-                    }
-                    (lookup_form(&LookupForm {
-                        value: &query.handle,
-                        error: Some(&err.to_string()),
-                        typeahead: Some(&appview),
-                        ..LookupForm::default()
-                    }))
-                },
-                ..Page::default()
-            });
-            let mut response = (StatusCode::BAD_REQUEST, page).into_response();
-            security::allow_connect(&mut response, &nonce, &appview);
-            response
-        }
+    let raw = query.handle.trim();
+    if raw.is_empty() {
+        return form_response(&state, &nonce, StatusCode::OK, "Whose write-ups?", "", None);
     }
+    match Handle::parse(raw) {
+        Ok(handle) => Redirect::to(&paths::handle_lookup(&handle)).into_response(),
+        Err(err) => form_response(
+            &state,
+            &nonce,
+            StatusCode::BAD_REQUEST,
+            "That doesn't look like a handle",
+            raw,
+            Some(&err.to_string()),
+        ),
+    }
+}
+
+/// The lookup page: the heading, the form, and the error when there is
+/// one. Its policy lets the handle island reach the `AppView`.
+fn form_response(
+    state: &AppState,
+    nonce: &Nonce,
+    status: StatusCode,
+    heading: &str,
+    value: &str,
+    error: Option<&str>,
+) -> Response {
+    let appview = state.appview_origin();
+    let page = layout::render(&Page {
+        title: &["Lookup"],
+        nonce: Some(nonce.0.clone()),
+        scripts: vec![COMBOBOX_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT],
+        main: html! {
+            div.page-head {
+                p.kicker { "Lookup" }
+                h1 { (heading) }
+            }
+            (lookup_form(&LookupForm {
+                value,
+                error,
+                typeahead: Some(&appview),
+                ..LookupForm::default()
+            }))
+        },
+        ..Page::default()
+    });
+    let mut response = (status, page).into_response();
+    security::allow_connect(&mut response, nonce, &appview);
+    response
 }
 
 /// `GET /@{handle}` — 302 to the DID-addressed repo route.

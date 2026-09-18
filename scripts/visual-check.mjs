@@ -117,11 +117,23 @@ async function main() {
     name: 'landing-connect',
     path: '/',
     steps: [
-      { press: '.connect-button', wait: '#connect-handle:focus' },
+      { press: '.connect:not(.connect-read) .connect-button', wait: '#connect-handle:focus' },
       { type: { '#connect-handle': 'ali' }, wait: '#connect-handle-list [role="option"]' },
     ],
-    expect: '.connect-idle[hidden] + form.connect-form:not([hidden])',
+    expect: '.connect:not(.connect-read) .connect-idle[hidden] + form.connect-form:not([hidden])',
   })
+  // The second way in, drawn the same: its button becomes the field for
+  // someone else's handle, which suggests handles too.
+  await check({
+    name: 'landing-lookup',
+    path: '/',
+    steps: [
+      { press: '.connect-read .connect-button', wait: '#lookup-handle:focus' },
+      { type: { '#lookup-handle': 'ali' }, wait: '#lookup-handle-list [role="option"]' },
+    ],
+    expect: '.connect-read .connect-idle[hidden] + form.connect-form:not([hidden])',
+  })
+  await check({ name: 'lookup', path: '/lookup', expect: 'input#handle' })
   await check({ name: 'lookup-error', path: '/lookup?handle=nobody.invalid', status: 400 })
   await check({ name: 'login', path: '/login', expect: 'input[data-typeahead]' })
   // The handle island (plan 10): typing shows suggestions from the stub
@@ -133,8 +145,8 @@ async function main() {
     expect: '[role="listbox"] [role="option"]',
   })
   await check({
-    name: 'landing-typeahead',
-    path: '/',
+    name: 'lookup-typeahead',
+    path: '/lookup',
     steps: [{ type: { '#handle': 'ali' }, wait: '[role="option"]' }],
     expect: '[role="listbox"] [role="option"]',
   })
