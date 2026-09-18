@@ -229,6 +229,14 @@ async function main() {
     expect: '.field-error',
   })
   await check({ name: 'edit', path: `/write/${rkey}` })
+  // The tags island: a comma files what was typed as a chip, and the
+  // list still rides along in the field the server reads.
+  await check({
+    name: 'edit-tags',
+    path: `/write/${rkey}`,
+    steps: [{ type: { '#tags': 'late night,' }, wait: '.tag-field .chip[title="Remove late night"]' }],
+    expect: '#tags-value[name="tags"]',
+  })
   await check({
     name: 'edit-change-place',
     path: `/write/${rkey}`,

@@ -38,9 +38,15 @@ pub const FIND_SCRIPT: &str = include_str!("../static/find.js");
 /// [`HANDLE_TYPEAHEAD_SCRIPT`] before it.
 pub const CONNECT_SCRIPT: &str = include_str!("../static/connect.js");
 
+/// Filed under, in the editor's writing state: the tags field's comma
+/// list as chips, one slot for the next tag. The list still submits
+/// as the text the server reads.
+pub const TAGS_SCRIPT: &str = include_str!("../static/tags.js");
+
 /// Every inline script the site ships, all counted against the tripwire.
 pub const INLINE_SCRIPTS: &[&str] = &[
     EDITOR_SCRIPT,
+    TAGS_SCRIPT,
     COMBOBOX_SCRIPT,
     HANDLE_TYPEAHEAD_SCRIPT,
     PLACE_SUGGEST_SCRIPT,
@@ -53,7 +59,7 @@ pub const INLINE_SCRIPTS: &[&str] = &[
 /// any of it, which each page's no-JS test keeps proving. Crossing this
 /// is the moment to look at how the site feels, not a reason to trim
 /// by itself.
-pub const JS_BUDGET_BYTES: usize = 20 * 1024;
+pub const JS_BUDGET_BYTES: usize = 24 * 1024;
 
 /// Self-hosted web fonts. Newsreader and the mono face are OFL
 /// (`static/fonts/OFL.txt`), as latin and latin-ext subsets that the
