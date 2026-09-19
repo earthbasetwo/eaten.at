@@ -48,6 +48,27 @@ Pull that checkout deliberately, not by habit; the dev-env tracks `main`.
 
 ## Every session
 
+### Editing with automatic rebuilds
+
+Install `just` and `watchexec` (`brew install just watchexec` on macOS), then run:
+
+```
+just watch
+```
+
+This starts `cargo run -p eaten-at` and watches `crates/`, `Cargo.toml`, and
+`Cargo.lock`. Changes to Rust (including HTML templates), CSS, JavaScript, or
+fonts rebuild and restart the server. Assets use the same embedded,
+content-addressed path as production; there is no separate development mode.
+Refresh the browser once the build finishes. The watcher does not reload the
+browser or interrupt typing. Stop it with Ctrl-C.
+
+This uses the normal app configuration, including `.env` through `just`; it does
+not start the local atproto network. With `just dev-env` running as described
+below, use `just watch-dev` to load `.env.dev` and work with the seeded accounts.
+
+### Running the local network
+
 Terminal 1, from this repo:
 
 ```
