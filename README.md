@@ -30,6 +30,10 @@ out and signed in, in headless Chrome against the local network and fails on
 errors, CSP violations, missing fonts, or horizontal scrolling (see
 `docs/local-dev.md`).
 
+For editing, `just watch` automatically rebuilds and restarts when source files
+or embedded assets change (requires `watchexec`). Refresh the browser once the
+build finishes. See `docs/local-dev.md` for the local-network variant, `just watch-dev`.
+
 ### Configuration
 
 Everything is an environment variable; a `.env` file is loaded by `just`.
