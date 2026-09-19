@@ -24,6 +24,17 @@ build:
 run *ARGS:
     cargo run -p eaten-at -- {{ARGS}}
 
+# Rebuild and restart when source files or embedded assets change.
+watch:
+    watchexec --restart --watch crates --watch Cargo.toml --watch Cargo.lock -- cargo run -p eaten-at
+
+# The same loop against the seeded local atproto network.
+watch-dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; . ./.env.dev; set +a
+    just watch
+
 # Diff the lexicon files against what the eaten.at account publishes
 lexicons-check:
     cargo run -q -p eaten-at --bin publish-lexicons -- --dry-run
