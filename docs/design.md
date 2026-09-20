@@ -481,8 +481,9 @@ and "Older →" right.
 | Page | Above the content | Opens with | Then |
 |---|---|---|---|
 | Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect to start writing", which becomes the sign-in form in place (that field carries the return mark and no button); a hairline; a second connect, drawn the same but secondary — one line in the lede's voice over a "Look up a friend" button that becomes the field for someone else's handle; both fields suggest handles as you type |
-| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new visit"; "Your publication": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent write-ups" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All write-ups →" when there are more; or, with no publication yet, one lede saying what it will be; then a hairline and one quiet line, Settings · Sign out |
+| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new visit"; "Your publication": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent write-ups" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All write-ups →" when there are more; or, with no publication yet, one lede saying what it will be; then a hairline and one quiet line, Settings · About · Sign out |
 | Publication front page | — | nameplate | listing, notice if truncated, pagination |
+| About `/about` | — | page head: "About" kicker, h1 "About eaten.at", lede | prose: one paragraph on the protocol a write-up lives on, then the credits — the place licences and the IP database, and nothing that is not asked for. The page is static |
 | Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
 | Document | running head | kicker date, h1 title | the visit, photos, prose, comments (when the document names a Bluesky post), footer |
 | Chooser (`/at/{did}/`) | — | page head: "Publications" kicker, h1 author, lede | chooser rows |
@@ -537,7 +538,7 @@ islands dress it and fall away.
 **Choosing** (`.editor-choosing`). The place's name as the headline,
 `at [address].` under it, "Start writing" 48px below, and nothing
 else: the Overture and DB-IP credit the earlier choosing page carried
-(plan 12) is gone with it, and is not yet given anywhere else. Suggestions (the combobox, positioned under the headline) open
+(plan 12) is gone with it, and is given on the about page instead. Suggestions (the combobox, positioned under the headline) open
 while the name has three characters and matches; ↓/↑ cycle, Return takes
 the highlighted row or leaves the field, Escape closes. A pick fills
 both lines and arms Start writing as that pick, which the server reads
@@ -646,13 +647,15 @@ tiles go three to a row.
 
 Signed in, the landing page is the author's home (plan 11). Its last
 line, under a hairline, is the only place settings and sign-out appear:
-"Settings · Sign out" in the metadata voice, the second a link button.
+"Settings · About · Sign out" in the metadata voice, the last a link button.
 Signed out there is no account line: the page's primary action is
 "Connect to start writing" (plan 09), which becomes the sign-in form in
 place. The action carries its own reason — the phrase is the button, not
 an aside beside it — so the line reads as one. Under the hairline,
 reading is offered the same way and secondary, with one line above it
-where the button alone could not carry the tone.
+where the button alone could not carry the tone. Under a second hairline,
+signed out and signed in alike, one quiet line leads to the about page,
+which is where the credits the data and the fonts ask for are given.
 
 ## Accessibility and constraints
 

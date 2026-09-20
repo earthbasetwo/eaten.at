@@ -10,7 +10,7 @@ use axum::{
 use crate::editor::MAX_REQUEST_BYTES;
 use crate::hosting;
 use crate::routes::{
-    assets, auth, document, feed, image, interstitial, landing, lookup, photos, publication,
+    about, assets, auth, document, feed, image, interstitial, landing, lookup, photos, publication,
     settings, write,
 };
 use crate::state::AppState;
@@ -64,6 +64,7 @@ fn routes(state: AppState) -> Router {
         .route("/img/{did}/{doc_rkey}", get(image::cover))
         .route("/img/{did}/{doc_rkey}/{cid}", get(image::photo))
         .route("/", get(landing::landing))
+        .route("/about", get(about::about))
         .route("/login", get(auth::login_form).post(auth::login_start))
         .route("/login/bluesky", post(auth::authorize_bluesky))
         .route("/oauth/callback", get(auth::callback))

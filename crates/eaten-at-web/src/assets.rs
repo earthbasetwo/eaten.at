@@ -116,6 +116,16 @@ const FONT_FILES: &[(&str, &[u8])] = &[
     ),
 ];
 
+/// The SIL Open Font License 1.1, served beside the fonts it covers.
+/// Condition 2 asks that every copy of the font software carry the
+/// copyright notice and the licence; the notice is already in each
+/// file's `name` table (ID 0) but the licence text is not — Google
+/// Fonts' web subsets drop ID 13 and keep only the URL in ID 14 — so
+/// this stand-alone text file is what supplies it. Nothing links it,
+/// and nothing needs to. Evantic's own terms ask for no notice, so
+/// `EVANTIC.txt` stays in the source tree and is not served.
+const LICENCE_FILES: &[(&str, &str)] = &[("OFL.txt", include_str!("../static/fonts/OFL.txt"))];
+
 /// One servable file.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Asset {
@@ -181,6 +191,11 @@ fn build() -> Vec<Asset> {
         css.as_bytes(),
     )];
     assets.extend(fonts);
+    assets.extend(
+        LICENCE_FILES
+            .iter()
+            .map(|(name, text)| Asset::new(name, "text/plain; charset=utf-8", text.as_bytes())),
+    );
     assets
 }
 
@@ -259,7 +274,12 @@ mod tests {
         assert!(!font.asset.body.is_empty());
         assert_eq!(lookup("app.deadbeef.css"), None);
         assert_eq!(lookup("../etc/passwd"), None);
-        assert_eq!(lookup("OFL.txt"), None);
+        // The open font licence travels with the fonts it covers; nothing
+        // else in the source tree is servable, including the licence of a
+        // face that asks for no notice.
+        let ofl = lookup("OFL.txt").unwrap();
+        assert_eq!(ofl.asset.content_type, "text/plain; charset=utf-8");
+        assert!(!ofl.asset.body.is_empty());
         assert_eq!(lookup("EVANTIC.txt"), None);
     }
 
