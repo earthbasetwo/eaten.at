@@ -168,7 +168,14 @@ async function main() {
 
   // Signed in.
   await browser.setCookie(cookieName, cookieValue)
-  const rkey = discovered.documents[0].split('/').pop()
+  // The editor checks lean on the seed: the write-up with photos also
+  // carries a teaser and links, the last without photos has neither.
+  // Chosen by shape rather than position, so a write-up published by
+  // hand against the local network does not shift them.
+  if (discovered.withPhotos.length === 0) throw new Error(`no write-up with photos listed on ${front}`)
+  if (discovered.withoutPhotos.length === 0) throw new Error(`no write-up without photos listed on ${front}`)
+  const rkey = discovered.withPhotos[0].split('/').pop()
+  const bare = discovered.withoutPhotos[discovered.withoutPhotos.length - 1].split('/').pop()
   await check({ name: 'landing-signed-in', path: '/', expect: '.own-publication .listing-item' })
   await check({ name: 'landing-find', path: '/?q=noodle', expect: '.own-publication .listing-item' })
   await check({ name: 'landing-find-none', path: '/?q=zzz', expect: '.own-publication .empty' })
@@ -180,32 +187,37 @@ async function main() {
     expect: '.find-results .listing-item',
   })
   await check({ name: 'settings', path: '/settings', expect: '.chooser-item' })
-  // The editor starts by choosing a place (plans 06, 12). The request is
-  // located by EATEN_AT_DEV_LOCATION, so the search is on; the Search
-  // button is the no-JS path and is clicked directly here.
-  const search = (q) => ({ fill: { '#place_query': q }, click: 'button[name="action"][value="search"]' })
-  const byHand = (name) => ({ fill: { '#place_name': name }, click: 'button[name="action"][value="manual"]' })
-  await check({ name: 'write', path: '/write', expect: 'input[data-suggest]' })
-  await check({ name: 'write-search', path: '/write', steps: [search('Noodle')], expect: '.result-item' })
-  await check({ name: 'write-search-empty', path: '/write', steps: [search('nothing here')], expect: '.empty' })
-  await check({ name: 'write-search-unavailable', path: '/write', steps: [search('quota')], expect: '.form-error' })
-  // Suggestions as you type, and a pick through the listbox.
+  // The editor starts by choosing a place (plans 06, 12; the Write Pages
+  // handoff): the place's name as the headline, suggesting as it is
+  // typed, the address under it, and Start writing. The request is
+  // located by EATEN_AT_DEV_LOCATION, so suggestions are on.
+  const byHand = (name) => ({ fill: { '#place_name': name }, click: '#start-writing' })
+  await check({ name: 'write', path: '/write', expect: '#place_name[data-suggest]' })
   await check({
     name: 'write-suggest',
     path: '/write',
-    steps: [{ type: { '#place_query': 'noo' }, wait: '[role="option"]' }],
+    steps: [{ type: { '#place_name': 'noo' }, wait: '[role="option"]' }],
     expect: '[role="listbox"] [role="option"]',
+  })
+  // A pick fills both lines and arms Start writing as the pick; pressing
+  // it lands in the editor with the listing behind the place.
+  await check({
+    name: 'write-picked',
+    path: '/write',
+    steps: [
+      { type: { '#place_name': 'noo' }, wait: '[role="option"]' },
+      { press: '[role="option"]', wait: '#start-writing[value^="pick:"]' },
+    ],
+    expect: '#start-writing[value^="pick:"]:not([hidden])',
   })
   await check({
     name: 'write-pick',
     path: '/write',
-    steps: [{ type: { '#place_query': 'noo' }, wait: '[role="option"]' }, { click: '[role="option"]' }],
-    expect: 'input[name="place_mode"][value="picked"]',
-  })
-  await check({
-    name: 'write-pick-plain',
-    path: '/write',
-    steps: [search('Noodle'), { click: 'button[name="action"][value="pick:0"]' }],
+    steps: [
+      { type: { '#place_name': 'noo' }, wait: '[role="option"]' },
+      { press: '[role="option"]', wait: '#start-writing[value^="pick:"]' },
+      { click: '#start-writing' },
+    ],
     expect: 'input[name="place_mode"][value="picked"]',
   })
   await check({
@@ -217,7 +229,7 @@ async function main() {
   await check({
     name: 'write-manual-blank',
     path: '/write',
-    steps: [{ click: 'button[name="action"][value="manual"]' }],
+    steps: [{ click: '#start-writing' }],
     status: 422,
     expect: '#place_name-error',
   })
@@ -228,29 +240,76 @@ async function main() {
     status: 422,
     expect: '.field-error',
   })
-  await check({ name: 'edit', path: `/write/${rkey}` })
-  // The tags island: a comma files what was typed as a chip, and the
-  // list still rides along in the field the server reads.
+  // The editing screen and its islands: the live markdown editor, the
+  // calendar, the meal menu, the tags as chips, the teaser fold, a link
+  // card, the photos in place, and Delete's confirmation.
+  await check({ name: 'edit', path: `/write/${rkey}`, expect: '.digest-editor .md-line' })
+  await check({
+    name: 'edit-digest',
+    path: `/write/${rkey}`,
+    steps: [{ press: '.digest-editor .md-line', wait: '.digest-editor.active .md-active[contenteditable="true"]' }],
+    expect: '.md-active .md-tok',
+  })
+  await check({
+    name: 'edit-date',
+    path: `/write/${rkey}`,
+    steps: [{ press: '.date-button', wait: '.date-popover:not([hidden]) .date-day.selected' }],
+    expect: '#visited_on[hidden]',
+  })
+  await check({
+    name: 'edit-meal',
+    path: `/write/${rkey}`,
+    steps: [{ press: '[data-note="meal"] .note-button', wait: '.note-popover:not([hidden]) .note-option' }],
+    expect: '[data-note="meal"] .note-clear',
+  })
   await check({
     name: 'edit-tags',
     path: `/write/${rkey}`,
     steps: [{ type: { '#tags': 'late night,' }, wait: '.tag-field .chip[title="Remove late night"]' }],
     expect: '#tags-value[name="tags"]',
   })
+  // The write-up without a teaser of its own folds the line; the one
+  // with one opens on it.
+  await check({
+    name: 'edit-teaser',
+    path: `/write/${bare}`,
+    steps: [{ press: 'details.teaser > summary', wait: 'details.teaser[open] #description' }],
+    expect: '.teaser-default:not([hidden])',
+  })
+  await check({ name: 'edit-teaser-custom', path: `/write/${rkey}`, expect: 'details.teaser[open] .teaser-custom:not([hidden])' })
+  // Without photos, the box is the invitation.
+  await check({ name: 'edit-no-photos', path: `/write/${bare}`, expect: 'button.photo-empty' })
+  await check({
+    name: 'edit-link',
+    path: `/write/${rkey}`,
+    steps: [{ press: '.link-word', wait: '.link-card:not([hidden]) .link-card-keep:not([hidden])' }],
+    expect: '.link-card:not([hidden]) input[type="url"]',
+  })
+  await check({
+    name: 'edit-photo-detail',
+    path: `/write/${rkey}`,
+    steps: [{ press: '.photo-tile', wait: '.photo-scrim .photo-caption' }],
+    expect: '.photo-detail img',
+  })
+  await check({
+    name: 'edit-delete',
+    path: `/write/${rkey}`,
+    steps: [{ press: 'details.delete-confirm > summary', wait: 'details.delete-confirm[open] .confirm-yes' }],
+    expect: '.confirm-yes[formaction$="/delete"]',
+  })
   await check({
     name: 'edit-change-place',
     path: `/write/${rkey}`,
     steps: [{ click: 'button[name="action"][value="change_place"]' }],
-    expect: '#place_query[value]',
+    expect: '#place_name.headline[value]',
   })
   await check({
-    name: 'edit-preview',
+    name: 'edit-keep',
     path: `/write/${rkey}`,
-    submit: 'form.editor button[name="action"][value="preview"]',
-    expect: '.preview',
+    submit: 'form.editor button[name="action"][value="keep"]',
+    expect: 'form.editor-write',
   })
   await check({ name: 'photos', path: `/write/${rkey}/photos`, expect: '.photo-row' })
-  const bare = discovered.documents[discovered.documents.length - 1].split('/').pop()
   await check({ name: 'photos-empty', path: `/write/${bare}/photos`, expect: '.empty' })
   await check({
     name: 'photos-new',
@@ -265,7 +324,7 @@ async function main() {
   await browser.setCookie(cookieName, bobCookieValue)
   await check({ name: 'landing-no-publication', path: '/', expect: '.own-none' })
   await check({ name: 'settings-none', path: '/settings', expect: '.chooser-item.not-yet' })
-  await check({ name: 'write-none', path: '/write', expect: '#place_query' })
+  await check({ name: 'write-none', path: '/write', expect: '#place_name.headline' })
 
   await browser.close()
   const total = failures.reduce((n, f) => n + f.problems.length, 0)
@@ -330,6 +389,8 @@ class Browser {
     return this.evaluate(`({
       path: location.pathname,
       documents: [...document.querySelectorAll('.listing-title a')].map(a => a.getAttribute('href')),
+      withPhotos: [...document.querySelectorAll('.listing-item.has-photos .listing-title a')].map(a => a.getAttribute('href')),
+      withoutPhotos: [...document.querySelectorAll('.listing-item.no-photos .listing-title a')].map(a => a.getAttribute('href')),
       tag: document.querySelector('.nameplate .tag')?.getAttribute('href') ?? null,
     })`)
   }

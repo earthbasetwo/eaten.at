@@ -23,6 +23,17 @@ dropdown is a typeset trigger over a printed paper menu, and a checkbox
 is a hairline square with a pen-stroke check. Those three are what
 2026-09-17 changed; everything else it says was already here.
 
+The editor's two screens followed a fourth handoff, Write Pages
+(`docs/design-handoff/write-pages/`, adopted 2026-09-20): **prose-forward
+forms**. Choosing the place and editing a write-up are set as typeset
+paragraphs that happen to be editable: no boxed inputs, no field labels
+but two kickers, no buttons that look like buttons; every value sits
+inline in a sentence on a hairline, controls reveal themselves under the
+pointer, and popovers are small paper cards. It fixes the editor alone;
+the rest of the site is unchanged, except that its popover shadow (the
+ink at a tenth, offset 4px) became the site's one menu shadow. See
+**The editor** below.
+
 A handoff's reference page opens in a browser as plain HTML. The viewer
 runtime the design tool shipped with it (`support.js`) is not kept and is
 not needed: hover states are `style-hover` attributes that runtime
@@ -61,8 +72,8 @@ a class in that file.
    few things that really do sit on top of the page — a menu, a checked
    box, a sheet, the visit's fact box — with a rule and square corners.
    Nothing has a radius, a lift, or a scale, and the one shadow in the
-   system is a menu's hard 3px offset, which is a printed edge rather
-   than a blur.
+   system is a menu's hard 4px offset in the ink at a tenth, which is a
+   printed edge rather than a blur.
 5. **Same shape everywhere.** Every page opens the same way: a small
    mono kicker, then the title, then the content. A listing row is a
    small document page. A chooser row is a small listing row.
@@ -75,9 +86,12 @@ a class in that file.
    lookup, and landing pages suggest handles as you type from the
    Bluesky AppView (D42), the editor suggests places as you type through
    this site's own endpoint (D45), the author's home applies its find as
-   you type, and the editor keeps a draft and files tags as chips.
-   Without any of them, a handle typed in full, a Search button, a Find
-   button, and a plain form do the same work. Nothing asks the browser
+   you type, and the editor keeps a draft, dresses its controls (a
+   calendar, paper menus, tags as chips, a live markdown editor), and
+   manages photos in place, uploading each as it is picked. Without any
+   of them, a handle typed in full, a Find button, and a plain form do
+   the same work: the place's name and address typed by hand, a date
+   field, radios, selects, a textarea, and the photos page. Nothing asks the browser
    for its location: the search looks near where the request is from
    (D44). Fonts are self-hosted and content-hashed, so no page makes a
    third-party request except the three handle pages' one call to the
@@ -102,7 +116,9 @@ there is no hue but vermilion.
 | `--color-stone` | `#988D75` | the mono metadata voice: dates, handles, URLs, kickers, placeholders |
 | `--color-hairline` | `#DDD5C2` | minor rules, every bright surface's border |
 | `--color-vermilion` | `#D8401F` | links, the primary action's rule and arrow, active states, the rating |
-| `--color-disabled` | `#C9BFA8` | a disabled action's or field's label and rule, and nothing else |
+| `--color-disabled` | `#C9BFA8` | a disabled action's or field's label and rule; in the editor, the faint stone of idle affordances: unset rating steps, dashed borders, syntax marks |
+| `--color-recessed` | `#EFE8D8` | recessed paper: an image's letterbox, a calendar day under the pointer, inline code in the editor |
+| `--color-alert` | `#E02B1D` | the Yes of a destructive confirmation, and nothing else |
 
 Contrast on the default grounds:
 
@@ -221,10 +237,11 @@ an action does, so thickening it moves no text: `--field-rule` (1px ink),
 `--field-rule-disabled`.
 
 Elevation: none, with one exception. A bright surface has a hairline and
-nothing else; a menu — the only thing the site draws over the page — has
-a 1px ink rule and `--menu-shadow`, a hard `3px 3px 0` offset in the
-hairline. It is a printed edge, not a blur: nothing in the system is lit
-from above.
+nothing else; a menu or a popover — the only things the site draws over
+the page — has a 1px ink rule and `--menu-shadow`, a hard `4px 4px 0`
+offset in the ink at a tenth (the Write Pages handoff's value, which
+replaced a 3px offset in the hairline on 2026-09-20). It is a printed
+edge, not a blur: nothing in the system is lit from above.
 
 Motion: 160ms ease-out (`--ease`) on color, background, border, and an
 action's rule. Nothing lifts, scales, or slides, except the primary
@@ -269,7 +286,7 @@ is "Tag"; a status page's is "Error 404"; the chooser's is
 which has no heading until a place is chosen; editing an existing one
 opens with an "Edit" kicker and the write-up's title.
 
-**Rows** (`.listing`, `.chooser`, `.results`, `.photo-manage`). A column
+**Rows** (`.listing`, `.chooser`, `.photo-manage`). A column
 of things to pick between, an ink rule above the first and a hairline
 between each pair, padded above and below, on the paper. Nothing is
 boxed and nothing changes on hover but the link.
@@ -298,11 +315,6 @@ in miniature.
 **Chooser row** (`.chooser-item`). Name in the serif at row-title size,
 description in `ink-body`, the publication's URL in the mono voice.
 Settings reuses the same row, one of them, with its form inside.
-
-**Place result** (`.result-item`). A row in the editor's choosing state:
-the place's name in the serif at row-title size, then the address,
-distance, and category in the mono voice, and a secondary "Write about
-this place" button at the right.
 
 **Photo grid** (`section.photos`, `.photo-grid`). Between the visit and
 the prose: the visit's photos as square 400px thumbnails in an
@@ -445,12 +457,12 @@ takes the highlighted row when there is one and what was typed when there
 is not, then submits the form either way.
 
 **Filed under** (`.tags-sentence`, `.tag-field`, `.chip`). The editor's
-tags as a sentence with a blank in it: "Filed under" in soft ink, the
-blank a short hairline holding the comma list. With script, an island
-files what is typed as chips before the blank on Return or a comma,
-each a word on a hairline, commas between, vermilion and struck through
-under the pointer, that takes itself out. The list submits as the text
-it always was.
+tags as a sentence with a blank in it: "Filed under" in italic soft
+ink, the blank an inline field on a hairline holding the comma list.
+With script, an island files what is typed as chips before the blank on
+Return or a comma, each a word on a hairline, commas between, vermilion
+and struck through under the pointer, that takes itself out. The list
+submits as the text it always was.
 
 **Notice** (`.notice`). A bright sheet with a hairline, the serif at
 small size in `ink-soft`. Its links are the accent like any other.
@@ -481,56 +493,156 @@ and "Older →" right.
 | Signing in | — | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
 | Sign-in failed | — | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
 | Status page | — | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
-| Editor `/write`, choosing | — | page head: "Write" kicker, h1 "Where did you eat?" | the search box ("Start typing…") with suggestions as you type and one primary "Search" for the plain path, a status line for where the search looks ("Searching near Brooklyn"), the results as place rows; or, with no location, a notice that search is off; then, under a hairline, "Or enter it yourself": Name, Address (optional), and a secondary "Continue with this place"; last, the Overture and DB-IP attribution |
-| Editor `/write`, writing | — | page head: "Write" kicker and the place's name (new), or "Edit" kicker and the write-up's title; a form-error summary when needed | optional preview (the document as readers see it, on a bright sheet under a "Preview" kicker); then the form, one column: the place's name and address on one line, where the place came from, the date, the title, the write-up, the excerpt, the price, then the Visit, Links, Details, and Bluesky groups |
-| Photos `/write/{rkey}/photos` | — | page head: "Photos" kicker, h1 "Photos of {place}", lede ("Published. Add photos now, or skip" after a first publish) | the photos as rows (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "Skip for now" / "Done" / "← Back to the write-up" |
+| Editor `/write`, choosing | — | nothing: the screen is the input | the place's name as a 32px headline field ("St. John" standing in), suggestions opening under it as it is typed; the line `at [address].`; one primary "Start writing", shown once there is a name |
+| Editor `/write`, editing | — | nothing: the title is the heading | the title as the headline field (the place's name standing in), the line `at [name], [address].`, the reset and change-place marks revealed under the pointer; `From a visit on [date].` left and `Filed under [tags].` right; the Digest kicker over the write-up; the teaser, folded; the rating (a clear box, four pluses, the word) left and the meal and price words right; the Photos kicker over the tiles; `Bluesky: …` left and `Elsewhere: …` right; one primary "Save changes" (or "Publish") and, for a record, Delete with its Yes / No in the same slot |
+| Photos `/write/{rkey}/photos` | — | page head: "Photos" kicker, h1 "Photos of {place}", lede | the photos as rows (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "← Back to the write-up". The way photos are managed without script; the editor manages them in place otherwise |
 | Delete `/write/{rkey}/delete` | — | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
 | Crosspost `/write/{rkey}/crosspost` | — | page head: "Bluesky" kicker, h1 "Post “title” to Bluesky" (or "… is on Bluesky"), lede | the post text field and one primary "Post to Bluesky"; or, before permission, one primary "Allow posting and continue"; secondary "← Skip for now" either way; posted: the thread link and a secondary way back |
 | Settings `/settings` | — | page head: "Settings" kicker, h1 "Your publication", lede | one chooser row: the name (linked to the front page) and the current address in the metadata voice, or, before there is one, the name it would get and "Made when you save"; then the form: name, description, the two radio choices for where it lives, one primary "Save" ("Create it" the first time) |
 
 ### The editor
 
-The editor is one column (`--column`), read top to bottom: the place the
-write-up is about, then the date, the title, the write-up, the excerpt,
-the price, and, in groups, everything else the visit carries.
+The editor is the Write Pages handoff (`docs/design-handoff/write-pages/`),
+applied exactly: a 544px column (`.editor`, `34rem`) of prose at 17px on
+1.55, read top to bottom, in which every editable value is an **inline
+field**. Both screens are one `<form>` that works without script; the
+islands dress it and fall away.
 
-- **The place** heads the form as one line, `.editor-identity`: its name
-  at the left margin, its address set against the right the way an
-  address sits on a card. Under 36rem they stack, both at the left.
-- **Controls** are plain form elements. A field's label is tracked mono
-  capitals in `ink-soft`; a group's legend is the serif at 500 and
-  row-title size.
-- **Hints** are the serif at small size in `ink-soft`.
-- **Problems** are a `.field-error` line in the accent directly under the
-  control, and the control's border takes the accent too.
-- **Choosing a place** comes first for a new write-up: suggestions as
-  you type, the plain search, or a name and address by hand, all on
-  one page. Under the name and address of the writing state runs a mono
-  line saying where the place came from ("Matched to an Overture Maps
-  listing." or "Entered by hand") and a "Change place" link button
-  that returns to choosing with everything else kept.
-- **Repeated fields** (links) are rows separated by hairlines, each
-  ending in a "Remove" link button. Adding a row is a "+ Add a link"
-  link button.
-- **The title** is optional: its placeholder is the place's name, and
-  left blank that is the title the record gets. Nothing else says so.
-- **Choices.** The date is a plain date input. The price band, the meal,
-  and each link's kind ("Official site" or "Other") are selects. A
-  select never offers free text; where a record carries a value from
-  another client's vocabulary, that value appears as its own selected
-  option so it survives the edit (D31). The rating is a radio group of
-  "Unrated" and the four steps, each labelled with its word.
-- **Actions:** one primary button, "Publish" (or "Save changes").
-  "Preview", "Photos", and "Delete" are secondaries. A document's
-  own author sees "edit" and "photos" links among the footer's quiet
-  links.
-- **Bluesky group:** the visit pane ends with a `.choice` box "Also
-  post to Bluesky", the post text with the place name as its
-  placeholder, and a hint. Once posted, the group is one line linking the
-  thread.
+- **Inline field** (`.inline-field input`, `.headline`). The signature
+  control: transparent, no rule of its own, the sentence's font, as
+  wide as its text (`field-sizing: content`, measured against a mirror
+  where that is not understood), underlined 1px at `0.14em`: hairline
+  idle, ink under the pointer, vermilion with focus. Its placeholder is
+  the serif in italic in stone. The **headline** is the same field at
+  32px/500 with a transparent underline idle; its placeholder is a real
+  value standing in (the place's name as the title, "St. John" on the
+  choosing screen), so it is roman, and it dims to `--color-disabled`
+  when the field takes focus.
+- **Prose connectives** (`.soft`) — "at", "From a visit on", "Filed
+  under", "Bluesky:", "Elsewhere:" — are italic soft ink.
+- **Buttons as prose.** The primary action is the site's typeset
+  primary (Start writing, Save changes, Publish). A **hidden
+  affordance** (`.hint-action`: add a link, write your own teaser, save
+  it, never mind) is italic 13–14px stone on a hairline, darkening to
+  soft ink. A **mark** (`.mark`: the title's reset ×, the change-place
+  map) is a vermilion stroke icon at 0.7 opacity, 1 under the pointer,
+  revealed only while its row is hovered (always shown where there is
+  no pointer). A **word on a hairline** (the date, the meal, the price,
+  a link's label, a tag) goes vermilion under the pointer; a tag also
+  strikes itself through.
+- **Popovers** (`.popover.paper`) are the site's paper menu: the bright
+  surface, a 1px ink rule, `--menu-shadow`, square. One is open at a
+  time; an outside click or Escape closes it.
+
+**Choosing** (`.editor-choosing`). The place's name as the headline,
+`at [address].` under it, "Start writing" 48px below, and nothing
+else: the Overture and DB-IP credit the earlier choosing page carried
+(plan 12) is gone with it, and is not yet given anywhere else. Suggestions (the combobox, positioned under the headline) open
+while the name has three characters and matches; ↓/↑ cycle, Return takes
+the highlighted row or leaves the field, Escape closes. A pick fills
+both lines and arms Start writing as that pick, which the server reads
+from the same cached search (`action=pick:N`); typing over either line
+makes it a place by hand again (`action=manual`). Clearing the name
+clears the address with it. Without script the two lines are typed and
+Start writing takes them as written; there is no Search button and no
+results page any more.
+
+**Editing** (`.editor-write`). Top to bottom, with the handoff's gaps:
+
+- **Title and place.** The title field's placeholder is the place's
+  name (D29). While it stands in, the line under is `at [address].` and
+  the change-place mark sits after the title; once the author writes a
+  title, the place's name joins the line (`at [name], [address].`), the
+  reset × appears after the title, and the mark moves down beside the
+  address. The server renders whichever state the form is in; the
+  island follows as the title is typed.
+- **Date and tags** on one two-ended row. `From a visit on [date].` is
+  the date input, which the island hides behind a word ("September 6";
+  the year appended when it is not this year) over a 266px calendar:
+  arrows and the month in italic, day initials in italic stone, 34×32
+  cells, the chosen day ink on paper, today underlined in vermilion,
+  recessed paper under the pointer. `Filed under [tags].` is right-set
+  (see **Filed under**).
+- **Digest.** The kicker, then the write-up on the bright surface
+  inside an ink rule (vermilion while active), padded 16px 18px, at
+  least 384px tall. The textarea is the carrier; the island draws a
+  live markdown editor over it (`.digest-editor`): each source line a
+  block, formatted (h1 25px/500, h2 20px/500, h3 600; bullets as
+  vermilion `•`; quotes on a 2px hairline in italic soft ink; bold,
+  italic, `code` in the mono on recessed paper, links in vermilion),
+  and the caret's line showing its raw markdown with the syntax marks
+  in `--color-disabled`. Return splits a line (a list or quote prefix
+  continues; Return on an empty one ends it), Backspace at the start
+  merges up, ↑/↓ cross lines at their edges, Escape leaves, paste is
+  plain text, Cmd/Ctrl-Z undoes. Anything the island does not draw is
+  left as written for the server to render.
+- **Teaser.** Folded, one italic stone line: "In listings, the piece
+  opens with its first lines — or *write your own teaser*." Open: "In
+  listings it opens:", a two-row transparent textarea whose placeholder
+  is the first lines in quotes, and a note: "Drawn from the first lines
+  — type to say it differently, or *leave it be*." while it is empty,
+  "*never mind — use the first lines*" once written. The fold is a
+  `<details>`, so it opens without script; it is open whenever there
+  is a teaser.
+- **Rating and notes** on one row. The rating (`.rating-control`) is a
+  22px clear box with a stone ×, four `+` in the mono at 26px (filled
+  vermilion up to the value, else `--color-disabled`, previewing under
+  the pointer), and the verdict's word in tracked mono capitals
+  (vermilion when rated, stone for UNRATED). The radios are the
+  carrier and the stylesheet does the rest, so this needs no script:
+  the steps are set in reverse so a sibling selector can fill the lower
+  ones from the checked one. The **meal** ("a meal" in stone unset;
+  the lexicon's Breakfast, Brunch, Lunch, Dinner, Late night) and the
+  **price** (`$?` unset; `$` to `$$$$`) are selects the island redraws
+  as words over small right-aligned paper menus (options at 15px on
+  1.9, the chosen one ink and underlined, an italic "no note" to
+  clear).
+- **Photos.** The kicker, then four square tiles to a row with 10px
+  gaps, the first wearing a COVER badge (mono 9px caps, ink on paper),
+  a remove mark revealed on the tile, and an add tile (a dashed box
+  with a `+`) last; or, with none, one dashed box: "Nothing to look at
+  yet." that reads "add a photo" in vermilion under the pointer. Under
+  the grid: "Drag to reorder — the first photo is the cover." A tile
+  opens its detail over a scrim (the ink at 35%): the photo letterboxed
+  on recessed paper, a centred caption field, "done" and "remove this
+  photo". The same before and after the write-up exists: a picked file
+  is uploaded to the author's repository at once (`/write/upload`) and
+  comes back as a blob reference, the list rides in the form as hidden
+  fields like every other value, and Publish or Save writes it with
+  the record (D37 amended). A tile is drawn from the author's own blob
+  (`/write/photo/{cid}`), so it shows before any record lists it.
+  Without script the tiles link to the photos page once there is a
+  record, which stays the way photos are managed by hand.
+- **Links** on one two-ended row. `Bluesky: see the thread.` once
+  there is a post; before one, `Bluesky: [ ] post it too, saying
+  [text].` `Elsewhere:` the place's links as words with commas ("nowhere
+  yet" in stone for none) and "— add a link", shown while the row is
+  hovered (always, when empty). Each link is a **card** (`.link-card`:
+  paper, up to 420px, right-set) of two prose rows, `shown as [label]`
+  and `pointing at [url]` with a chain-link mark to open it, and a foot
+  of "save it · never mind" and "remove it". With script one card is
+  open at a time and a word opens its own; Return saves, Escape cancels,
+  saving without a URL cancels, an empty label falls back to the host.
+  Without script every row's card is open, "add a link" and "remove it"
+  are the server's row actions, and blank rows are skipped.
+- **Actions.** "Save changes" (or "Publish" for a new write-up), then
+  **Delete**, which confirms in its own slot: pressed, it reads
+  "Delete?" in italic soft ink followed by **Yes** and **No** (italic
+  17px, letter-spaced 0.06em, a 1px rule hugging the text). Yes is
+  `--color-alert`, the one place that red appears, and posts to the
+  delete route with the Bluesky post's deletion asked for as the delete
+  page asks it; No closes. The slot is a `<details>`, so it opens
+  without script and "Delete?" closes it.
+- **Problems** are `.field-error` lines under the line they belong to,
+  and the form-error summary sits above the title. Return in any text
+  field only re-renders the form (`action=keep`); nothing is sent by
+  accident.
 - **Drafts:** with JavaScript on, a draft kept on the device is offered
   back in a `.notice.restore` banner at the top of the form. It is one
   line and two link buttons, "Restore it" and "Discard it".
+
+Under 36rem the two-ended rows stack, both ends at the left, and the
+tiles go three to a row.
 
 Signed in, the landing page is the author's home (plan 11). Its last
 line, under a hairline, is the only place settings and sign-out appear:
@@ -600,6 +712,9 @@ which is a decision this project already took and has not reversed.
 | A feed row's metadata as `@handle · cuisine · $$` | The date and the place name | The listing is one author's publication, so the handle is not news on it; the price band is a fact of the visit and sits in the visit's fact box |
 | Action row counters `♥ 84 ⇄ 6` in the mono voice | Nothing | D5 and D6: there are no likes or reposts here, and comments live on Bluesky |
 | A field's label in `stone` | `ink-soft` | `stone` is 2.9:1 on paper. A label has to be read; `stone` is for metadata that is scanned |
+| Write Pages: meal options Breakfast, Lunch, Dinner, A snack, Drinks | The lexicon's Breakfast, Brunch, Lunch, Dinner, Late night | D3/D31: the choices are the record's `knownValues`, not the stylesheet's; the handoff's list was a specimen |
+| Write Pages: the editor rendered as a 784px card on a desk | The page itself, in the site's shell | The shell's 720px column and 48/32/56px padding are the card's measurements already; a second ground would make the editor the one page that is not on the paper |
+| Write Pages: photo detail scrim over the card | Over the viewport | The card is the page |
 | Focus-visible: a 2px vermilion outline at 2px offset | The accent at 55%, offset 3px | 2026-09-15 |
 | Links with no underline at rest | A link inside prose keeps a faint underline | Colour alone does not mark a link in a paragraph |
 | Multi-select filter chips, typeset, as an alternative for tag filters | The tag chip stays the small mono badge it is | The handoff offers the chip as an alternative, and nothing here filters by several tags at once: a tag chip is a link to a tag page |

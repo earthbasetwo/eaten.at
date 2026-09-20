@@ -18,7 +18,7 @@ pub use at_eaten::{
     VISIT_NSID,
 };
 
-pub use common::{lenient_option, BlobRef, Datetime, SelfLabel, SelfLabels, StrongRef};
+pub use common::{lenient_option, BlobLink, BlobRef, Datetime, SelfLabel, SelfLabels, StrongRef};
 pub use site_standard::{
     Contributor, Document, Publication, PublicationPreferences, ThemeBasic, DOCUMENT_NSID,
     PUBLICATION_NSID,

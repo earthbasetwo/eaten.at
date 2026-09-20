@@ -43,6 +43,15 @@ pub fn photo(did: &Did, doc_rkey: &str, cid: &str, size: &str) -> String {
     format!("/img/{did}/{doc_rkey}/{cid}?size={size}")
 }
 
+/// One of the signed-in author's own blobs, for the editor's tiles
+/// before and after the record carries them, at `thumb` or `full`.
+pub fn own_photo(cid: &str, size: &str) -> String {
+    format!("/write/photo/{cid}?size={size}")
+}
+
+/// The upload the editor's photos island posts files to.
+pub const UPLOAD: &str = "/write/upload";
+
 /// The publication-icon proxy.
 pub fn icon(did: &Did, pub_rkey: &str) -> String {
     format!("/img/{did}/{pub_rkey}?kind=icon")

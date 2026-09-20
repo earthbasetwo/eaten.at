@@ -5,11 +5,13 @@
 use std::collections::BTreeMap;
 
 use eaten_at_atproto::lexicon::{
-    ExternalUrl, LatE6, LonE6, Place, PriceBand, Rating, Visit, VisitDate, PLACE_NSID, VISIT_NSID,
+    AspectRatio, BlobLink, BlobRef, ExternalUrl, LatE6, LonE6, Photo, Place, PriceBand, Rating,
+    Visit, VisitDate, MAX_PHOTOS, PLACE_NSID, VISIT_NSID,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::form::{EditorForm, PlaceMode};
+use super::photos::{MAX_ALT_BYTES, MAX_ALT_GRAPHEMES};
 use super::{MAX_BODY_BYTES, MAX_LINKS, MAX_TAGS};
 use crate::publish::MAX_POST_GRAPHEMES;
 use crate::tags;
@@ -256,6 +258,65 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         errors.add("links", format!("At most {MAX_LINKS} links."));
     }
 
+    let mut photos = Vec::new();
+    for (i, field) in form.photos.iter().enumerate() {
+        let cid = field.cid.trim();
+        if cid.is_empty() {
+            continue;
+        }
+        if cid.chars().any(|c| !c.is_ascii_alphanumeric()) {
+            errors.add(
+                format!("photo_cid_{i}"),
+                "That photo's reference could not be read.",
+            );
+            continue;
+        }
+        let Ok(size) = field.size.trim().parse::<u64>() else {
+            errors.add(
+                format!("photo_cid_{i}"),
+                "That photo's reference could not be read.",
+            );
+            continue;
+        };
+        let alt = field.alt.trim();
+        if graphemes(alt) > MAX_ALT_GRAPHEMES || alt.len() > MAX_ALT_BYTES {
+            errors.add(
+                format!("photo_alt_{i}"),
+                format!("Keep a caption under {MAX_ALT_GRAPHEMES} characters."),
+            );
+        }
+        let mime = field.mime.trim();
+        let aspect_ratio = match (
+            field.width.trim().parse::<u32>(),
+            field.height.trim().parse::<u32>(),
+        ) {
+            (Ok(width), Ok(height)) if width > 0 && height > 0 => {
+                Some(AspectRatio { width, height })
+            }
+            _ => None,
+        };
+        photos.push(Photo {
+            image: BlobRef {
+                type_: "blob".to_owned(),
+                link: BlobLink {
+                    cid: cid.to_owned(),
+                },
+                mime_type: if mime.is_empty() {
+                    "image/jpeg".to_owned()
+                } else {
+                    mime.to_owned()
+                },
+                size,
+            },
+            alt: (!alt.is_empty()).then(|| alt.to_owned()),
+            aspect_ratio,
+            extra: serde_json::Map::new(),
+        });
+    }
+    if photos.len() > MAX_PHOTOS {
+        errors.add("photos", format!("At most {MAX_PHOTOS} photos on a visit."));
+    }
+
     let tags = match parse_tags(&form.tags) {
         Ok(tags) => tags,
         Err(message) => {
@@ -286,7 +347,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         meal,
         rating,
         body: None,
-        photos: Vec::new(),
+        photos,
         extra: serde_json::Map::new(),
     };
     if let Some(original) = ctx.original {
@@ -311,13 +372,20 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
 }
 
 /// Fields our form does not know about live in the `extra` maps. Carry
-/// them over from the original for the visit, its place, and every link
-/// that is still present, matched by URL. A `$type` the original put on
-/// its place stays too, and so do the photos, which have their own page
-/// (plan 07).
+/// them over from the original for the visit, its place, every link
+/// that is still present, matched by URL, and every photo that is,
+/// matched by CID. A `$type` the original put on its place stays too.
 fn preserve_unknown_fields(visit: &mut Visit, original: &Visit) {
     visit.extra.clone_from(&original.extra);
-    visit.photos.clone_from(&original.photos);
+    for photo in &mut visit.photos {
+        if let Some(known) = original
+            .photos
+            .iter()
+            .find(|p| p.image.cid() == photo.image.cid())
+        {
+            photo.extra = known.extra.clone();
+        }
+    }
     visit.place.extra.clone_from(&original.place.extra);
     visit.place.type_ = original
         .place
@@ -409,6 +477,7 @@ mod tests {
                 },
                 LinkField::default(),
             ],
+            photos: Vec::new(),
             tags: "#notes, Short, notes, one long sit".into(),
             crosspost: false,
             post_text: String::new(),
@@ -545,6 +614,59 @@ mod tests {
         );
         form.lon_e6 = "x".into();
         assert!(validate(&form, &ctx()).is_err());
+    }
+
+    #[test]
+    fn photos_are_read_from_their_references() {
+        use crate::editor::form::PhotoField;
+        let mut form = good_form();
+        form.photos = vec![
+            PhotoField {
+                cid: "bafya".into(),
+                mime: "image/jpeg".into(),
+                size: "1234".into(),
+                alt: "  The room ".into(),
+                width: "4".into(),
+                height: "6".into(),
+            },
+            PhotoField {
+                cid: "bafyb".into(),
+                mime: String::new(),
+                size: "9".into(),
+                alt: String::new(),
+                width: String::new(),
+                height: "0".into(),
+            },
+        ];
+        let draft = validate(&form, &ctx()).unwrap();
+        let photos = &draft.visit.photos;
+        assert_eq!(photos.len(), 2);
+        assert_eq!(photos[0].image.cid(), "bafya");
+        assert_eq!(photos[0].image.size, 1234);
+        assert_eq!(photos[0].alt.as_deref(), Some("The room"));
+        assert_eq!(
+            photos[0].aspect_ratio,
+            Some(AspectRatio {
+                width: 4,
+                height: 6
+            })
+        );
+        assert_eq!(photos[1].image.mime_type, "image/jpeg", "the default");
+        assert_eq!(photos[1].alt, None);
+        assert_eq!(photos[1].aspect_ratio, None, "half a ratio is none");
+        // A caption too long, a reference that is not one, a size that
+        // is not a number: each named beside its row.
+        form.photos[0].alt = "x".repeat(1001);
+        form.photos[1].cid = "not a cid".into();
+        form.photos.push(PhotoField {
+            cid: "bafyc".into(),
+            size: "many".into(),
+            ..PhotoField::default()
+        });
+        let errors = validate(&form, &ctx()).unwrap_err();
+        assert!(errors.get("photo_alt_0").unwrap().contains("1000"));
+        assert!(errors.get("photo_cid_1").is_some(), "{errors:?}");
+        assert!(errors.get("photo_cid_2").is_some(), "{errors:?}");
     }
 
     #[test]

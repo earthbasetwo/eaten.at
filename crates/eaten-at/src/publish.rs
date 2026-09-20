@@ -200,6 +200,16 @@ pub fn build_document(draft: &DocumentDraft, placement: &Placement<'_>) -> Value
         }
     }
     fields.insert("content".into(), content(draft));
+    // The cover follows the photos (D38): the first one, or, once the
+    // author has removed the last, none. A cover another client set
+    // on a visit that never had photos is not ours to touch.
+    let had_photos = placement
+        .original
+        .and_then(|d| crate::model::extract_visit(d.content.as_ref()))
+        .is_some_and(|v| !v.photos.is_empty());
+    if draft.visit.photos.is_empty() && had_photos {
+        fields.remove("coverImage");
+    }
     set_cover_from_photos(fields, &draft.visit.photos);
     fields.insert(
         "textContent".into(),
