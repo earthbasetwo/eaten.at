@@ -1,5 +1,6 @@
 //! HTTP route handlers.
 
+pub mod about;
 pub mod assets;
 pub mod auth;
 pub mod document;

@@ -68,6 +68,7 @@ EATEN_AT_LEXICON_APP_PASSWORD=… just lexicons-publish        # write what diff
 | Route | What it is |
 |---|---|
 | `/` | Landing page with the handle lookup form. |
+| `/about` | A static page: a blurb on the AT Protocol, and the licences the place data and the IP database ask us to carry. Linked from both states of the landing page. |
 | `/@{handle}` | Resolves the handle now and redirects to the DID form. Never rendered. |
 | `/at/{did}/` | The account's eaten.at publication (the one its preferences name); for a repository without one, a lone publication or a chooser. |
 | `/at/{did}/{pub}/` | A publication's write-ups, newest first. |

@@ -1,7 +1,9 @@
 //! `GET /` — signed out, the pitch and the two ways in, each one button
 //! that becomes a handle field (plan 09); signed in, the author's home:
 //! one primary "Write a new visit", their publication with its recent
-//! write-ups and a way to find one, and settings last (plan 11).
+//! write-ups and a way to find one, and settings last (plan 11). Both
+//! states end on the same quiet line, which is where the about page
+//! (and with it the credits) is reached from.
 
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Response};
@@ -87,6 +89,10 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
                 intro: Some("Oh, so you're one of the demanding public, eh?"),
                 label: "Look up a friend",
             }))
+            // The one quiet line signed out: where the credits are.
+            div.meta.tertiary {
+                a href="/about" { "About" }
+            }
         },
         ..Page::default()
     })
@@ -138,6 +144,7 @@ async fn signed_in(
             (section)
             div.meta.tertiary {
                 a href="/settings" { "Settings" }
+                a href="/about" { "About" }
                 form.inline-form method="post" action="/logout" {
                     button.link-button type="submit" { "Sign out" }
                 }

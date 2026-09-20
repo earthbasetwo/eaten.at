@@ -938,6 +938,95 @@ async fn warm_publication_page_makes_no_upstream_requests() {
 }
 
 #[tokio::test]
+async fn the_about_page_carries_the_licences_the_data_asks_us_to_carry() {
+    let server = mount(&Repo::default()).await;
+    let state = state_for(&server, StaticDns::new());
+    let (status, _, body) = get(&state, "/about").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("<title>About — eaten.at</title>"), "{body}");
+    // It opens the way every page does: kicker, title, lede.
+    assert!(
+        body.contains(
+            "<div class=\"page-head\"><p class=\"kicker\">About</p><h1>About eaten.at</h1>"
+        ),
+        "{body}"
+    );
+    // DB-IP asks for this exact wording, linking this exact address, and
+    // CC BY 4.0 is named where the reader can see what it is. The page
+    // is static, so it says so whatever the deployment is configured with.
+    assert!(
+        body.contains("<a href=\"https://db-ip.com\" rel=\"noopener\">IP Geolocation by DB-IP</a>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("https://creativecommons.org/licenses/by/4.0/"),
+        "{body}"
+    );
+    // The place licences ask only that their own text travel with the
+    // data, so the page links it; neither asks to be credited.
+    for licence in [
+        "https://cdla.dev/permissive-2-0/",
+        "https://www.apache.org/licenses/LICENSE-2.0",
+    ] {
+        assert!(body.contains(licence), "missing {licence}: {body}");
+    }
+    // Nothing that asks for nothing is credited: not the places vendor,
+    // the map link, or the fonts, which carry their own notices.
+    for absent in [
+        "openplacesapi",
+        "OpenStreetMap",
+        "Evantic",
+        "Newsreader",
+        "OFL.txt",
+    ] {
+        assert!(
+            !body.contains(absent),
+            "uncalled-for credit {absent}: {body}"
+        );
+    }
+    // A page of prose, and no script on it.
+    assert!(body.contains("<div class=\"prose\">"), "{body}");
+    assert!(!body.contains("<script"), "{body}");
+    // The open font licence is served beside the fonts whatever links
+    // it: their `name` tables carry the copyright notice, this carries
+    // the licence text those subsets drop.
+    let response = router(state.clone())
+        .oneshot(Request::get("/static/OFL.txt").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        "text/plain; charset=utf-8"
+    );
+    let text = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(
+        String::from_utf8_lossy(&text).contains("SIL OPEN FONT LICENSE"),
+        "the licence text itself is served"
+    );
+}
+
+#[tokio::test]
+async fn both_landing_pages_lead_to_the_about_page() {
+    let server = mount(&one_publication()).await;
+    let state = state_for(&server, dns_for_handle());
+    let (_, _, body) = get(&state, "/").await;
+    assert!(
+        body.contains("<div class=\"meta tertiary\"><a href=\"/about\">About</a></div>"),
+        "signed out, one quiet line: {body}"
+    );
+    let cookie = signed_in(&state).await;
+    let (_, _, body) = get_signed(&state, "/", &cookie).await;
+    assert!(
+        body.contains(
+            "<div class=\"meta tertiary\"><a href=\"/settings\">Settings</a>\
+             <a href=\"/about\">About</a>"
+        ),
+        "signed in, between settings and sign out: {body}"
+    );
+}
+
+#[tokio::test]
 async fn stylesheet_is_served_with_cache_headers() {
     let server = mount(&Repo::default()).await;
     let state = state_for(&server, StaticDns::new());
@@ -3856,6 +3945,10 @@ async fn a_claimed_subdomain_is_served_as_the_publication_origin() {
     let (status, _, _) = get_host(&state, "ross.eaten.at", "/static/app.css").await;
     assert_ne!(status, StatusCode::NOT_FOUND, "assets pass through");
     let (status, _, _) = get_host(&state, "ross.eaten.at", "/2026/09/nope").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    // `/about` is the site's page at the apex, not a path taken from a
+    // publication: on its own host it is the author's to write at.
+    let (status, _, _) = get_host(&state, "ross.eaten.at", "/about").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (status, _, _) = get_host(&state, "nobody.eaten.at", "/").await;
     assert_eq!(status, StatusCode::NOT_FOUND);

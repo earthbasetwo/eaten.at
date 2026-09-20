@@ -133,6 +133,7 @@ async function main() {
     ],
     expect: '.connect-read .connect-idle[hidden] + form.connect-form:not([hidden])',
   })
+  await check({ name: 'about', path: '/about', expect: '.prose a[href="https://db-ip.com"]' })
   await check({ name: 'lookup', path: '/lookup', expect: 'input#handle' })
   await check({ name: 'lookup-error', path: '/lookup?handle=nobody.invalid', status: 400 })
   await check({ name: 'login', path: '/login', expect: 'input[data-typeahead]' })
