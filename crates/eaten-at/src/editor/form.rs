@@ -1,6 +1,8 @@
 //! The posted form, as strings, and the actions a JS-free form needs.
 
-use eaten_at_atproto::lexicon::{Document, ExternalUrl, KnownService, KnownValue, Meal, Visit};
+use eaten_at_atproto::lexicon::{
+    Document, ExternalUrl, KnownService, KnownValue, Meal, Photo, Visit, MAX_PHOTOS,
+};
 
 use super::MAX_LINKS;
 use crate::model::{body_of, Body};
@@ -32,6 +34,10 @@ pub struct EditorForm {
     /// The rating radio: blank for unrated, or `1` to `4`.
     pub rating: String,
     pub links: Vec<LinkField>,
+    /// The photos, in the author's order, as blob references the
+    /// photos island uploaded or the record carried. Strings, so the
+    /// form can carry them across its own re-renders (D37 amended).
+    pub photos: Vec<PhotoField>,
     /// Comma-separated, as typed.
     pub tags: String,
     /// Whether to post to Bluesky on publish (plan §5.7).
@@ -67,6 +73,41 @@ impl PlaceMode {
             "picked" => Self::Picked,
             "manual" => Self::Manual,
             _ => Self::Choosing,
+        }
+    }
+}
+
+/// One photo, as the form carries it: the blob's reference and what
+/// the author wrote about it. A row without a CID is skipped.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PhotoField {
+    pub cid: String,
+    pub mime: String,
+    /// The blob's size in bytes, as a string.
+    pub size: String,
+    /// The caption: the photo's alt text.
+    pub alt: String,
+    /// The encoded dimensions, as strings; blank when unknown.
+    pub width: String,
+    pub height: String,
+}
+
+impl PhotoField {
+    /// A row prefilled from a record.
+    pub fn from_photo(photo: &Photo) -> Self {
+        Self {
+            cid: photo.image.cid().to_owned(),
+            mime: photo.image.mime_type.clone(),
+            size: photo.image.size.to_string(),
+            alt: photo.alt.clone().unwrap_or_default(),
+            width: photo
+                .aspect_ratio
+                .map(|r| r.width.to_string())
+                .unwrap_or_default(),
+            height: photo
+                .aspect_ratio
+                .map(|r| r.height.to_string())
+                .unwrap_or_default(),
         }
     }
 }
@@ -191,15 +232,16 @@ impl RowKind {
 pub enum Action {
     AddRow(RowKind),
     RemoveRow(RowKind, usize),
-    /// Search for the place named in the search box.
-    Search,
-    /// Take the numbered search result as the place.
+    /// Take the numbered result of the cached suggestion search as the
+    /// place: what a suggestion picked in the browser submits.
     Pick(usize),
-    /// Enter the place by hand, with no listing behind it.
+    /// Take the name and address as typed, with no listing behind them.
     Manual,
     /// Back to choosing a place, keeping everything else.
     ChangePlace,
-    Preview,
+    /// Re-render the form as it is. Return pressed in a text field
+    /// lands here, so nothing typed is ever sent by accident.
+    Keep,
     Publish,
 }
 
@@ -207,9 +249,8 @@ impl Action {
     /// The button's `value`.
     pub fn parse(value: &str) -> Option<Self> {
         match value {
-            "preview" => Some(Self::Preview),
+            "keep" => Some(Self::Keep),
             "publish" => Some(Self::Publish),
-            "search" => Some(Self::Search),
             "manual" => Some(Self::Manual),
             "change_place" => Some(Self::ChangePlace),
             other => {
@@ -232,11 +273,10 @@ impl Action {
         match self {
             Self::AddRow(kind) => format!("add_{}", kind.name()),
             Self::RemoveRow(kind, i) => format!("remove_{}:{i}", kind.name()),
-            Self::Search => "search".to_owned(),
             Self::Pick(i) => format!("pick:{i}"),
             Self::Manual => "manual".to_owned(),
             Self::ChangePlace => "change_place".to_owned(),
-            Self::Preview => "preview".to_owned(),
+            Self::Keep => "keep".to_owned(),
             Self::Publish => "publish".to_owned(),
         }
     }
@@ -306,6 +346,7 @@ impl EditorForm {
                 .iter()
                 .map(LinkField::from_external_url)
                 .collect(),
+            photos: visit.photos.iter().map(PhotoField::from_photo).collect(),
             tags: doc.tags.join(", "),
             crosspost: false,
             post_text: String::new(),
@@ -353,6 +394,14 @@ impl EditorForm {
                                     Choice::from_value(&value);
                             }
                             "link_label" => row(&mut form.links, index, MAX_LINKS).label = value,
+                            "photo_cid" => row(&mut form.photos, index, MAX_PHOTOS).cid = value,
+                            "photo_mime" => row(&mut form.photos, index, MAX_PHOTOS).mime = value,
+                            "photo_size" => row(&mut form.photos, index, MAX_PHOTOS).size = value,
+                            "photo_alt" => row(&mut form.photos, index, MAX_PHOTOS).alt = value,
+                            "photo_width" => row(&mut form.photos, index, MAX_PHOTOS).width = value,
+                            "photo_height" => {
+                                row(&mut form.photos, index, MAX_PHOTOS).height = value;
+                            }
                             _ => {}
                         }
                     }
@@ -365,8 +414,8 @@ impl EditorForm {
 
     /// Apply a structural action: add or remove a row (removing never
     /// empties a list: the last row stays, cleared), go back to
-    /// choosing, or choose to enter the place by hand. Searching and
-    /// picking need the network and are the route's business.
+    /// choosing, or take the place by hand. Picking needs the search
+    /// cache and is the route's business; keeping changes nothing.
     pub fn apply(&mut self, action: &Action) {
         match action {
             Action::AddRow(kind) => match kind {
@@ -377,7 +426,7 @@ impl EditorForm {
             },
             Action::ChangePlace => self.change_place(),
             Action::Manual => self.manual(),
-            Action::Search | Action::Pick(_) | Action::Preview | Action::Publish => {}
+            Action::Pick(_) | Action::Keep | Action::Publish => {}
         }
         self.ensure_rows();
     }
@@ -430,6 +479,9 @@ impl EditorForm {
         if self.links.is_empty() {
             self.links.push(LinkField::default());
         }
+        // A photo row without a blob is nothing; the island keeps the
+        // indexes dense, and a gap left by hand is closed here.
+        self.photos.retain(|p| !p.cid.trim().is_empty());
     }
 }
 
@@ -469,11 +521,10 @@ mod tests {
         for action in [
             Action::AddRow(RowKind::Link),
             Action::RemoveRow(RowKind::Link, 0),
-            Action::Search,
             Action::Pick(3),
             Action::Manual,
             Action::ChangePlace,
-            Action::Preview,
+            Action::Keep,
         ] {
             assert_eq!(Action::parse(&action.value()), Some(action));
         }
@@ -482,6 +533,8 @@ mod tests {
         assert_eq!(Action::parse("add_thing"), None);
         assert_eq!(Action::parse("remove_thing:1"), None);
         assert_eq!(Action::parse("publish"), Some(Action::Publish));
+        assert_eq!(Action::parse("search"), None, "the plain search is gone");
+        assert_eq!(Action::parse("preview"), None);
 
         let mut form = EditorForm::blank();
         assert_eq!(form.visited_on.len(), 10, "dated today");
@@ -589,6 +642,32 @@ mod tests {
         assert_eq!(foreign.service.value(), "bc");
         assert_eq!(foreign.service_value().as_deref(), Some("bc"));
         assert_eq!(LinkField::default().service_value(), None);
+    }
+
+    #[test]
+    fn photo_rows_are_read_by_index_and_blank_ones_dropped() {
+        let (form, _) = EditorForm::from_pairs([
+            ("photo_cid_1".to_owned(), "bafyb".to_owned()),
+            ("photo_alt_1".to_owned(), "The room".to_owned()),
+            ("photo_cid_0".to_owned(), "bafya".to_owned()),
+            ("photo_mime_0".to_owned(), "image/jpeg".to_owned()),
+            ("photo_size_0".to_owned(), "1234".to_owned()),
+            ("photo_width_0".to_owned(), "4".to_owned()),
+            ("photo_height_0".to_owned(), "6".to_owned()),
+            ("photo_alt_3".to_owned(), "no blob".to_owned()),
+        ]);
+        assert_eq!(form.photos.len(), 2, "{:?}", form.photos);
+        assert_eq!(form.photos[0].cid, "bafya");
+        assert_eq!(form.photos[0].size, "1234");
+        assert_eq!(
+            (
+                form.photos[0].width.as_str(),
+                form.photos[0].height.as_str()
+            ),
+            ("4", "6")
+        );
+        assert_eq!(form.photos[1].cid, "bafyb");
+        assert_eq!(form.photos[1].alt, "The room");
     }
 
     #[test]

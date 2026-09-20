@@ -119,8 +119,15 @@
     /* Text on a vermilion fill, and on an ink fill. */
     --color-vermilion-fg: #fdfbf4;
     --color-ink-fg: var(--color-paper-bright);
-    /* A disabled action's label and rule (Typeset handoff 6a). */
+    /* A disabled action's label and rule (Typeset handoff 6a), and the
+       faint stone of the editor's idle affordances (Write Pages). */
     --color-disabled: #c9bfa8;
+    /* Recessed paper: an image's letterbox, a calendar day under the
+       pointer (Write Pages). */
+    --color-recessed: #efe8d8;
+    /* Alert red: the Yes of a destructive confirmation, and nothing else
+       (Write Pages). */
+    --color-alert: #e02b1d;
 
     --font-logotype: "Evantic", Georgia, "Times New Roman", serif;
     --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
@@ -182,8 +189,9 @@
     --field-rule-invalid: inset 0 -1px var(--color-vermilion);
     --field-rule-disabled: inset 0 -1px var(--color-disabled);
     /* The one shadow in the system: a menu's hard offset, printed rather
-       than floating, in place of a blur. */
-    --menu-shadow: 3px 3px 0 var(--color-hairline);
+       than floating, in place of a blur. The ink at a tenth, as the Write
+       Pages handoff sets every popover. */
+    --menu-shadow: 4px 4px 0 color-mix(in oklab, var(--color-ink) 10%, transparent);
     /* The box a checkbox or a radio draws, and the pen-stroke check
        inside it: a mark with a short tail in and a long one out, drawn as
        an SVG because a font glyph does not centre. The stroke is the
@@ -227,6 +235,7 @@
     --color-vermilion: rgb(var(--theme-accent));
     --color-vermilion-fg: rgb(var(--theme-accent-fg));
     --color-disabled: color-mix(in oklab, var(--color-ink) 24%, var(--color-paper));
+    --color-recessed: color-mix(in oklab, var(--color-ink) 4%, var(--color-paper));
   }
 }
 
@@ -517,9 +526,9 @@
   /* Rows: things a reader picks between sit in a column on the paper,
      an ink rule above the first and a hairline between the rest.
      Nothing is boxed, lifted, or shadowed. */
-  .listing, .chooser, .results, .photo-manage { display: flex; flex-direction: column; border-block-start: var(--rule-ink); }
-  .listing-item, .chooser-item, .result-item, .photo-row { padding-block: var(--row-pad); }
-  .listing-item + .listing-item, .chooser-item + .chooser-item, .result-item + .result-item, .photo-row + .photo-row {
+  .listing, .chooser, .photo-manage { display: flex; flex-direction: column; border-block-start: var(--rule-ink); }
+  .listing-item, .chooser-item, .photo-row { padding-block: var(--row-pad); }
+  .listing-item + .listing-item, .chooser-item + .chooser-item, .photo-row + .photo-row {
     border-block-start: var(--rule-hairline);
   }
 
@@ -732,38 +741,8 @@
   .account { margin-block-start: var(--space-m); display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: baseline; }
   .inline-form { display: inline; }
 
-  /* Editor: one column, read top to bottom. The place the write-up is
-     about heads it — its name at the left margin, its address at the
-     right — then the date, the title, the write-up, the excerpt, the
-     price, and, in groups, everything else the visit carries. Every
-     control is a plain form element with its problem beneath it. */
-  .editor-single { max-inline-size: var(--column); }
-  .editor-single > * + * { margin-block-start: var(--space-l); }
-  /* A group of the visit's own fields, and the actions that close the
-     form, stand further off than one field from the next. */
-  .editor-single > .editor-group, .editor-single > .actions { margin-block-start: var(--space-xl); }
-  /* The place's name and address share a line, the address set against
-     the right margin the way an address is on a card; they stack, both
-     at the left margin, when the column is too narrow to share. */
-  .editor-place > * + * { margin-block-start: var(--space-s); }
-  .editor-identity { display: grid; gap: var(--space-m) var(--space-l); grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 36rem) {
-    .editor-identity { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    .editor-identity > .field + .field, .editor-identity > .field + .field input { text-align: end; }
-  }
   /* A field and the line that explains it are one item in the column. */
   .field-block > .field-hint { margin-block-start: var(--space-xs); }
-  /* A short answer does not need the whole column: a date and a dropdown
-     take the width their answer asks for, and their rule ends there. */
-  .editor .field:has(> input[type="date"]), .editor .field:has(> .select-rule) { max-inline-size: 16rem; }
-  .editor-group { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
-  .editor-group + .editor-group { margin-block-start: var(--space-xl); }
-  .editor-group > legend {
-    padding: 0; margin-block-end: var(--space-m);
-    font-family: var(--font-serif); font-weight: 500; font-size: var(--text-card); line-height: 1.15;
-    text-transform: none; letter-spacing: 0; color: var(--color-ink);
-  }
-  .editor-group > * + * { margin-block-start: var(--space-m); }
   .field { display: grid; gap: var(--space-xs); }
   /* A group of choices is a fieldset dressed as a field: no box. */
   fieldset.field { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
@@ -795,29 +774,6 @@
   .field-hint a { color: var(--color-vermilion); text-decoration: underline; text-decoration-color: color-mix(in oklab, currentColor 40%, transparent); }
   .field-hint a:hover { text-decoration-color: currentColor; }
   .field-group > * + * { margin-block-start: var(--space-m); }
-  /* Filed under (the tags): a sentence with a blank in it. Without
-     script the blank is the comma list on a hairline; the island files
-     chips before it, each a word underlined by a hairline that strikes
-     itself out under the pointer, and the blank takes the next tag. */
-  .tags-sentence {
-    font-family: var(--font-serif); font-size: var(--text-field); line-height: 1.55; color: var(--color-ink);
-  }
-  .tags-sentence > label { color: var(--color-ink-soft); }
-  .tag-field, .tag-chips { display: inline; }
-  .chip {
-    display: inline; font: inherit; color: var(--color-ink); background: none; border: 0; padding: 0; box-shadow: none;
-    text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em; text-decoration-color: var(--color-hairline);
-  }
-  .chip::after { content: none; }
-  .chip:hover { color: var(--color-vermilion); text-decoration: line-through; box-shadow: none; }
-  .tag-field input {
-    display: inline; inline-size: auto; min-inline-size: 3ch; max-inline-size: 100%; field-sizing: content;
-    padding: 0; box-shadow: inset 0 -1px var(--color-hairline);
-  }
-  .tag-field input:hover, .tag-field input:focus-visible { box-shadow: inset 0 -1px var(--color-ink); }
-  .field-invalid .tag-field input { box-shadow: var(--field-rule-invalid); }
-  @supports not (field-sizing: content) { .tag-field input { inline-size: 6ch; } }
-  .editor-body { min-block-size: 24rem; font-size: var(--text-prose); line-height: 1.6; resize: vertical; }
   input[type="file"] { font-family: var(--font-serif); font-size: var(--text-small); color: var(--color-ink-soft); }
   input[type="file"]::file-selector-button {
     font-family: var(--font-serif); font-style: italic; font-size: var(--text-action-small); line-height: 1.2;
@@ -827,41 +783,415 @@
     transition: box-shadow var(--ease);
   }
   input[type="file"]::file-selector-button:hover { box-shadow: inset 0 -2px var(--color-ink); }
-  .rows > * + * { margin-block-start: var(--space-m); }
-  .row { display: grid; gap: var(--space-s); grid-template-columns: minmax(0, 1fr); padding-block-end: var(--space-m); border-block-end: var(--rule-hairline); }
-  .row-remove { justify-self: start; color: var(--color-ink-soft); }
-  .preview {
-    margin-block-end: var(--space-xl); padding: var(--card-pad);
-    background: var(--color-paper-bright); border: var(--rule-hairline);
-  }
-  .preview > .kicker { margin-block-end: var(--space-l); }
-  .preview-document { max-inline-size: var(--column); }
-  .preview .doc-footer a[href="#"] { pointer-events: none; }
   .restore { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: baseline; margin-block-end: var(--space-l); }
-  /* Choosing a place: the search box, a status line for where the search
-     looks, the results as rows, and the way out by hand. */
-  .editor-choosing { max-inline-size: var(--column); }
-  .editor-choosing > * + * { margin-block-start: var(--space-m); }
-  .editor-choosing .search-field, .editor-choosing .locate-status, .editor-choosing .results { max-inline-size: 34rem; }
-  /* With suggestions on, the Search button is the no-JS path only. */
-  .js-suggesting .search-field button { display: none; }
-  /* The place by hand, under a hairline (plan 12). */
-  .manual-entry { margin-block-start: var(--space-xl); padding-block-start: var(--space-l); border-top: var(--rule-hairline); max-inline-size: 34rem; }
-  .manual-entry > .kicker { margin-block-end: var(--space-m); }
-  .manual-entry .field + .field { margin-block-start: var(--space-m); }
-  .manual-entry .actions { margin-block-start: var(--space-m); }
-  .locate-status { min-block-size: 1.2em; }
-  .results { margin-block-start: var(--space-l); }
-  .result-item {
-    display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: center; justify-content: space-between;
+
+  /* ================================================================
+     The editor (the Write Pages handoff, docs/design-handoff/write-pages/):
+     prose-forward forms. No boxed inputs, no field labels but the two
+     kickers, no buttons that look like buttons. Every editable value
+     sits inline inside a readable sentence, underlined; controls reveal
+     themselves under the pointer; popovers are small paper cards. The
+     page reads like a typeset paragraph that happens to be editable.
+     ================================================================ */
+  .editor { max-inline-size: 34rem; font-size: 1.0625rem; line-height: 1.55; color: var(--color-ink); }
+  /* The prose connectives ("at", "From a visit on") and the stone of an
+     absence or a hint. */
+  .editor .soft { font-style: italic; color: var(--color-ink-soft); }
+  .editor .soft-stone { font-style: italic; color: var(--color-stone); }
+  .prose-line { margin: 0; font-size: 1.0625rem; line-height: 1.55; color: var(--color-ink); }
+  .editor .form-error { margin-block-end: var(--space-l); }
+  .editor .field-error { margin-block-start: var(--space-xs); }
+
+  /* The signature control: an inline underlined input. Transparent, no
+     rule of its own, the sentence's font; as wide as its text; a
+     hairline under it that goes ink under the pointer and vermilion
+     with focus. */
+  .inline-field { display: inline; }
+  .inline-field input, .headline, .tag-field input, .photo-caption {
+    display: inline; inline-size: auto; min-inline-size: 4ch; max-inline-size: 100%; field-sizing: content;
+    padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none;
+    font: inherit; color: var(--color-ink); vertical-align: baseline;
+    text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em;
+    text-decoration-color: var(--color-hairline);
+    transition: text-decoration-color var(--ease), color var(--ease);
   }
-  .result-body { min-inline-size: 0; flex: 1 1 16rem; }
-  .result-name { font-family: var(--font-serif); font-weight: 500; font-size: var(--text-card); line-height: 1.15; color: var(--color-ink); }
-  .result-meta { margin-block-start: var(--space-xs); }
-  .place-source { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-s); align-items: baseline; }
-  .attribution { margin-block-start: var(--space-l); }
-  /* The photos page: each photo a row with its thumbnail, alt text, and
-     the move and remove actions, then the file input. */
+  .inline-field input:hover, .tag-field input:hover, .photo-caption:hover { text-decoration-color: var(--color-ink); box-shadow: none; }
+  .inline-field input:focus-visible, .tag-field input:focus-visible, .photo-caption:focus-visible {
+    text-decoration-color: var(--color-vermilion); box-shadow: none; outline: none;
+  }
+  .field-invalid .inline-field input, .field-invalid .headline { text-decoration-color: var(--color-vermilion); }
+  .inline-field input::placeholder, .tag-field input::placeholder, .photo-caption::placeholder {
+    font-style: italic; color: var(--color-stone); opacity: 1;
+  }
+  /* Where field-sizing is not understood, the island measures the text
+     against this mirror and sets the width by hand. */
+  .inline-mirror { position: absolute; inset-inline-start: -9999px; inset-block-start: 0; visibility: hidden; white-space: pre; pointer-events: none; }
+
+  /* The headline: the title, or on the choosing screen the place's name.
+     Its placeholder is a real value standing in, so it is roman; it dims
+     when the field takes focus to make room for what is typed. */
+  .headline {
+    flex: 0 1 auto; min-inline-size: 2ch;
+    font-size: 2rem; font-weight: 500; line-height: 1.2;
+    text-underline-offset: 0.12em; text-decoration-color: transparent;
+  }
+  .headline:hover { text-decoration-color: var(--color-hairline); }
+  .headline:focus-visible { text-decoration-color: var(--color-vermilion); }
+  .headline::placeholder { font-style: normal; color: var(--color-ink-soft); transition: color var(--ease); }
+  .editor-choosing .headline::placeholder { color: var(--color-stone); }
+  .headline:focus::placeholder { color: var(--color-disabled); }
+  @supports not (field-sizing: content) {
+    .headline { inline-size: 100%; }
+    .editor-write .headline { inline-size: auto; }
+  }
+
+  /* Buttons as prose. A hint-action is a hidden affordance: italic,
+     stone, a hairline under it, darkening under the pointer. A mark is
+     an icon button in vermilion that its row reveals. Every button here
+     sheds the typeset rule and arrow the site gives a button. */
+  .editor button.hint-action, .editor .mark, .editor .date-button, .editor .note-button, .editor .note-option,
+  .editor .date-nav, .editor .date-day, .editor .link-word, .editor .chip, .editor .tile-remove, .editor .photo-add,
+  .editor button.photo-empty, .editor .confirm-yes, .editor .confirm-no, .photo-detail button {
+    position: static; display: inline; font: inherit; font-style: normal; letter-spacing: 0; line-height: inherit;
+    color: inherit; background: none; border: 0; border-radius: 0; padding: 0; margin: 0; box-shadow: none;
+    cursor: pointer; text-align: start;
+  }
+  .editor button.hint-action::after, .editor .mark::after, .editor .date-button::after, .editor .note-button::after,
+  .editor .note-option::after, .editor .date-nav::after, .editor .date-day::after, .editor .link-word::after,
+  .editor .chip::after, .editor .tile-remove::after, .editor .photo-add::after, .editor button.photo-empty::after,
+  .editor .confirm-yes::after, .editor .confirm-no::after, .photo-detail button::after,
+  .editor button.hint-action::before, .editor .mark::before, .editor .date-button::before, .editor .note-button::before,
+  .editor .confirm-yes::before, .editor .confirm-no::before { content: none; }
+  .editor button.hint-action:hover, .editor .mark:hover, .editor .date-button:hover, .editor .note-button:hover,
+  .editor .link-word:hover, .editor .chip:hover, .editor .confirm-yes:hover, .editor .confirm-no:hover { box-shadow: none; text-decoration-line: underline; }
+  .hint {
+    margin: 0; font-family: var(--font-serif); font-style: italic; font-size: 0.875rem; line-height: 1.6; color: var(--color-stone);
+  }
+  .hint-action, .editor button.hint-action, .photo-detail button {
+    font-family: var(--font-serif); font-style: italic; color: var(--color-stone);
+    text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em; text-decoration-color: var(--color-hairline);
+    transition: color var(--ease), text-decoration-color var(--ease);
+  }
+  .hint-action:hover, .editor button.hint-action:hover, .photo-detail button:hover { color: var(--color-ink-soft); text-decoration-color: var(--color-ink-soft); }
+  .editor button.hint-action.danger:hover, .photo-detail button.danger:hover { color: var(--color-vermilion); text-decoration-color: var(--color-vermilion); }
+  .editor .mark {
+    display: inline-flex; align-items: center; padding: 4px; color: var(--color-vermilion); opacity: 0;
+    transition: opacity 150ms ease-out; vertical-align: middle;
+  }
+  .editor .mark svg { display: block; }
+  .title-row:hover .mark, .place-line:hover .mark, .editor .mark:focus-visible { opacity: 0.7; }
+  .editor .mark:hover { opacity: 1; }
+  @media (hover: none) { .editor .mark { opacity: 0.7; } }
+  /* A word on a hairline that the pointer turns vermilion: the date, the
+     meal, the price, a link's label, a tag. */
+  .editor .date-button, .editor .note-button, .editor .link-word, .editor .chip {
+    color: var(--color-ink);
+    text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em; text-decoration-color: var(--color-hairline);
+    transition: color var(--ease), text-decoration-color var(--ease);
+  }
+  .editor .date-button:hover, .editor .note-button:hover, .editor .link-word:hover { color: var(--color-vermilion); text-decoration-color: var(--color-vermilion); }
+  .editor .date-button.unset, .editor .note-button.unset { color: var(--color-stone); }
+  .editor .note-button { font-variant-numeric: tabular-nums; }
+  /* A tag struck through under the pointer takes itself out. */
+  .editor .chip:hover { color: var(--color-vermilion); text-decoration-line: line-through; text-decoration-color: var(--color-vermilion); }
+
+  /* Popovers: small paper cards under their word, one at a time. */
+  .editor .paper, .photo-detail {
+    background: var(--color-paper-bright); border: var(--rule-ink); box-shadow: var(--menu-shadow);
+  }
+  .editor .popover { position: absolute; inset-block-start: 100%; margin-block-start: 8px; z-index: 20; }
+
+  /* ---- Screen 1: choose the place ---- */
+  .editor-choosing { display: flex; flex-direction: column; }
+  .editor-choosing .place-head { position: relative; }
+  .editor-choosing .headline { display: block; inline-size: 100%; min-inline-size: 0; }
+  .editor-choosing .place-line { margin-block-start: var(--space-xs); }
+  .editor-choosing .combobox-list {
+    position: absolute; inset-block-start: 100%; inset-inline: 0; margin: 8px 0 0; z-index: 20;
+  }
+  .editor-choosing .combobox-option { padding: 9px 16px; gap: var(--space-xs) var(--space-s); }
+  .editor-choosing .combobox-label { font-size: 1.0625rem; }
+  .editor-choosing .start-writing { margin-block-start: 3rem; }
+
+  /* ---- Screen 2: edit a write-up ---- */
+  .title-row { display: flex; align-items: center; gap: var(--space-sm); min-inline-size: 0; }
+  .title-row .headline { min-inline-size: 0; }
+  .editor-write .place-line { margin-block-start: var(--space-xs); }
+  .place-line .mark { margin-inline-start: var(--space-s); vertical-align: -2px; padding: 0; }
+  .visit-row {
+    margin-block-start: var(--space-l);
+    display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-s) 2rem;
+  }
+  .date-line { flex: none; }
+  .date-field { position: relative; display: inline; }
+  .date-field input[type="date"] { display: inline-block; inline-size: auto; padding: 0; box-shadow: inset 0 -1px var(--color-hairline); }
+  .date-field input[type="date"]:hover { box-shadow: inset 0 -1px var(--color-ink); }
+  .date-field input[type="date"]:focus-visible { box-shadow: inset 0 -1px var(--color-vermilion); }
+  .date-popover { inset-inline-start: 0; inline-size: 266px; padding: 14px; }
+  .date-head { display: flex; align-items: baseline; justify-content: space-between; margin-block-end: 10px; }
+  .editor .date-nav { padding: 2px 6px; font-size: 0.9375rem; color: var(--color-ink-soft); }
+  .editor .date-nav:hover { color: var(--color-vermilion); }
+  .date-month { font-style: italic; font-size: 0.9375rem; color: var(--color-ink); }
+  .date-grid { display: grid; grid-template-columns: repeat(7, 34px); gap: 1px; justify-content: center; }
+  .date-dow { display: block; text-align: center; font-style: italic; font-size: 0.75rem; color: var(--color-stone); padding-block-end: 4px; }
+  .editor .date-day, .date-blank {
+    display: block; inline-size: 34px; block-size: 32px; text-align: center;
+    font-size: 0.875rem; line-height: 32px; color: var(--color-ink);
+    transition: background-color var(--ease);
+  }
+  .editor .date-day:hover { background: var(--color-recessed); }
+  .editor .date-day.today { text-decoration: underline; text-underline-offset: 0.14em; text-decoration-color: var(--color-vermilion); }
+  .editor .date-day.selected, .editor .date-day.selected:hover { background: var(--color-ink); color: var(--color-ink-fg); }
+  /* Filed under: right-aligned, the tags as words with commas, the
+     blank taking the next one. */
+  .tags-line { flex: 1 1 280px; text-align: end; }
+  .tags-sentence { margin: 0; font-size: 1.0625rem; line-height: 1.55; color: var(--color-ink); }
+  .tags-sentence > label { font-style: italic; color: var(--color-ink-soft); }
+  .tag-field, .tag-chips { display: inline; }
+  .editor .chip { font: inherit; }
+  .tag-field input { min-inline-size: 3ch; }
+  .tag-field input:focus-visible { text-decoration-color: var(--color-ink); }
+  @supports not (field-sizing: content) { .tag-field input { inline-size: 8ch; } }
+  .field-invalid .tag-field input { text-decoration-color: var(--color-vermilion); }
+
+  /* The digest: the write-up under its kicker, on the bright surface
+     inside an ink rule that goes vermilion while it is being written. */
+  .digest { margin-block-start: var(--space-l); }
+  .digest > .kicker, .photos-block > .kicker { color: var(--color-ink-soft); margin-block-end: var(--space-xs); }
+  .photos-block > .kicker { margin-block-end: var(--space-s); }
+  .editor-body {
+    display: block; inline-size: 100%; min-block-size: 24rem; resize: vertical;
+    padding: 16px 18px; background: var(--color-paper-bright); border: var(--rule-ink); box-shadow: none;
+    font-size: var(--text-prose); line-height: 1.6; color: var(--color-ink);
+  }
+  .editor-body:hover { box-shadow: none; }
+  .editor-body:focus-visible { box-shadow: none; border-color: var(--color-vermilion); }
+  .digest-editor {
+    inline-size: 100%; min-block-size: 24rem; padding: 16px 18px; cursor: text;
+    background: var(--color-paper-bright); border: var(--rule-ink);
+    font-size: var(--text-prose); line-height: 1.6; color: var(--color-ink);
+    transition: border-color 150ms ease-out;
+  }
+  .digest-editor.active { border-color: var(--color-vermilion); }
+  .digest-editor:focus-visible { outline: var(--focus-ring); outline-offset: 3px; }
+  .md-line { white-space: pre-wrap; overflow-wrap: break-word; outline: none; min-block-size: 1.6em; caret-color: var(--color-vermilion); }
+  .md-h1 { font-size: 1.5625rem; font-weight: 500; line-height: 1.3; }
+  .md-h1.md-after { padding-block-start: 8px; }
+  .md-h2 { font-size: 1.25rem; font-weight: 500; line-height: 1.4; }
+  .md-h2.md-after { padding-block-start: 6px; }
+  .md-h3 { font-weight: 600; }
+  .md-li, .md-ol { padding-inline-start: 20px; text-indent: -20px; }
+  .md-q { border-inline-start: 2px solid var(--color-hairline); padding-inline-start: 14px; font-style: italic; color: var(--color-ink-soft); }
+  .md-tok { color: var(--color-disabled); }
+  .md-bullet { color: var(--color-vermilion); }
+  .md-line strong { font-weight: 600; }
+  .md-code { font-family: var(--font-mono); font-size: 0.8125rem; background: var(--color-recessed); padding: 1px 4px; }
+  .md-link { color: var(--color-vermilion); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em; }
+
+  /* The teaser: one folded line while the first lines stand in. */
+  .teaser { margin-block-start: var(--space-l); }
+  .teaser > summary { list-style: none; cursor: pointer; }
+  .teaser > summary::-webkit-details-marker { display: none; }
+  .teaser[open] > summary { display: none; }
+  .teaser > summary .hint-action:hover { color: var(--color-ink-soft); text-decoration-color: var(--color-ink-soft); }
+  .teaser-hint { margin-block-end: var(--space-xs); }
+  .teaser-text {
+    display: block; inline-size: 100%; padding: 0; background: transparent; border: 0; box-shadow: none; resize: none;
+    font-size: 0.9375rem; line-height: 1.6; color: var(--color-ink);
+  }
+  .teaser-text:hover, .teaser-text:focus-visible { box-shadow: none; }
+  .teaser-text::placeholder { font-style: normal; color: var(--color-stone); }
+  .teaser-note { margin-block-start: 6px; font-size: 0.8125rem; }
+
+  /* The rating and the notes on one line. */
+  .verdict-row {
+    margin-block-start: 2rem;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-m) 2rem;
+  }
+  .rating-control { display: flex; align-items: center; gap: 14px; border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+  .rating-control input[type="radio"] {
+    position: absolute; inline-size: 1px; block-size: 1px; margin: 0; opacity: 0; pointer-events: none; border: 0;
+  }
+  .rating-clear {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    inline-size: 22px; block-size: 22px; border: 1px solid var(--color-disabled); color: var(--color-stone);
+    cursor: pointer; transition: border-color 150ms ease-out;
+  }
+  .rating-clear:hover { border-color: var(--color-stone); }
+  .rating-clear svg { display: block; }
+  .pluses { display: flex; flex-direction: row-reverse; align-items: center; gap: 10px; }
+  .plus {
+    font-family: var(--font-mono); font-size: 1.625rem; line-height: 1; color: var(--color-disabled);
+    cursor: pointer; user-select: none; transition: color 150ms ease-out;
+  }
+  /* Set in reverse, so the checked step colours every lower one. */
+  .pluses input:checked ~ .plus { color: var(--color-vermilion); }
+  .pluses:hover .plus { color: var(--color-disabled); }
+  .pluses .plus:hover, .pluses .plus:hover ~ .plus { color: var(--color-vermilion); }
+  .rating-control input:focus-visible + label { outline: var(--focus-ring); outline-offset: 3px; }
+  .rating-word {
+    margin-inline-start: 6px; font-family: var(--font-mono); font-size: var(--text-label); letter-spacing: var(--tracking-rating);
+    text-transform: uppercase; white-space: nowrap; transition: color 150ms ease-out;
+  }
+  .rating-word .word { display: none; }
+  .word-0 { color: var(--color-stone); }
+  .word-1, .word-2, .word-3, .word-4 { color: var(--color-vermilion); }
+  .rating-control:has(.r0:checked) .word-0, .rating-control:has(.r1:checked) .word-1, .rating-control:has(.r2:checked) .word-2,
+  .rating-control:has(.r3:checked) .word-3, .rating-control:has(.r4:checked) .word-4 { display: inline; }
+  .rating-control:has(.plus:hover) .word { display: none; }
+  .rating-control:has(.plus-1:hover) .word-1, .rating-control:has(.plus-2:hover) .word-2,
+  .rating-control:has(.plus-3:hover) .word-3, .rating-control:has(.plus-4:hover) .word-4 { display: inline; }
+  .notes-row { display: flex; align-items: baseline; gap: 28px; }
+  .note-field { position: relative; display: inline-block; }
+  .note-field .select-rule { display: inline-block; font-size: 1.0625rem; }
+  .note-field select { padding-block: 0; box-shadow: inset 0 -1px var(--color-hairline); }
+  .note-field select:hover { box-shadow: inset 0 -1px var(--color-ink); }
+  .note-field select:focus-visible { box-shadow: inset 0 -1px var(--color-vermilion); }
+  .note-popover { inset-inline-end: 0; min-inline-size: 124px; padding: 10px 16px; }
+  .note-field[data-note="price"] .note-popover { min-inline-size: 88px; }
+  .editor .note-option {
+    display: block; inline-size: 100%; font-size: 0.9375rem; line-height: 1.9; color: var(--color-stone); white-space: nowrap;
+    transition: color var(--ease);
+  }
+  .editor .note-option:hover { color: var(--color-ink); }
+  .editor .note-option.selected { color: var(--color-ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em; }
+  .editor .note-option.note-clear { font-style: italic; font-size: 0.8125rem; }
+
+  /* Photos: four square tiles to a row, the first the cover, an add
+     tile last; or one dashed box that is the invitation. */
+  .photos-block { margin-block-start: 2rem; }
+  .photo-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .photo-tiles.empty { display: block; }
+  .photo-tiles.busy { opacity: 0.6; pointer-events: none; }
+  .photo-tile {
+    position: relative; margin: 0; aspect-ratio: 1; background: var(--color-recessed); cursor: grab;
+    transition: opacity 150ms ease-out;
+  }
+  .photo-tile img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; pointer-events: none; }
+  .photo-tile.dragging { opacity: 0.35; outline: 1px dashed var(--color-vermilion); }
+  .photo-tile:focus-visible { outline: var(--focus-ring); outline-offset: 3px; }
+  .cover-badge {
+    position: absolute; inset-inline-start: 6px; inset-block-end: 6px; padding: 2px 6px;
+    font-family: var(--font-mono); font-size: 0.5625rem; letter-spacing: 0.12em; text-transform: uppercase;
+    background: var(--color-ink); color: var(--color-ink-fg);
+  }
+  .editor .tile-remove {
+    position: absolute; inset-block-start: 6px; inset-inline-end: 6px; inline-size: 22px; block-size: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--color-paper-bright); border: var(--rule-ink); color: var(--color-vermilion);
+    opacity: 0; transition: opacity 150ms ease-out;
+  }
+  .editor .tile-remove svg { display: block; }
+  .photo-tile:hover .tile-remove, .photo-tile:focus-within .tile-remove, .editor .tile-remove:focus-visible { opacity: 1; }
+  @media (hover: none) { .editor .tile-remove { opacity: 1; } }
+  .editor .photo-add {
+    display: flex; align-items: center; justify-content: center; aspect-ratio: 1;
+    border: 1px dashed var(--color-disabled); color: var(--color-stone); text-decoration: none;
+    font-family: var(--font-mono); font-size: 1.5rem; line-height: 1;
+    transition: border-color 150ms ease-out, color 150ms ease-out;
+  }
+  .editor .photo-add:hover { border-color: var(--color-stone); color: var(--color-ink); text-decoration: none; }
+  .editor .photo-empty, .editor button.photo-empty {
+    display: block; inline-size: 100%; padding: 28px 24px; text-align: center;
+    border: 1px dashed var(--color-disabled); text-decoration: none;
+    font-family: var(--font-serif); font-style: italic; font-size: 0.9375rem; line-height: 1.55; color: var(--color-stone);
+    transition: border-color 150ms ease-out, color 150ms ease-out; cursor: pointer;
+  }
+  .editor .photo-empty:hover, .editor button.photo-empty:hover { border-color: var(--color-stone); color: var(--color-vermilion); text-decoration: none; }
+  .editor .photo-empty-hover { display: none; }
+  .editor .photo-empty:hover .photo-empty-idle { display: none; }
+  .editor .photo-empty:hover .photo-empty-hover { display: inline; }
+  .editor .photo-later { cursor: default; color: var(--color-stone); }
+  .editor .photo-later:hover { border-color: var(--color-disabled); color: var(--color-stone); }
+  .photo-hint { margin-block-start: var(--space-s); font-size: 0.8125rem; }
+  .photo-hint a { color: var(--color-stone); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em; text-decoration-color: var(--color-hairline); }
+  .photo-hint a:hover { color: var(--color-ink-soft); }
+  /* One photo, large, over a scrim. */
+  .photo-scrim {
+    position: fixed; inset: 0; z-index: 30; padding: 32px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in oklab, var(--color-ink) 35%, transparent);
+  }
+  body.has-scrim { overflow: hidden; }
+  .photo-detail { inline-size: 100%; max-inline-size: 560px; padding: 18px; box-shadow: 6px 6px 0 color-mix(in oklab, var(--color-ink) 20%, transparent); }
+  .photo-detail img { inline-size: 100%; max-block-size: 440px; object-fit: contain; display: block; background: var(--color-recessed); }
+  .photo-caption {
+    display: block; inline-size: 100%; margin-block-start: 14px; text-align: center; field-sizing: initial;
+    font-size: 1rem; line-height: 1.5;
+  }
+  .photo-detail-foot { display: flex; justify-content: space-between; gap: var(--space-m); margin-block-start: 12px; font-size: 0.8125rem; }
+
+  /* Links: Bluesky at the left, the place's links at the right. */
+  .links-row {
+    margin-block-start: var(--space-xl);
+    display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-m) var(--space-xl);
+  }
+  .bluesky-line { flex: none; }
+  .editor .quiet-link {
+    color: var(--color-ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em; text-decoration-color: var(--color-hairline);
+    transition: color var(--ease), text-decoration-color var(--ease);
+  }
+  .editor .quiet-link:hover { color: var(--color-vermilion); text-decoration-color: var(--color-vermilion); }
+  .editor .choice-inline { display: inline-flex; font-size: inherit; line-height: inherit; vertical-align: baseline; }
+  .elsewhere { flex: 1 1 320px; min-inline-size: 0; }
+  .elsewhere-line { text-align: end; }
+  .nowhere { font-style: italic; color: var(--color-stone); }
+  .add-link-slot { font-size: 0.875rem; transition: opacity var(--ease); }
+  .elsewhere.has-links .add-link-slot { opacity: 0; }
+  .elsewhere:hover .add-link-slot, .elsewhere:focus-within .add-link-slot { opacity: 1; }
+  @media (hover: none) { .elsewhere.has-links .add-link-slot { opacity: 1; } }
+  .editor button.add-link { font-size: 0.875rem; }
+  .link-cards { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-sm); }
+  .link-card { margin-block-start: var(--space-sm); inline-size: 100%; max-inline-size: 420px; padding: 16px 18px; text-align: start; }
+  .link-card .prose-line { font-size: 0.9375rem; line-height: 1.6; }
+  .link-card .prose-line + .prose-line { margin-block-start: 6px; }
+  .link-card .soft { margin-inline-end: 5px; }
+  .link-card .inline-field input { min-inline-size: 6ch; }
+  .link-card input[type="url"] { min-inline-size: 8ch; }
+  .editor .open-link { display: inline-block; vertical-align: -2.5px; margin-inline-start: 5px; color: var(--color-stone); transition: color 150ms ease-out; }
+  .editor .open-link:hover { color: var(--color-vermilion); }
+  .editor .open-link svg { display: block; }
+  .link-card-foot { display: flex; justify-content: space-between; gap: var(--space-m); margin-block-start: 10px; font-size: 0.8125rem; }
+  .link-card-foot > :only-child { margin-inline-start: auto; }
+  .editor .form-error + .link-cards { margin-block-start: 0; }
+  /* With the island on, the cards fold into the sentence. */
+  .editor-write.js-live .link-card[hidden] { display: none; }
+
+  /* Actions: Save changes, then Delete with its confirmation in the
+     same slot. Yes is the one thing on the site in alert red. */
+  .editor-actions { margin-block-start: var(--space-xl); gap: var(--space-s) var(--space-l); }
+  .delete-confirm { display: inline-flex; align-items: baseline; gap: var(--space-m); }
+  .delete-confirm > summary { list-style: none; display: inline-block; }
+  .delete-confirm > summary::-webkit-details-marker { display: none; }
+  .delete-confirm .del-ask { display: none; }
+  .delete-confirm[open] > summary { box-shadow: none; color: var(--color-ink-soft); cursor: pointer; }
+  .delete-confirm[open] > summary:hover { box-shadow: none; }
+  .delete-confirm[open] .del-idle { display: none; }
+  .delete-confirm[open] .del-ask { display: inline; }
+  .del-choice { display: none; }
+  .delete-confirm[open] .del-choice { display: inline-flex; align-items: baseline; gap: var(--space-m); }
+  .editor .confirm-yes, .editor .confirm-no {
+    font-family: var(--font-serif); font-style: italic; font-size: 1.0625rem; letter-spacing: 0.06em; line-height: 1.2;
+    color: var(--color-ink); box-shadow: inset 0 -1px var(--color-ink);
+    transition: box-shadow var(--ease);
+  }
+  .editor .confirm-yes:hover, .editor .confirm-no:hover { box-shadow: inset 0 -2px var(--color-ink); text-decoration: none; }
+  .editor .confirm-yes { color: var(--color-alert); box-shadow: inset 0 -1px var(--color-alert); }
+  .editor .confirm-yes:hover { box-shadow: inset 0 -2px var(--color-alert); }
+
+  /* Under 36rem the two-ended rows stack, both ends at the left. */
+  @media (max-width: 36rem) {
+    .visit-row, .verdict-row, .links-row { flex-direction: column; align-items: flex-start; }
+    .tags-line, .elsewhere { flex: none; inline-size: 100%; }
+    .tags-line, .elsewhere-line { text-align: start; }
+    .link-cards { align-items: flex-start; }
+    .photo-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .headline { font-size: 1.75rem; }
+  }
+
+  /* The photos page (plan 07): each photo a row with its thumbnail,
+     alt text, and the move and remove actions, then the file input. It
+     stays the way photos are managed without script. */
   .photos-form { max-inline-size: var(--column); }
   .photos-form > * + * { margin-block-start: var(--space-l); }
   .photo-row { display: flex; gap: var(--card-gap); align-items: flex-start; }

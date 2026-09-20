@@ -280,6 +280,38 @@ impl AppState {
         }
     }
 
+    /// One of the author's own blobs at `size`, cached, for the editor's
+    /// tiles (D37 amended); `None` when the repository has no such blob
+    /// or it is not an image. Only reached signed in, for the caller's
+    /// own repository.
+    pub async fn own_photo_rendition(
+        &self,
+        identity: &eaten_at_atproto::identity::Identity,
+        cid: &str,
+        size: PhotoSize,
+    ) -> Option<Rendition> {
+        let key = format!("{}/own/{}/{}", identity.did, cid, size.as_str());
+        let build = || async {
+            let url = self.repo_for(identity).blob_url(&identity.did, cid);
+            let image = self.fetch_and_decode(url).await?;
+            tokio::task::spawn_blocking(move || encode_photo(&image, size))
+                .await
+                .ok()
+                .and_then(Result::ok)
+        };
+        let cached = self
+            .cache()
+            .get_or_fetch_bytes::<AppError, _, _>(Namespace::Image, &key, || async {
+                Ok(build().await)
+            })
+            .await;
+        match cached {
+            Ok(Some(jpeg)) => Some(Rendition { jpeg }),
+            Ok(None) => None,
+            Err(_) => build().await.map(|jpeg| Rendition { jpeg }),
+        }
+    }
+
     /// Download and decode an image, or `None` with a log line for any
     /// reason at all: this is a fallback chain, not an error path.
     async fn fetch_and_decode(&self, url: Url) -> Option<DynamicImage> {

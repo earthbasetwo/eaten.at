@@ -2,9 +2,10 @@
 //! with its delete and crosspost pages.
 //!
 //! Every submission comes back as the same page: a structural action
-//! (add or remove a row) re-renders the form; a preview validates it and
-//! shows the draft above the form with any problems beside their fields;
-//! publish writes the records and, when asked, posts to Bluesky.
+//! (add or remove a row, change the place) re-renders the form with
+//! everything typed kept; publish validates it, showing any problems
+//! beside their fields, then writes the records and, when asked, posts
+//! to Bluesky.
 
 use axum::extract::rejection::FormRejection;
 use axum::extract::{Path, Query, State};
@@ -14,14 +15,17 @@ use axum::Form;
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::at_eaten::Preferences;
-use eaten_at_web::assets::{COMBOBOX_SCRIPT, EDITOR_SCRIPT, PLACE_SUGGEST_SCRIPT, TAGS_SCRIPT};
+use eaten_at_web::assets::{
+    CHOOSE_PLACE_SCRIPT, COMBOBOX_SCRIPT, DIGEST_SCRIPT, EDITOR_SCRIPT, PHOTOS_SCRIPT, TAGS_SCRIPT,
+    WRITE_SCRIPT,
+};
 use eaten_at_web::layout::{self, urlencoding, Page};
 use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::auth::{PostPermission, RequireUser};
 use crate::editor::view::{
-    self, CrosspostPage, CrosspostState, DeletePage, DeletePost, EditorPage, Located, SearchState,
+    self, CrosspostPage, CrosspostState, DeletePage, DeletePost, EditorPage, Located,
 };
 use crate::editor::{self, Action, Context, EditorForm, FieldErrors, PlaceMode};
 use crate::error::AppError;
@@ -35,8 +39,7 @@ use crate::state::AppState;
 
 /// Suggestion requests one session may make per minute (plan 12, D45).
 pub const SUGGESTS_PER_MINUTE: u32 = 30;
-/// Suggestions the listbox shows; the results page shows the search's
-/// full ten.
+/// Suggestions the listbox shows, of the search's ten.
 const SUGGEST_LIMIT: usize = 6;
 
 /// Who is writing. The publication is not part of it: every write-up
@@ -115,9 +118,11 @@ async fn editing(state: &AppState, author: &Author, rkey: &str) -> Result<Editin
 #[derive(Default)]
 struct Outcome<'a> {
     errors: FieldErrors,
-    preview: Option<maud::Markup>,
     publish_error: Option<&'a str>,
-    search: SearchState,
+    /// Why a picked suggestion could not be taken.
+    pick_error: Option<&'a str>,
+    /// Where the choosing screen's suggestions would look; unknown
+    /// means none are offered.
     located: Located,
 }
 
@@ -137,18 +142,21 @@ fn render(
             None if author.posting.create => CrosspostState::Ready,
             None => CrosspostState::NeedsPermission,
         };
-    // The write-up's title while editing; the place's name for a new one
-    // once there is a place.
-    let heading = editing
-        .map(|e| e.visit_doc.document().title.as_str())
-        .or_else(|| Some(form.place_name.trim()).filter(|name| !name.is_empty()));
-    // The choosing state suggests places; the writing state keeps a
-    // draft, grows its textareas, and files tags as chips. Each ships
-    // only its own islands.
+    let photos_page = editing.map(|e| format!("/write/{}/photos", e.rkey));
+    // The choosing screen suggests places; the editing screen keeps a
+    // draft, dresses its controls, edits the markdown live, files tags
+    // as chips, and manages photos in place. Each ships only its own
+    // islands.
     let scripts = if form.place_mode == PlaceMode::Choosing {
-        vec![COMBOBOX_SCRIPT, PLACE_SUGGEST_SCRIPT]
+        vec![COMBOBOX_SCRIPT, CHOOSE_PLACE_SCRIPT]
     } else {
-        vec![EDITOR_SCRIPT, TAGS_SCRIPT]
+        vec![
+            EDITOR_SCRIPT,
+            WRITE_SCRIPT,
+            DIGEST_SCRIPT,
+            TAGS_SCRIPT,
+            PHOTOS_SCRIPT,
+        ]
     };
     let page = layout::render(&Page {
         title: &[if editing.is_some() { "Edit" } else { "Write" }],
@@ -159,14 +167,11 @@ fn render(
             errors: &outcome.errors,
             action_path: &action_path,
             editing: editing.is_some(),
-            heading,
-            preview: outcome.preview.clone(),
             publish_error: outcome.publish_error,
+            pick_error: outcome.pick_error,
             crosspost,
-            search_enabled: state.places_enabled(),
-            geoip: state.geoip().enabled(),
-            search: outcome.search.clone(),
-            located: outcome.located.clone(),
+            suggesting: state.places_enabled() && outcome.located != Located::Unknown,
+            photos_page: photos_page.as_deref(),
         }),
         ..Page::default()
     });
@@ -259,13 +264,14 @@ async fn submit(
     let Form(pairs) =
         form.map_err(|e| AppError::BadRequest(format!("could not read the form: {e}")))?;
     let (mut form, action) = EditorForm::from_pairs(pairs);
-    let action = action.unwrap_or(Action::Preview);
+    // A submission that names no button (Return in a field, a form sent
+    // by hand) only comes back as it is.
+    let action = action.unwrap_or(Action::Keep);
     match action {
-        Action::Search => return Ok(search(state, nonce, author, editing, ip, form).await),
         Action::Pick(index) => {
             return Ok(pick(state, nonce, author, editing, ip, form, index).await)
         }
-        Action::Preview | Action::Publish => {}
+        Action::Publish => {}
         Action::Manual if form.place_name.trim().is_empty() => {
             // The one error the choosing page can show: a place by hand
             // needs a name.
@@ -328,20 +334,6 @@ async fn submit(
             ))
         }
     };
-    if action == Action::Preview {
-        return Ok(render(
-            state,
-            nonce,
-            StatusCode::OK,
-            author,
-            editing,
-            &form,
-            &Outcome {
-                preview: Some(view::preview(&draft)),
-                ..Outcome::default()
-            },
-        ));
-    }
     publish_and_continue(state, nonce, author, editing, &form, &draft).await
 }
 
@@ -364,15 +356,7 @@ async fn publish_and_continue(
     {
         Ok(published) => {
             let document_path = published.document_path();
-            Ok(after_publish(
-                state,
-                author,
-                &published.doc_rkey,
-                &document_path,
-                draft,
-                editing.is_none(),
-            )
-            .await)
+            Ok(after_publish(state, author, &published.doc_rkey, &document_path, draft).await)
         }
         Err(PublishError::SessionExpired) => {
             Ok(Redirect::to("/login?return_to=/write").into_response())
@@ -440,40 +424,8 @@ async fn last_visit_point(state: &AppState, identity: &Identity) -> Option<Point
         })
 }
 
-/// `action=search`: show what Open Places finds near the point.
-async fn search(
-    state: &AppState,
-    nonce: &str,
-    author: &Author,
-    editing: Option<&Editing>,
-    ip: ClientIp,
-    form: EditorForm,
-) -> Response {
-    let (point, located) = locate(state, &author.identity, ip).await;
-    let search = match point {
-        None => SearchState::NoPoint,
-        Some(point) => match state.search_places(&form.place_query, point).await {
-            Ok(hits) => SearchState::Results(hits),
-            Err(err) => SearchState::Failed(err.to_string()),
-        },
-    };
-    render(
-        state,
-        nonce,
-        StatusCode::OK,
-        author,
-        editing,
-        &form,
-        &Outcome {
-            search,
-            located,
-            ..Outcome::default()
-        },
-    )
-}
-
-/// `action=pick:N`: take the Nth result of the same search (a cache hit)
-/// as the place and move on to writing.
+/// `action=pick:N`: take the Nth result of the suggestion search the
+/// browser showed (a cache hit) as the place and move on to writing.
 async fn pick(
     state: &AppState,
     nonce: &str,
@@ -498,7 +450,7 @@ async fn pick(
             Outcome::default()
         }
         None => Outcome {
-            search: SearchState::Failed("That result is gone. Search again.".to_owned()),
+            pick_error: Some("That suggestion is gone; pick it again, or keep what you typed."),
             located,
             ..Outcome::default()
         },
@@ -521,12 +473,14 @@ pub struct SuggestQuery {
 }
 
 /// One place the listbox offers: its index into the same cached search
-/// a pick re-reads, and what to show.
+/// a pick re-reads, what to show, and the address the pick fills in.
 #[derive(Debug, Serialize)]
 struct Suggestion {
     i: usize,
     name: String,
     detail: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    address: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -540,9 +494,8 @@ struct Suggestions {
 }
 
 /// `GET /write/suggest?q=…` — places called `q` near the request, for
-/// the choosing state's combobox (plan 12, D45). The same search the
-/// page's Search button runs and a pick re-reads, so a suggestion's
-/// index is a pick's index. Signed-in only, and no more than
+/// the choosing screen's suggestions (plan 12, D45). The same search a
+/// pick re-reads, so a suggestion's index is a pick's index. Signed-in only, and no more than
 /// [`SUGGESTS_PER_MINUTE`] a minute per author, since every uncached
 /// call spends Open Places quota.
 pub async fn suggest(
@@ -595,6 +548,7 @@ pub async fn suggest(
                             Some(address) => format!("{address} · {:.1} mi", hit.distance_mi),
                             None => format!("{:.1} mi", hit.distance_mi),
                         },
+                        address: hit.address.clone(),
                     })
                     .collect(),
                 error: None,
@@ -611,15 +565,13 @@ pub async fn suggest(
 /// The document is published; now the Bluesky side (plan §5.7). With
 /// the toggle on: post inline when the session may, else hand over to
 /// the crosspost page, which asks for permission. A refused post lands
-/// on the same page with the text kept, to retry or skip. A first
-/// publish stops at the photos page on the way (plan 07).
+/// on the same page with the text kept, to retry or skip.
 async fn after_publish(
     state: &AppState,
     author: &Author,
     rkey: &str,
     document_path: &str,
     draft: &editor::DocumentDraft,
-    is_new: bool,
 ) -> Response {
     let next = match &draft.crosspost {
         None => document_path.to_owned(),
@@ -636,15 +588,7 @@ async fn after_publish(
             }
         },
     };
-    if is_new {
-        return Redirect::to(&photos_first(rkey, &next)).into_response();
-    }
     Redirect::to(&next).into_response()
-}
-
-/// The photos page for a fresh write-up, and where it continues to.
-fn photos_first(rkey: &str, then: &str) -> String {
-    format!("/write/{rkey}/photos?new=1&then={}", urlencoding(then))
 }
 
 #[derive(Debug, Deserialize)]

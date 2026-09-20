@@ -37,7 +37,7 @@ impl fmt::Debug for Upload {
 }
 
 /// What the submit button asked for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhotosAction {
     /// Upload the chosen files and append them.
     Add,
@@ -46,6 +46,10 @@ pub enum PhotosAction {
     Remove(usize),
     Up(usize),
     Down(usize),
+    /// The photos in a new order, as the indexes of the current list:
+    /// what a drag in the editor sends. Anything but a permutation of
+    /// the list changes nothing.
+    Order(Vec<usize>),
 }
 
 impl PhotosAction {
@@ -54,8 +58,15 @@ impl PhotosAction {
             "add" => Some(Self::Add),
             "save" => Some(Self::Save),
             other => {
-                let (kind, index) = other.split_once(':')?;
-                let index = index.parse().ok()?;
+                let (kind, rest) = other.split_once(':')?;
+                if kind == "order" {
+                    return rest
+                        .split(',')
+                        .map(|i| i.trim().parse().ok())
+                        .collect::<Option<Vec<usize>>>()
+                        .map(Self::Order);
+                }
+                let index = rest.parse().ok()?;
                 match kind {
                     "remove" => Some(Self::Remove(index)),
                     "up" => Some(Self::Up(index)),
@@ -66,13 +77,21 @@ impl PhotosAction {
         }
     }
 
-    pub fn value(self) -> String {
+    pub fn value(&self) -> String {
         match self {
             Self::Add => "add".to_owned(),
             Self::Save => "save".to_owned(),
             Self::Remove(i) => format!("remove:{i}"),
             Self::Up(i) => format!("up:{i}"),
             Self::Down(i) => format!("down:{i}"),
+            Self::Order(order) => format!(
+                "order:{}",
+                order
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
         }
     }
 }
@@ -160,17 +179,37 @@ pub fn with_alts(mut photos: Vec<Photo>, alts: &[String]) -> Result<Vec<Photo>, 
     Ok(photos)
 }
 
-/// Reorder or drop one photo. An index past the end changes nothing.
-pub fn rearranged(mut photos: Vec<Photo>, action: PhotosAction) -> Vec<Photo> {
+/// Reorder or drop one photo, or reorder them all. An index past the
+/// end, or an order that is not a permutation of the list, changes
+/// nothing.
+pub fn rearranged(mut photos: Vec<Photo>, action: &PhotosAction) -> Vec<Photo> {
     match action {
-        PhotosAction::Remove(i) if i < photos.len() => {
-            photos.remove(i);
+        PhotosAction::Remove(i) if *i < photos.len() => {
+            photos.remove(*i);
         }
-        PhotosAction::Up(i) if i > 0 && i < photos.len() => photos.swap(i - 1, i),
-        PhotosAction::Down(i) if i + 1 < photos.len() => photos.swap(i, i + 1),
+        PhotosAction::Up(i) if *i > 0 && *i < photos.len() => photos.swap(i - 1, *i),
+        PhotosAction::Down(i) if i + 1 < photos.len() => photos.swap(*i, i + 1),
+        PhotosAction::Order(order) if is_permutation(order, photos.len()) => {
+            photos = order.iter().map(|&i| photos[i].clone()).collect();
+        }
         _ => {}
     }
     photos
+}
+
+/// Whether `order` names each of `0..len` exactly once.
+fn is_permutation(order: &[usize], len: usize) -> bool {
+    if order.len() != len {
+        return false;
+    }
+    let mut seen = vec![false; len];
+    for &i in order {
+        if i >= len || seen[i] {
+            return false;
+        }
+        seen[i] = true;
+    }
+    true
 }
 
 /// One photo as the page manages it.
@@ -303,28 +342,38 @@ mod tests {
             PhotosAction::Remove(2),
             PhotosAction::Up(1),
             PhotosAction::Down(0),
+            PhotosAction::Order(vec![2, 0, 1]),
         ] {
             assert_eq!(PhotosAction::parse(&action.value()), Some(action));
         }
         assert_eq!(PhotosAction::parse("up:x"), None);
         assert_eq!(PhotosAction::parse("sideways:1"), None);
         assert_eq!(PhotosAction::parse("publish"), None);
+        assert_eq!(PhotosAction::parse("order:1,x"), None);
+        assert_eq!(
+            PhotosAction::parse("order: 1, 0"),
+            Some(PhotosAction::Order(vec![1, 0]))
+        );
     }
 
     #[test]
     fn rearranging_moves_or_drops_one_and_ignores_bad_indexes() {
         let three = || vec![photo("a"), photo("b"), photo("c")];
         assert_eq!(
-            cids(&rearranged(three(), PhotosAction::Remove(1))),
+            cids(&rearranged(three(), &PhotosAction::Remove(1))),
             ["a", "c"]
         );
         assert_eq!(
-            cids(&rearranged(three(), PhotosAction::Up(2))),
+            cids(&rearranged(three(), &PhotosAction::Up(2))),
             ["a", "c", "b"]
         );
         assert_eq!(
-            cids(&rearranged(three(), PhotosAction::Down(0))),
+            cids(&rearranged(three(), &PhotosAction::Down(0))),
             ["b", "a", "c"]
+        );
+        assert_eq!(
+            cids(&rearranged(three(), &PhotosAction::Order(vec![2, 0, 1]))),
+            ["c", "a", "b"]
         );
         for action in [
             PhotosAction::Up(0),
@@ -333,14 +382,18 @@ mod tests {
             PhotosAction::Up(9),
             PhotosAction::Add,
             PhotosAction::Save,
+            // Not permutations: a repeat, one short, one past the end.
+            PhotosAction::Order(vec![0, 0, 1]),
+            PhotosAction::Order(vec![1, 0]),
+            PhotosAction::Order(vec![0, 1, 3]),
         ] {
             assert_eq!(
-                cids(&rearranged(three(), action)),
+                cids(&rearranged(three(), &action)),
                 ["a", "b", "c"],
                 "{action:?}"
             );
         }
-        assert!(rearranged(Vec::new(), PhotosAction::Remove(0)).is_empty());
+        assert!(rearranged(Vec::new(), &PhotosAction::Remove(0)).is_empty());
     }
 
     #[test]

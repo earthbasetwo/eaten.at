@@ -43,13 +43,16 @@ fn routes(state: AppState) -> Router {
             "/write/{rkey}/crosspost",
             get(write::crosspost_form).post(write::crosspost_submit),
         )
+        .route("/write/photo/{cid}", get(photos::own_photo))
         .layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES));
-    // The photos page takes files, so its body cap is its own.
+    // The photos page and the editor's upload take files, so their body
+    // cap is their own.
     let photos = Router::new()
         .route(
             "/write/{rkey}/photos",
             get(photos::photos_form).post(photos::photos_submit),
         )
+        .route("/write/upload", post(photos::upload))
         .layer(DefaultBodyLimit::max(
             crate::editor::photos::MAX_REQUEST_BYTES,
         ));

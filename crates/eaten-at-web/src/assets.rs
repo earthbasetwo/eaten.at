@@ -15,10 +15,24 @@ const CSS_SOURCE: &str = include_str!("../static/app.css");
 /// A convenience on top of a form that works without it (plan §6.3).
 pub const EDITOR_SCRIPT: &str = include_str!("../static/editor.js");
 
-/// Place suggestions in the editor's choosing state (plan 12): the
-/// search box as a combobox over this site's suggest endpoint. Needs
+/// The editor's controls as the Write Pages handoff draws them: the
+/// adaptive title and place line, the calendar, the meal and price
+/// menus, the teaser fold, the link cards, and the inline delete
+/// confirmation. Every one dresses a form control that works without it.
+pub const WRITE_SCRIPT: &str = include_str!("../static/write.js");
+
+/// The live markdown editor over the write-up's textarea: formatting
+/// shown as it is typed, the caret's line showing its raw syntax.
+pub const DIGEST_SCRIPT: &str = include_str!("../static/digest.js");
+
+/// Photos in the editor (plan 07 in place): add, caption, reorder, and
+/// remove through the photos endpoint, without leaving the page.
+pub const PHOTOS_SCRIPT: &str = include_str!("../static/photos.js");
+
+/// Choosing the place (plan 12): suggestions under the place's name as
+/// it is typed, a pick filling the name and address. Needs
 /// [`COMBOBOX_SCRIPT`] before it.
-pub const PLACE_SUGGEST_SCRIPT: &str = include_str!("../static/place-suggest.js");
+pub const CHOOSE_PLACE_SCRIPT: &str = include_str!("../static/choose-place.js");
 
 /// The combobox (plan 10): a listbox under a text field, fed by a source
 /// the page names. Shared by the handle and place suggestions.
@@ -46,10 +60,13 @@ pub const TAGS_SCRIPT: &str = include_str!("../static/tags.js");
 /// Every inline script the site ships, all counted against the tripwire.
 pub const INLINE_SCRIPTS: &[&str] = &[
     EDITOR_SCRIPT,
+    WRITE_SCRIPT,
+    DIGEST_SCRIPT,
+    PHOTOS_SCRIPT,
     TAGS_SCRIPT,
     COMBOBOX_SCRIPT,
     HANDLE_TYPEAHEAD_SCRIPT,
-    PLACE_SUGGEST_SCRIPT,
+    CHOOSE_PLACE_SCRIPT,
     FIND_SCRIPT,
     CONNECT_SCRIPT,
 ];
@@ -58,8 +75,10 @@ pub const INLINE_SCRIPTS: &[&str] = &[
 /// target: the rule is to be judicious, and every page works without
 /// any of it, which each page's no-JS test keeps proving. Crossing this
 /// is the moment to look at how the site feels, not a reason to trim
-/// by itself.
-pub const JS_BUDGET_BYTES: usize = 24 * 1024;
+/// by itself. Raised from 24 KB on 2026-09-20 when the editor's islands
+/// (the live markdown editor, the calendar and menus, photos in place)
+/// landed with the Write Pages handoff.
+pub const JS_BUDGET_BYTES: usize = 72 * 1024;
 
 /// Self-hosted web fonts. Newsreader and the mono face are OFL
 /// (`static/fonts/OFL.txt`), as latin and latin-ext subsets that the
