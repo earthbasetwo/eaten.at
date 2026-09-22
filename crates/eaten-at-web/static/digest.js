@@ -19,6 +19,8 @@
   box.setAttribute("aria-multiline", "true");
   box.setAttribute("aria-labelledby", "body-label");
   box.tabIndex = 0;
+  box.dataset.placeholder = ta.placeholder;
+  box.setAttribute("aria-placeholder", ta.placeholder);
   ta.hidden = true;
   ta.parentNode.insertBefore(box, ta.nextSibling);
 
@@ -88,10 +90,12 @@
       d.innerHTML = lineHtml(text, i === active);
       if (i === active) {
         d.contentEditable = "true";
+        d.tabIndex = -1;
         d.classList.add("md-active");
       }
       box.appendChild(d);
     });
+    box.classList.toggle("digest-empty", lines.join("\n").trim() === "");
     box.classList.toggle("active", active !== null);
     if (active !== null) {
       var el = box.children[active];
@@ -100,6 +104,7 @@
     }
   }
   function sync() {
+    box.classList.toggle("digest-empty", lines.join("\n").trim() === "");
     ta.value = lines.join("\n");
     ta.dispatchEvent(new Event("input", { bubbles: true }));
   }
@@ -166,6 +171,71 @@
     }
     return text.length;
   }
+
+  /* Selection spans the digest, even though only the active line shows
+     source. Map folded DOM offsets back to markdown for the clipboard
+     and replacement; never unfold the other lines just to select them. */
+  function endpoint(node, offset) {
+    if (node === box) {
+      return offset >= lines.length ? { line: lines.length - 1, offset: lines[lines.length - 1].length }
+        : { line: offset, offset: 0 };
+    }
+    var el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    var line = el && el.closest("[data-md]");
+    if (!line || !box.contains(line)) return null;
+    var i = Number(line.dataset.md);
+    var r = document.createRange();
+    r.selectNodeContents(line);
+    r.setEnd(node, offset);
+    var shown = r.toString().length;
+    return { line: i, offset: i === active ? shown : shownToRaw(lines[i], shown) };
+  }
+  function selection() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return null;
+    var r = sel.getRangeAt(0);
+    var start = endpoint(r.startContainer, r.startOffset);
+    var end = endpoint(r.endContainer, r.endOffset);
+    return start && end ? { start: start, end: end } : null;
+  }
+  function selectedText(range) {
+    var part = lines.slice(range.start.line, range.end.line + 1);
+    part[part.length - 1] = part[part.length - 1].slice(0, range.end.offset);
+    part[0] = part[0].slice(range.start.offset);
+    return part.join("\n");
+  }
+  function replaceSelection(text, range) {
+    remember(true);
+    var start = range.start, end = range.end;
+    var left = lines[start.line].slice(0, start.offset);
+    var right = lines[end.line].slice(end.offset);
+    var pieces = split(text);
+    var lastLength = pieces[pieces.length - 1].length;
+    pieces[0] = left + pieces[0];
+    pieces[pieces.length - 1] += right;
+    lines.splice.apply(lines, [start.line, end.line - start.line + 1].concat(pieces));
+    activate(start.line + pieces.length - 1, (pieces.length === 1 ? left.length : 0) + lastLength);
+    lastLine = null;
+    sync();
+  }
+  ["copy", "cut"].forEach(function (type) {
+    box.addEventListener(type, function (e) {
+      var range = selection();
+      if (!range || !e.clipboardData) return;
+      e.preventDefault();
+      e.clipboardData.setData("text/plain", selectedText(range));
+      if (type === "cut") replaceSelection("", range);
+    });
+  });
+  box.addEventListener("beforeinput", function (e) {
+    var range = selection();
+    if (!range || !e.cancelable) return;
+    if (e.inputType.indexOf("delete") === 0) {
+      e.preventDefault(); replaceSelection("", range);
+    } else if (e.inputType === "insertText" || e.inputType === "insertReplacementText") {
+      e.preventDefault(); replaceSelection(e.data || "", range);
+    }
+  });
 
   /* ---- history ---- */
   function remember(force) {
@@ -241,7 +311,11 @@
     }, 0);
   });
 
-  box.addEventListener("compositionstart", function () { composing = true; });
+  box.addEventListener("compositionstart", function () {
+    var range = selection();
+    if (range) replaceSelection("", range);
+    composing = true;
+  });
   box.addEventListener("compositionend", function () { composing = false; edited(); });
   box.addEventListener("input", function () { if (!composing) edited(); });
   function edited() {
@@ -262,6 +336,8 @@
     e.preventDefault();
     var text = (e.clipboardData || window.clipboardData).getData("text/plain");
     if (!text) return;
+    var range = selection();
+    if (range) { replaceSelection(text, range); return; }
     remember(true);
     var el = box.children[active];
     var off = caretOffset(el);
@@ -285,12 +361,39 @@
     if (active === null || composing || e.isComposing || e.keyCode === 229) return;
     var i = active, el = box.children[i], text = lines[i];
     var meta = e.metaKey || e.ctrlKey;
+    if (meta && e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      var all = document.createRange();
+      all.selectNodeContents(box);
+      var whole = window.getSelection();
+      whole.removeAllRanges();
+      whole.addRange(all);
+      return;
+    }
     if (meta && (e.key === "z" || e.key === "Z")) {
       e.preventDefault();
       if (e.shiftKey) restore(redo, undo); else restore(undo, redo);
       return;
     }
     if (meta && e.key === "y") { e.preventDefault(); restore(redo, undo); return; }
+    var selected = selection();
+    // A range spanning folded lines crosses editing hosts. Collapse it
+    // ourselves: native arrow navigation can leave the whole range selected.
+    if (selected && !e.shiftKey && /^(ArrowLeft|ArrowRight|ArrowUp|ArrowDown|Home|End)$/.test(e.key)) {
+      e.preventDefault();
+      var start = /^(ArrowLeft|ArrowUp|Home)$/.test(e.key);
+      var edge = start ? selected.start : selected.end;
+      var offset = e.key === "Home" ? 0 : e.key === "End" ? lines[edge.line].length : edge.offset;
+      activate(edge.line, offset);
+      return;
+    }
+    if (selected && !meta && !e.altKey) {
+      if (e.key === "Backspace" || e.key === "Delete" || e.key === "Enter" || e.key.length === 1) {
+        e.preventDefault();
+        replaceSelection(e.key === "Enter" ? "\n" : e.key.length === 1 ? e.key : "", selected);
+        return;
+      }
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       deactivate();

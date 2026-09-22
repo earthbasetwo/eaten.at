@@ -169,7 +169,7 @@
     if (photos.length === 0) {
       var empty = button("photo-empty", "Add a photo");
       var idle = el("span", "photo-empty-idle");
-      idle.textContent = "Nothing to look at yet.";
+      idle.textContent = "Add photos";
       var hover = el("span", "photo-empty-hover");
       hover.setAttribute("aria-hidden", "true");
       hover.textContent = "add a photo";
@@ -177,11 +177,11 @@
       empty.appendChild(hover);
       empty.addEventListener("click", pick);
       grid.appendChild(empty);
-      grid.classList.add("empty");
+      grid.classList.add("photos-empty");
       hint.hidden = true;
       return;
     }
-    grid.classList.remove("empty");
+    grid.classList.remove("photos-empty");
     photos.forEach(function (photo, i) {
       var tile = el("figure", "photo-tile");
       tile.setAttribute("role", "listitem");
@@ -196,11 +196,6 @@
       img.width = 400;
       img.height = 400;
       tile.appendChild(img);
-      if (i === 0) {
-        var badge = el("span", "cover-badge");
-        badge.textContent = "Cover";
-        tile.appendChild(badge);
-      }
       var removeMark = button("tile-remove", "Remove this photo");
       removeMark.title = "Remove photo";
       removeMark.appendChild(cross(10));
@@ -271,10 +266,10 @@
     img.alt = photo.alt;
     var caption = el("input", "photo-caption");
     caption.type = "text";
-    caption.placeholder = "add a caption…";
+    caption.placeholder = "Describe this photo";
     caption.value = photo.alt;
     caption.maxLength = 1000;
-    caption.setAttribute("aria-label", "Caption");
+    caption.setAttribute("aria-label", "Describe this photo");
     var foot = el("p", "hint photo-detail-foot");
     var done = button("hint-action");
     done.textContent = "done";
@@ -292,13 +287,15 @@
     removeIt.addEventListener("click", function () {
       closeDetail(true);
       remove(cid);
+      var next = grid.querySelector(".photo-tile, .photo-add, .photo-empty");
+      if (next) next.focus();
     });
     caption.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); closeDetail(); }
     });
     document.body.appendChild(scrim);
     document.body.classList.add("has-scrim");
-    detail = { cid: cid, scrim: scrim, caption: caption, opener: document.activeElement };
+    detail = { cid: cid, scrim: scrim, caption: caption };
     caption.focus();
   }
   /* Closing keeps the caption as typed. */
@@ -309,15 +306,27 @@
     d.scrim.remove();
     document.body.classList.remove("has-scrim");
     var i = indexOf(d.cid);
-    if (!discard && i >= 0) {
+    if (discard !== true && i >= 0) {
       photos[i].alt = d.caption.value.trim();
       sync();
       render();
     }
-    if (d.opener && d.opener.focus && form.contains(d.opener)) d.opener.focus();
+    // render() replaces the opener, so focus its replacement by CID.
+    var opener = grid.querySelector('[data-cid="' + d.cid + '"]') || grid.querySelector(".photo-add, .photo-empty");
+    if (opener) opener.focus();
   }
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && detail) { e.stopPropagation(); closeDetail(); }
+    if (!detail) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeDetail(); }
+    else if (e.key === "Tab") {
+      var controls = detail.scrim.querySelectorAll("input, button");
+      var first = controls[0], last = controls[controls.length - 1];
+      var focused = document.activeElement;
+      if (!detail.scrim.contains(focused) || (e.shiftKey && focused === first) || (!e.shiftKey && focused === last)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+    }
   }, true);
 
   sync();

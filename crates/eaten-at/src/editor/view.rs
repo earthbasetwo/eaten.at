@@ -15,7 +15,7 @@ use eaten_at_web::markdown;
 use maud::{html, Markup};
 
 use super::form::{Action, Choice, EditorForm, PlaceMode, RowKind};
-use super::{default_post_text, FieldErrors};
+use super::FieldErrors;
 use crate::publish::MAX_POST_GRAPHEMES;
 
 /// How long the teaser the listings would draw themselves is shown as,
@@ -61,8 +61,6 @@ pub struct EditorPage<'a> {
     pub publish_error: Option<&'a str>,
     /// Why a picked suggestion could not be taken, when it could not.
     pub pick_error: Option<&'a str>,
-    /// Whether the document can be, or has been, posted to Bluesky.
-    pub crosspost: CrosspostState,
     /// Whether the choosing screen suggests places as the author types:
     /// the site has a search and the request could be located.
     pub suggesting: bool,
@@ -79,7 +77,6 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
     }
     let form = page.form;
     let errors = page.errors;
-    let has_title = has_custom_title(form);
     html! {
         form.editor.editor-write method="post" action=(page.action_path) novalidate {
             (alerts(page))
@@ -87,23 +84,21 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
             // this one only re-renders the page, so nothing typed is ever
             // sent by accident.
             button.visually-hidden type="submit" name="action" value=(Action::Keep.value()) tabindex="-1" aria-hidden="true" { "Keep editing" }
-            (title_and_place(form, errors, has_title))
+            (place_heading(form, errors))
             div.visit-row {
                 (date_line(form, errors))
-                (tags_line(form, errors))
             }
             (digest(form, errors))
             (teaser(form, errors))
             div.verdict-row {
                 (rating_control(form, errors))
                 div.notes-row {
-                    (meal_field(form, errors))
                     (price_field(form, errors))
                 }
             }
             (photos(page))
+            (tags_line(form, errors))
             div.links-row {
-                (bluesky_line(form, errors, &page.crosspost))
                 (elsewhere(form, errors))
             }
             div.actions.editor-actions {
@@ -118,49 +113,22 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
     }
 }
 
-/// Whether the title is the author's own rather than the place's name
-/// standing in (D29).
-fn has_custom_title(form: &EditorForm) -> bool {
-    let title = form.title.trim();
-    !title.is_empty() && title != form.place_name.trim()
-}
-
-/// The headline and the place line under it. The title input's
-/// placeholder is the place's name; while that stands in, the line
-/// under it is the address alone and the change-place mark sits after
-/// the headline. With a title of the author's own, the place's name
-/// joins the line (`at Noodle House, 12 Example Lane.`) and the mark
-/// moves down beside it. The reset mark is the island's to show.
-fn title_and_place(form: &EditorForm, errors: &FieldErrors, has_title: bool) -> Markup {
+/// The restaurant stays the headline throughout choosing and writing.
+fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
-        div.title-row data-has-title[has_title] {
-            input #title.headline name="title" type="text" value=(form.title)
-                placeholder=(form.place_name.trim()) autocomplete="off"
-                aria-label="Title" aria-describedby=[described(errors, "title")];
-            button.mark.title-reset type="button" hidden title="Use the place's name as the title" aria-label="Use the place's name as the title" {
-                (cross_icon(13))
-            }
-            @if !has_title { (change_place_button()) }
-        }
-        p.place-line {
-            span.soft { "at" } " "
-            span.place-name-slot hidden[!has_title] {
-                span.inline-field {
-                    input #place_name name="place_name" type="text" value=(form.place_name) required
-                        autocomplete="off" aria-label="Place"
-                        aria-describedby=[described(errors, "place_name")];
+        div.place-head {
+            button #change_restaurant.headline.change-place type="submit" name="action" value=(Action::ChangePlace.value())
+                aria-label=(format!("Change restaurant: {}", form.place_name))
+                aria-describedby=[described(errors, "place_name")] formnovalidate {
+                    @if form.place_name.is_empty() { "Choose a restaurant" } @else { (form.place_name) }
                 }
-                span.soft { "," } " "
-            }
-            span.inline-field {
-                input #place_address name="place_address" type="text" value=(form.place_address)
-                    placeholder="somewhere" autocomplete="off" aria-label="Address"
-                    aria-describedby=[described(errors, "place_address")];
-            }
-            span.soft { "." }
-            @if has_title { (change_place_button()) }
         }
-        @for field in ["title", "place_name", "place_address", "gers_id"] {
+        p.place-line hidden[form.place_address.is_empty()] {
+            span.soft { "at" } " " span.place-address-text { (form.place_address) }
+        }
+        input type="hidden" name="place_name" value=(form.place_name);
+        input type="hidden" name="place_address" value=(form.place_address);
+        @for field in ["place_name", "place_address", "gers_id"] {
             (field_error(errors, field))
         }
         input type="hidden" name="place_mode" value=(form.place_mode.value());
@@ -170,30 +138,22 @@ fn title_and_place(form: &EditorForm, errors: &FieldErrors, has_title: bool) -> 
     }
 }
 
-/// Back to choosing, as the folded-map mark. Revealed under the pointer
-/// by the stylesheet; a submit, so it works without script.
-fn change_place_button() -> Markup {
-    html! {
-        button.mark.change-place type="submit" name="action" value=(Action::ChangePlace.value())
-            title="Change place" aria-label="Change place" formnovalidate {
-            (map_icon())
-        }
-    }
-}
-
-/// `From a visit on [date].` The date input is the carrier; the island
+/// `For [a meal] on [date].` The date input is the carrier; the island
 /// draws the calendar over it.
 fn date_line(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.date-line {
             p.prose-line {
-                span.soft { "From a visit on" } " "
+                span.soft { "For" } " "
+                (meal_field(form, errors))
+                " " span.soft { "on" } " "
                 span.date-field {
                     input #visited_on name="visited_on" type="date" value=(form.visited_on) required
                         aria-label="Date of the visit" aria-describedby=[described(errors, "visited_on")];
                 }
                 "."
             }
+            (field_error(errors, "meal"))
             (field_error(errors, "visited_on"))
         }
     }
@@ -224,8 +184,29 @@ fn tags_line(form: &EditorForm, errors: &FieldErrors) -> Markup {
 fn digest(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.digest.field-invalid[errors.get("body").is_some()] {
-            p.kicker #body-label { "Digest" }
-            textarea #body.editor-body name="body" rows="18" required
+            div.digest-heading {
+                p.kicker #body-label { "Digest" }
+                details.formatting-help {
+                    summary { "Formatting" }
+                    div.formatting-examples {
+                        p { "Type markdown in your digest. Only the line you’re editing shows the marks." }
+                        ul {
+                            li { code { "**bold**" } " and " code { "*italic*" } }
+                            li { code { "## Heading" } }
+                            li { code { "- A list item" } }
+                            li { code { "> A quotation" } }
+                            li { code { "[link text](https://example.com)" } }
+                        }
+                    }
+                }
+            }
+            div.digest-title {
+                label.visually-hidden for="title" { "Title (optional)" }
+                input #title name="title" type="text" value=(form.title) placeholder="Title"
+                    autocomplete="off" aria-describedby=[described(errors, "title")];
+                (field_error(errors, "title"))
+            }
+            textarea #body.editor-body name="body" rows="6" required placeholder="What did you eat? Was it good? What else happened?"
                 aria-labelledby="body-label" aria-describedby=[described(errors, "body")] { (form.body) }
             (field_error(errors, "body"))
         }
@@ -308,7 +289,11 @@ fn meal_field(form: &EditorForm, errors: &FieldErrors) -> Markup {
                     option value="" selected[form.meal == Choice::None] { "a meal" }
                     @for meal in Meal::ALL {
                         option value=(meal.as_str()) selected[form.meal == Choice::Known(*meal)] {
-                            (meal.display_name())
+                            (match meal {
+                                Meal::Snack => "a snack".to_owned(),
+                                Meal::LateNight => "a late-night meal".to_owned(),
+                                _ => meal.display_name().to_lowercase(),
+                            })
                         }
                     }
                     @if let Choice::Foreign(value) = &form.meal {
@@ -316,7 +301,6 @@ fn meal_field(form: &EditorForm, errors: &FieldErrors) -> Markup {
                     }
                 }
             }
-            (field_error(errors, "meal"))
         }
     }
 }
@@ -352,30 +336,28 @@ fn photos(page: &EditorPage<'_>) -> Markup {
     let errors = page.errors;
     html! {
         div.photos-block {
-            p.kicker { "Photos" }
             @if form.photos.is_empty() {
                 @match page.photos_page {
                     Some(path) => {
                         a.photo-empty href=(path) data-upload=(crate::paths::UPLOAD) {
-                            span.photo-empty-idle { "Nothing to look at yet." }
+                            span.photo-empty-idle { "Add photos" }
                             span.photo-empty-hover aria-hidden="true" { "add a photo" }
                         }
                     }
                     None => {
                         span.photo-empty data-upload=(crate::paths::UPLOAD) {
-                            span.photo-empty-idle { "Nothing to look at yet." }
+                            span.photo-empty-idle { "Add photos" }
                             span.photo-empty-hover aria-hidden="true" { "add a photo" }
                         }
                     }
                 }
             } @else {
                 div.photo-tiles data-upload=(crate::paths::UPLOAD) role="list" {
-                    @for (i, photo) in form.photos.iter().enumerate() {
+                    @for photo in &form.photos {
                         figure.photo-tile role="listitem" data-cid=(photo.cid) data-mime=(photo.mime) data-size=(photo.size)
                             data-width=(photo.width) data-height=(photo.height) data-alt=(photo.alt)
                             data-full=(crate::paths::own_photo(&photo.cid, "full")) {
                             img src=(crate::paths::own_photo(&photo.cid, "thumb")) alt=(photo.alt) width="400" height="400" loading="lazy" draggable="false";
-                            @if i == 0 { span.cover-badge { "Cover" } }
                         }
                     }
                     @match page.photos_page {
@@ -410,42 +392,6 @@ fn photo_fields(form: &EditorForm) -> Markup {
             input type="hidden" name=(format!("photo_alt_{i}")) value=(photo.alt);
             input type="hidden" name=(format!("photo_width_{i}")) value=(photo.width);
             input type="hidden" name=(format!("photo_height_{i}")) value=(photo.height);
-        }
-    }
-}
-
-/// `Bluesky: see the thread.` once there is a post; before one, the
-/// toggle and the post's text in the same sentence.
-fn bluesky_line(form: &EditorForm, errors: &FieldErrors, state: &CrosspostState) -> Markup {
-    let placeholder = default_post_text(&form.place_name);
-    html! {
-        div.bluesky-line {
-            p.prose-line {
-                span.soft { "Bluesky:" } " "
-                @match state {
-                    CrosspostState::Posted(url) => {
-                        a.quiet-link href=(url) rel="noopener" { "see the thread" }
-                        span.soft { "." }
-                    }
-                    CrosspostState::Ready | CrosspostState::NeedsPermission => {
-                        label.choice.choice-inline for="crosspost" {
-                            input #crosspost name="crosspost" type="checkbox" value="1" checked[form.crosspost];
-                            " post it too"
-                        }
-                        span.soft { ", saying" } " "
-                        span.inline-field {
-                            input #post_text name="post_text" type="text" value=(form.post_text)
-                                placeholder=(placeholder) maxlength=(MAX_POST_GRAPHEMES)
-                                aria-label="Post text" aria-describedby=[described(errors, "post_text")];
-                        }
-                        span.soft { "." }
-                    }
-                }
-            }
-            @if *state == CrosspostState::NeedsPermission {
-                p.hint { "The first time, your account's server will ask you to allow posting." }
-            }
-            (field_error(errors, "post_text"))
         }
     }
 }
@@ -553,11 +499,12 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                 p.form-error role="alert" { (message) }
             }
             (carried(form))
+            @if form.changing_place { input type="hidden" name="changing_place" value="1"; }
             input type="hidden" name="place_mode" value=(PlaceMode::Choosing.value());
             input type="hidden" name="place_query" value=(form.place_query);
             div.place-head {
                 input #place_name.headline name="place_name" type="text" value=(form.place_name)
-                    placeholder="St. John" autocomplete="off" autofocus
+                    placeholder="Margot’s Bistro" autocomplete="off" autofocus
                     aria-label="Name of the place"
                     data-suggest=[page.suggesting.then_some("/write/suggest")]
                     aria-describedby=[described(errors, "place_name")];
@@ -566,7 +513,7 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                 span.soft { "at" } " "
                 span.inline-field {
                     input #place_address name="place_address" type="text" value=(form.place_address)
-                        placeholder="26 St John Street, London" autocomplete="off"
+                        placeholder="12 Main Street" autocomplete="off"
                         aria-label="Address" aria-describedby=[described(errors, "place_address")];
                 }
                 span.soft { "." }
@@ -574,7 +521,9 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
             (field_error(errors, "place_name"))
             (field_error(errors, "place_address"))
             div.actions.start-writing {
-                button #start-writing type="submit" name="action" value=(Action::Manual.value()) { "Start writing" }
+                button #start-writing type="submit" name="action" value=(Action::Manual.value()) {
+                    @if form.changing_place { "Keep writing" } @else { "Start writing" }
+                }
             }
         }
     }
@@ -600,8 +549,6 @@ fn carried(form: &EditorForm) -> Markup {
         }
         (hidden("tags", &form.tags))
         (photo_fields(form))
-        @if form.crosspost { (hidden("crosspost", "1")) }
-        (hidden("post_text", &form.post_text))
     }
 }
 
@@ -639,17 +586,6 @@ fn cross_icon(size: u8) -> Markup {
     html! {
         svg width=(size) height=(size) viewBox="0 0 10 10" aria-hidden="true" focusable="false" {
             path d="M 1 1 L 9 9 M 9 1 L 1 9" stroke="currentColor" stroke-width="1.4" fill="none" {}
-        }
-    }
-}
-
-/// A folded map: change place.
-fn map_icon() -> Markup {
-    html! {
-        svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" focusable="false" {
-            path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" {}
-            path d="M9 4 L9 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" {}
-            path d="M15 6 L15 20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" {}
         }
     }
 }
@@ -796,7 +732,6 @@ mod tests {
             editing: true,
             publish_error: None,
             pick_error: None,
-            crosspost: CrosspostState::Ready,
             suggesting: true,
             photos_page,
         })
@@ -804,36 +739,18 @@ mod tests {
     }
 
     #[test]
-    fn the_place_line_follows_the_title() {
+    fn restaurant_and_digest_title_are_separate() {
         let mut form = EditorForm::blank();
         form.place_mode = PlaceMode::Manual;
         form.place_name = "Noodle House".into();
-        form.place_address = "12 Example Lane".into();
-        // The place's name stands in as the title: the line under it is
-        // the address alone, and the change-place mark sits by the title.
         let out = page_for(&form, None);
-        assert!(out.contains("placeholder=\"Noodle House\""), "{out}");
+        let digest = out.find("id=\"body-label\"").unwrap();
+        assert!(out.find("id=\"change_restaurant\"").unwrap() < digest);
+        assert!(out.find("id=\"title\"").unwrap() > digest);
+        assert!(out.find("id=\"title\"").unwrap() < out.find("id=\"body\"").unwrap());
+        assert!(out.contains("Change restaurant"));
         assert!(
-            out.contains("<span class=\"place-name-slot\" hidden>"),
-            "{out}"
-        );
-        let title_row = out.split("<p class=\"place-line\">").next().unwrap();
-        assert!(title_row.contains("value=\"change_place\""), "{title_row}");
-        // A title of the author's own brings the name onto the line.
-        form.title = "Late at the Noodle House".into();
-        let out = page_for(&form, None);
-        assert!(out.contains("<span class=\"place-name-slot\">"), "{out}");
-        let place_line = out.split("<p class=\"place-line\">").nth(1).unwrap();
-        assert!(
-            place_line.contains("value=\"change_place\""),
-            "{place_line}"
-        );
-        // A title that only repeats the name is not one (D29).
-        form.title = "Noodle House ".into();
-        let out = page_for(&form, None);
-        assert!(
-            out.contains("<span class=\"place-name-slot\" hidden>"),
-            "{out}"
+            out.find("class=\"tags-line").unwrap() > out.find("class=\"photos-block\"").unwrap()
         );
     }
 
@@ -888,7 +805,7 @@ mod tests {
         // A new write-up: the same tiles, with nowhere else to go.
         let out = page_for(&form, None);
         assert_eq!(out.matches("class=\"photo-tile\"").count(), 2, "{out}");
-        assert_eq!(out.matches("class=\"cover-badge\"").count(), 1, "{out}");
+        assert!(!out.contains("cover-badge"), "{out}");
         assert!(out.contains("data-upload=\"/write/upload\""), "{out}");
         assert!(
             out.contains("src=\"/write/photo/bafya?size=thumb\""),
@@ -913,7 +830,7 @@ mod tests {
         );
         form.photos.clear();
         let out = page_for(&form, Some("/write/d1/photos"));
-        assert!(out.contains("Nothing to look at yet."), "{out}");
+        assert!(out.contains("Add photos"), "{out}");
         assert!(
             out.contains("<a class=\"photo-empty\" href=\"/write/d1/photos\""),
             "{out}"

@@ -452,6 +452,7 @@ pub async fn own_photo(
             header::CACHE_CONTROL,
             HeaderValue::from_static("private, max-age=3600"),
         )
+        .header(header::VARY, "Cookie")
         .header(header::CONTENT_LENGTH, rendition.jpeg.len())
         .body(Body::from(rendition.jpeg))
         .map_err(|e| AppError::Upstream(e.to_string()))?;
@@ -530,7 +531,10 @@ async fn add(
                 continue;
             }
         };
-        let blob = match session.upload_blob(prepared.jpeg, "image/jpeg").await {
+        let blob = match session
+            .upload_blob(prepared.jpeg.clone(), "image/jpeg")
+            .await
+        {
             Ok(blob) => blob,
             Err(err) => {
                 return Err(match PublishError::from(err) {
@@ -542,6 +546,16 @@ async fn add(
                 })
             }
         };
+        if let Err(err) = state
+            .cache_uploaded_photo(identity, blob.cid(), prepared.jpeg)
+            .await
+        {
+            tracing::warn!(error = %err, "photo preview preparation failed");
+            problems.push(format!(
+                "{name} could not be prepared for preview. Please try again."
+            ));
+            return Err(Refused::Repo(problems));
+        }
         photos.push(Photo {
             image: blob,
             alt: None,

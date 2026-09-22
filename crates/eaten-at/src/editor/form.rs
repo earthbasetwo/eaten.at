@@ -20,6 +20,8 @@ pub struct EditorForm {
     pub place_price: String,
     /// Where the place came from, and so which state the editor is in.
     pub place_mode: PlaceMode,
+    /// Returning to an existing draft after choosing another restaurant.
+    pub changing_place: bool,
     /// The search box on the choosing state.
     pub place_query: String,
     /// The Overture GERS id of the picked place; blank by hand.
@@ -124,17 +126,12 @@ pub struct LinkField {
 /// (no value written). A value outside the list is another client's
 /// vocabulary: the editor never offers one, but one already on a record
 /// is preserved as [`Choice::Foreign`] so it survives an edit (D31).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Choice<K: KnownValue> {
+    #[default]
     None,
     Known(K),
     Foreign(String),
-}
-
-impl<K: KnownValue> Default for Choice<K> {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 /// The link service select, for callers that name the type.
@@ -322,6 +319,7 @@ impl EditorForm {
             } else {
                 PlaceMode::Manual
             },
+            changing_place: false,
             place_query: String::new(),
             gers_id: visit.place.gers_id.clone().unwrap_or_default(),
             lat_e6: visit
@@ -374,6 +372,7 @@ impl EditorForm {
                 "place_address" => form.place_address = value,
                 "place_price" => form.place_price = value,
                 "place_mode" => form.place_mode = PlaceMode::parse(&value),
+                "changing_place" => form.changing_place = value == "1",
                 "place_query" => form.place_query = value,
                 "gers_id" => form.gers_id = value,
                 "lat_e6" => form.lat_e6 = value,
@@ -434,6 +433,7 @@ impl EditorForm {
     /// Back to choosing: the id and position go, the name becomes the
     /// search, and everything else stays.
     pub fn change_place(&mut self) {
+        self.changing_place = true;
         self.place_mode = PlaceMode::Choosing;
         self.place_query = self.place_name.trim().to_owned();
         self.forget_listing();

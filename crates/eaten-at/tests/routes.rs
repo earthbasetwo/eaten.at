@@ -1905,13 +1905,10 @@ async fn editor_requires_sign_in_and_starts_by_choosing_a_place() {
     assert!(!body.contains("<h1>"), "{body}");
     assert!(!body.contains("class=\"kicker\""), "{body}");
     assert!(
-        body.contains("<input class=\"headline\" id=\"place_name\" name=\"place_name\" type=\"text\" value=\"\" placeholder=\"St. John\" autocomplete=\"off\" autofocus aria-label=\"Name of the place\" data-suggest=\"/write/suggest\">"),
+        body.contains("<input class=\"headline\" id=\"place_name\" name=\"place_name\" type=\"text\" value=\"\" placeholder=\"Margot’s Bistro\" autocomplete=\"off\" autofocus aria-label=\"Name of the place\" data-suggest=\"/write/suggest\">"),
         "{body}"
     );
-    assert!(
-        body.contains("placeholder=\"26 St John Street, London\""),
-        "{body}"
-    );
+    assert!(body.contains("placeholder=\"12 Main Street\""), "{body}");
     assert!(
         body.contains("name=\"place_mode\" value=\"choosing\""),
         "{body}"
@@ -1999,7 +1996,7 @@ async fn a_picked_suggestion_fills_the_place_from_the_cached_search() {
     // address is the line under it, and the listing's facts are carried.
     assert!(!body.contains("<h1>"), "{body}");
     assert!(
-        body.contains("name=\"title\" type=\"text\" value=\"\" placeholder=\"Devocion\""),
+        body.contains("name=\"title\" type=\"text\" value=\"\" placeholder=\"Title\""),
         "{body}"
     );
     assert!(
@@ -2011,7 +2008,7 @@ async fn a_picked_suggestion_fills_the_place_from_the_cached_search() {
         "{body}"
     );
     assert!(
-        body.contains("<span class=\"place-name-slot\" hidden>"),
+        body.contains("<div class=\"place-head\">"),
         "the name is the title, so the line is the address alone: {body}"
     );
     assert!(body.contains("value=\"Devocion\""), "{body}");
@@ -2069,7 +2066,7 @@ async fn suggestions_look_near_the_last_visit_and_are_not_offered_without_a_poin
     let fields = [("place_query", "Devocion"), ("action", "pick:0")];
     let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("placeholder=\"Devocion\""), "{body}");
+    assert!(body.contains("value=\"Devocion\""), "{body}");
     let request = server
         .received_requests()
         .await
@@ -2194,7 +2191,7 @@ async fn a_place_by_hand_needs_a_name_and_a_place_can_be_changed() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("id=\"place_name\""), "{body}");
+    assert!(body.contains("id=\"change_restaurant\""), "{body}");
     assert!(
         body.contains("name=\"place_mode\" value=\"manual\""),
         "{body}"
@@ -2205,7 +2202,7 @@ async fn a_place_by_hand_needs_a_name_and_a_place_can_be_changed() {
     // Photos are offered before there is a record (D37 amended): the
     // island uploads and the form carries the references.
     assert!(body.contains("data-upload=\"/write/upload\""), "{body}");
-    assert!(body.contains("Nothing to look at yet."), "{body}");
+    assert!(body.contains("Add photos"), "{body}");
     assert!(!body.contains("href=\"/write/photos\""), "{body}");
 
     // Changing the place goes back to choosing with the name and the
@@ -2303,8 +2300,8 @@ async fn editor_reports_problems_beside_fields_and_keeps_a_good_draft() {
         "{body}"
     );
     assert!(
-        body.contains("<span class=\"place-name-slot\">"),
-        "a title of the author's own brings the place's name onto the line: {body}"
+        body.contains("<div class=\"place-head\">"),
+        "the restaurant remains its own headline: {body}"
     );
     assert!(body.contains("value=\"3\" checked"), "{body}");
     assert!(
@@ -2364,9 +2361,7 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
     // Editing opens on the write-up's own title, with Save changes and
     // Delete, which confirms in place and posts to the delete route.
     assert!(
-        body.contains(
-            "name=\"title\" type=\"text\" value=\"Foreign Post\" placeholder=\"Foreign Place\""
-        ),
+        body.contains("name=\"title\" type=\"text\" value=\"Foreign Post\" placeholder=\"Title\""),
         "{body}"
     );
     assert!(body.contains(">Save changes</button>"), "{body}");
@@ -3041,16 +3036,71 @@ async fn adding_photos_uploads_each_good_file_and_names_the_bad_ones() {
     assert!(location.unwrap().starts_with("/login"));
 }
 
+async fn assert_private_upload_previews(state: &AppState, server: &MockServer, cookie: &str) {
+    // The author's own blob draws the tile, whether or not a record
+    // lists it yet.
+    let (status, headers, body) =
+        get_image_signed(state, "/write/photo/bafyblob?size=thumb", cookie).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers["content-type"], "image/jpeg");
+    assert_eq!(headers["cache-control"], "private, max-age=3600");
+    assert_eq!(headers["vary"], "Cookie");
+    assert_eq!(&body[..2], &[0xff, 0xd8]);
+    for size in ["full", "card"] {
+        let (status, _, bytes) =
+            get_image_signed(state, &format!("/write/photo/bafyblob?size={size}"), cookie).await;
+        assert_eq!(status, StatusCode::OK, "{size}");
+        assert!(
+            image::load_from_memory(&bytes).is_ok(),
+            "{size} must be a usable image"
+        );
+    }
+    let blob_reads = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|request| request.url.path() == "/xrpc/com.atproto.sync.getBlob")
+        .count();
+    assert_eq!(
+        blob_reads, 1,
+        "only the pre-upload miss should reach the PDS"
+    );
+    let (status, _, _) = get(state, "/write/photo/bafyblob?size=thumb").await;
+    assert_eq!(
+        status,
+        StatusCode::SEE_OTHER,
+        "cached previews still require sign-in"
+    );
+    let mut other = state
+        .require_identity(&eaten_at_atproto::identity::Did::parse(DID).unwrap())
+        .await
+        .unwrap();
+    other.did = eaten_at_atproto::identity::Did::parse(OTHER_DID).unwrap();
+    assert!(
+        state
+            .own_photo_rendition(&other, "bafyblob", eaten_at::img::PhotoSize::Thumb)
+            .await
+            .is_none(),
+        "an unpublished preview must not be visible to another author"
+    );
+    let (status, _, _) = get_image_signed(state, "/write/photo/not%20a%20cid", cookie).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
 #[tokio::test]
 async fn photos_are_uploaded_as_picked_and_written_with_the_record() {
     let server = mount(&one_publication()).await;
     mount_writes(&server).await;
     mount_new_document(&server).await;
-    // The repository serves the blob it was just given, by its CID.
+    // Like a real PDS, the repository does not serve an unreferenced blob.
     Mock::given(method("GET"))
         .and(path("/xrpc/com.atproto.sync.getBlob"))
         .and(query_param("cid", "bafyblob"))
-        .respond_with(ResponseTemplate::new(200).set_body_raw(png_bytes(40, 60), "image/png"))
+        .respond_with(
+            ResponseTemplate::new(400)
+                .set_body_json(json!({"error": "InvalidRequest", "message": "Blob not found"})),
+        )
         .mount(&server)
         .await;
     let state = state_for(&server, dns_for_handle());
@@ -3060,6 +3110,11 @@ async fn photos_are_uploaded_as_picked_and_written_with_the_record() {
     let (status, location, _) = get(&state, "/write/photo/bafyblob").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert!(location.unwrap().starts_with("/login"));
+
+    // A prior failed preview must not poison the successful upload's cache.
+    let (status, _, _) =
+        get_image_signed(&state, "/write/photo/bafyblob?size=thumb", &cookie).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
     // Picking files uploads them at once and answers with what the form
     // will carry; the record is not touched.
@@ -3097,16 +3152,7 @@ async fn photos_are_uploaded_as_picked_and_written_with_the_record() {
     assert_eq!(writes.len(), 1, "one upload, no record: {writes:?}");
     assert_eq!(writes[0].0, "com.atproto.repo.uploadBlob");
 
-    // The author's own blob draws the tile, whether or not a record
-    // lists it yet.
-    let (status, headers, body) =
-        get_image_signed(&state, "/write/photo/bafyblob?size=thumb", &cookie).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(headers["content-type"], "image/jpeg");
-    assert_eq!(headers["cache-control"], "private, max-age=3600");
-    assert_eq!(&body[..2], &[0xff, 0xd8]);
-    let (status, _, _) = get_image_signed(&state, "/write/photo/not%20a%20cid", &cookie).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_private_upload_previews(&state, &server, &cookie).await;
 
     // Publishing writes the photos with the record, the first as the cover.
     let mut fields = good_fields();
@@ -3262,7 +3308,7 @@ async fn the_photo_proxy_serves_listed_photos_only_and_pages_show_them() {
     );
     assert!(
         page.contains(&format!(
-            "<a href=\"/img/{DID}/ph/bafkcover?size=full\"><img src=\"/img/{DID}/ph/bafkcover?size=thumb\" alt=\"\""
+            "<a href=\"/img/{DID}/ph/bafkcover?size=full\" aria-label=\"View photo\"><figure><img src=\"/img/{DID}/ph/bafkcover?size=thumb\" alt=\"\""
         )),
         "{page}"
     );
@@ -3510,7 +3556,7 @@ async fn suggestions_come_from_the_same_search_a_pick_reads() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("placeholder=\"Devocion Flatiron\""), "{body}");
+    assert!(body.contains("value=\"Devocion Flatiron\""), "{body}");
     let searches = server
         .received_requests()
         .await
@@ -4543,7 +4589,7 @@ async fn retry_after_a_failed_post_creates_exactly_one() {
 }
 
 #[tokio::test]
-async fn crosspost_toggle_defaults_from_preferences() {
+async fn composer_does_not_offer_or_carry_crossposting() {
     let server = mount(&Repo {
         preferences: Some(
             json!({"crosspostToBluesky": true, "createdAt": "2026-09-01T00:00:00.000Z"}),
@@ -4554,11 +4600,9 @@ async fn crosspost_toggle_defaults_from_preferences() {
     mount_writes(&server).await;
     let state = state_for(&server, dns_for_handle());
     let cookie = posting_author_session(&state, &server).await;
-    // The choosing state carries the default hidden; the form shows it
-    // ticked once there is a place.
     let (status, _, page) = get_signed(&state, "/write", &cookie).await;
     assert_eq!(status, StatusCode::OK);
-    assert!(page.contains("name=\"crosspost\" value=\"1\""), "{page}");
+    assert!(!page.contains("name=\"crosspost\""), "{page}");
     let (status, page) = post_editor(
         &state,
         "/write",
@@ -4571,44 +4615,8 @@ async fn crosspost_toggle_defaults_from_preferences() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(
-        page.contains("name=\"crosspost\" type=\"checkbox\" value=\"1\" checked"),
-        "{page}"
-    );
-    assert!(
-        page.contains("placeholder=\"Cart\""),
-        "the post text defaults to the place: {page}"
-    );
-
-    let server = mount(&one_publication()).await;
-    mount_writes(&server).await;
-    let state = state_for(&server, dns_for_handle());
-    let cookie = posting_author_session(&state, &server).await;
-    let (_, page) = post_editor(&state, "/write", &cookie, &by_hand()).await;
-    assert!(
-        page.contains("name=\"crosspost\" type=\"checkbox\" value=\"1\">"),
-        "{page}"
-    );
-    // A document that already names a post shows the link, not the toggle.
-    let mut doc = visit_doc("pub1", "Third Post", "Third Place", &[]);
-    doc["bskyPostRef"] =
-        json!({"uri": format!("at://{DID}/app.bsky.feed.post/3kpost"), "cid": "bafy"});
-    let server = mount(&Repo {
-        documents: vec![("d3".into(), doc)],
-        ..one_publication()
-    })
-    .await;
-    mount_writes(&server).await;
-    let state = state_for(&server, dns_for_handle());
-    let cookie = posting_author_session(&state, &server).await;
-    let (_, _, page) = get_signed(&state, "/write/d3", &cookie).await;
     assert!(!page.contains("name=\"crosspost\""), "{page}");
-    assert!(
-        page.contains(&format!(
-            "<span class=\"soft\">Bluesky:</span> <a class=\"quiet-link\" href=\"https://bsky.app/profile/{DID}/post/3kpost\" rel=\"noopener\">see the thread</a>"
-        )),
-        "{page}"
-    );
+    assert!(!page.contains("name=\"post_text\""), "{page}");
 }
 
 /// Percent-decode a form-urlencoded value.
@@ -4654,7 +4662,7 @@ async fn without_permission_publish_hands_over_to_the_crosspost_page_which_asks(
     // The sign-in grant only.
     let cookie = author_session(&state, &server).await;
     let (_, editor) = post_editor(&state, "/write", &cookie, &by_hand()).await;
-    assert!(editor.contains("ask you to allow posting"), "{editor}");
+    assert!(!editor.contains("name=\"crosspost\""), "{editor}");
 
     let (status, body) = post_editor(
         &state,
