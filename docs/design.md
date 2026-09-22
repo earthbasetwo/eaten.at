@@ -761,3 +761,9 @@ The restaurant headline is an underlined submit control opening the chooser;
 the address is plain supporting text. Both remain editable in the chooser.
 Photo text uses one “Describe this photo” field, stored as alt text. Digest
 photo links show it once as a visible caption; listing images use it as alt text.
+
+The post-publication trial puts a compact confirmation above the digest,
+separated by a double rule. Published and saved have distinct messages; Copy
+link, Share on Bluesky, and Dismiss form one wrapping row. Copy feedback is
+announced inline, and a plain permalink remains available without JavaScript
+or when clipboard access fails. Ordinary readers see the existing digest.

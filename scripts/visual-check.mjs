@@ -170,6 +170,43 @@ async function main() {
 
   // Signed in.
   await browser.setCookie(cookieName, cookieValue)
+  for (const outcome of ['published', 'saved']) {
+    await check({
+      name: `post-publication-${outcome}`,
+      path: `${discovered.documents[0]}?after=${outcome}`,
+      expect: '.publish-confirmation',
+      exercise: async browser => {
+        const valid = await browser.evaluate(`(() => {
+          const panel = document.querySelector('.publish-confirmation');
+          const canonical = document.querySelector('link[rel="canonical"]').href;
+          const share = new URL(panel.querySelector('a[target="_blank"]').href);
+          return !new URL(location.href).searchParams.has('after') &&
+            share.searchParams.get('text') === canonical &&
+            panel.querySelector('.permalink').href === canonical;
+        })()`);
+        if (!valid) throw new Error('Confirmation retained its query or shared the wrong permalink');
+      },
+    });
+  }
+  await check({
+    name: 'post-publication-copy',
+    path: `${discovered.documents[0]}?after=published`,
+    expect: '.publish-confirmation',
+    exercise: async browser => {
+      await browser.session.send('Browser.grantPermissions', { origin: BASE, permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] });
+      await browser.evaluate(`document.querySelector('.copy-permalink').click()`);
+      if (!await browser.appears('.copy-status:not(:empty)')) throw new Error('No copy feedback');
+      if (!await browser.evaluate(`(async () => document.querySelector('.copy-status').textContent === 'Link copied.' && await navigator.clipboard.readText() === document.querySelector('link[rel="canonical"]').href)()`)) throw new Error('Copy did not put the canonical permalink on the clipboard');
+      // A denied clipboard must expose the plain link again.
+      await browser.evaluate(`(() => {
+        navigator.clipboard.writeText = async () => { throw new Error('denied'); };
+        document.querySelector('.copy-status').textContent = '';
+        document.querySelector('.copy-permalink').click();
+      })()`);
+      if (!await browser.appears('.permalink:not([hidden])')) throw new Error('No clipboard fallback');
+    },
+  });
+  await check({ name: 'publishing-reconnected', path: '/login/reconnected', expect: '.page-head .lede' });
   // Discover photo and empty-photo states; individual exercises supply
   // their own prose and teaser content without saving records.
   if (discovered.withPhotos.length === 0) throw new Error(`no write-up with photos listed on ${front}`)
@@ -325,6 +362,28 @@ async function main() {
     expect: 'details.teaser[open] .teaser-custom:not([hidden])',
   })
   // Without photos, the box is the invitation.
+  await check({
+    name: 'edit-publish-draft-safety', path: `/write/${bare}`,
+    expect: 'form.editor',
+    exercise: async browser => {
+      const retained = await browser.evaluate(`(() => {
+        const form = document.querySelector('form.editor');
+        form.elements.body.value = 'A BLT worth remembering.';
+        form.elements.body.dispatchEvent(new Event('input', { bubbles: true }));
+        // Exercise submit listeners without writing a record to the local PDS.
+        form.dispatchEvent(new SubmitEvent('submit', { cancelable: true, submitter: form.querySelector('[value="publish"]') }));
+        return JSON.parse(localStorage.getItem('ea:draft:' + location.pathname)).data.body;
+      })()`);
+      if (retained !== 'A BLT worth remembering.') throw new Error('Publishing discarded the draft before confirmation');
+      const draftPath = await browser.evaluate('location.pathname');
+      const draftId = await browser.evaluate(`document.querySelector('[name="draft_id"]').value`);
+      await browser.navigate(`${BASE}${discovered.withoutPhotos[discovered.withoutPhotos.length - 1]}?after=saved&draft=1`);
+      if (!await browser.evaluate(`localStorage.getItem('ea:draft:' + ${JSON.stringify(draftPath)}) !== null`)) throw new Error('An old confirmation discarded a newer draft');
+      await browser.navigate(`${BASE}${discovered.withoutPhotos[discovered.withoutPhotos.length - 1]}?after=saved&draft=${draftId}`);
+      if (!await browser.evaluate(`localStorage.getItem('ea:draft:' + ${JSON.stringify(draftPath)}) === null`)) throw new Error('Successful save retained its draft');
+      await browser.navigate(`${BASE}${draftPath}`);
+    },
+  });
   await check({ name: 'edit-no-photos', path: `/write/${bare}`, expect: 'button.photo-empty' })
   await check({
     name: 'edit-link',

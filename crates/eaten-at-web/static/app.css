@@ -593,6 +593,15 @@
     background: var(--color-paper-bright); border: var(--rule-hairline);
   }
   .notice { margin-block-start: var(--space-l); }
+  .publish-confirmation {
+    padding-block: var(--space-l);
+    margin-block-end: var(--space-xl);
+    border-block-end: var(--rule-double);
+  }
+  .publish-message { font-size: var(--text-card); }
+  .publish-confirmation .actions { margin-block-start: var(--space-s); }
+  .copy-status { font-size: var(--text-small); color: var(--color-ink-soft); }
+  .copy-status:empty { display: none; }
   .form-error {
     font-size: var(--text-small); line-height: 1.6; color: var(--color-ink);
     padding: var(--space-sm) var(--space-m);

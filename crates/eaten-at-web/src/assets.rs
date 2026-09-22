@@ -57,6 +57,9 @@ pub const CONNECT_SCRIPT: &str = include_str!("../static/connect.js");
 /// as the text the server reads.
 pub const TAGS_SCRIPT: &str = include_str!("../static/tags.js");
 
+/// Copying a published digest's permalink; sharing itself is a plain link.
+pub const PUBLISHED_SCRIPT: &str = include_str!("../static/published.js");
+
 /// Every inline script the site ships, all counted against the tripwire.
 pub const INLINE_SCRIPTS: &[&str] = &[
     EDITOR_SCRIPT,
@@ -69,6 +72,7 @@ pub const INLINE_SCRIPTS: &[&str] = &[
     CHOOSE_PLACE_SCRIPT,
     FIND_SCRIPT,
     CONNECT_SCRIPT,
+    PUBLISHED_SCRIPT,
 ];
 
 /// A tripwire on all inline JavaScript combined, in bytes (D43). Not a

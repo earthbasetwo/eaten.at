@@ -150,6 +150,8 @@ fn failed_page(status: StatusCode, heading: &str, detail: &str) -> Response {
 #[derive(Debug, Deserialize)]
 pub struct LoginQuery {
     #[serde(default)]
+    reauth: bool,
+    #[serde(default)]
     return_to: String,
 }
 
@@ -164,7 +166,7 @@ pub async fn login_form(
     if !is_bare_origin(&state, &headers) {
         return to_bare_origin(&state, "/login");
     }
-    if user.is_some() {
+    if user.is_some() && !query.reauth {
         return Redirect::to("/").into_response();
     }
     login_response(
@@ -348,6 +350,30 @@ pub async fn callback(
         .headers_mut()
         .append(SET_COOKIE, state.cookie().set(&token));
     response
+}
+
+/// Recovery completes in the new tab, leaving the submitted draft open.
+pub async fn reconnected(State(state): State<AppState>, RequireUser(did): RequireUser) -> Response {
+    if state
+        .oauth()
+        .granted_scopes(&did)
+        .await
+        .unwrap_or_default()
+        .is_empty()
+    {
+        return Redirect::to("/login?reauth=true&return_to=%2Flogin%2Freconnected").into_response();
+    }
+    layout::render(&Page {
+        title: &["Publishing reconnected"],
+        main: html! {
+            div.page-head {
+                p.kicker { "Signed in" }
+                h1 { "Publishing reconnected." }
+                p.lede { "Return to the tab with your draft and try publishing again. You can close this tab." }
+            }
+        },
+        ..Page::default()
+    }).into_response()
 }
 
 /// `POST /logout` — end the browser session and drop the OAuth tokens.

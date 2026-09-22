@@ -59,6 +59,7 @@ pub struct EditorPage<'a> {
     pub editing: bool,
     /// Why the last publish attempt failed, when it did.
     pub publish_error: Option<&'a str>,
+    pub reauthenticate: bool,
     /// Why a picked suggestion could not be taken, when it could not.
     pub pick_error: Option<&'a str>,
     /// Whether the choosing screen suggests places as the author types:
@@ -79,6 +80,7 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
     let errors = page.errors;
     html! {
         form.editor.editor-write method="post" action=(page.action_path) novalidate {
+            input type="hidden" name="draft_id" value="";
             (alerts(page))
             // Return in a text field presses the form's first button;
             // this one only re-renders the page, so nothing typed is ever
@@ -563,7 +565,12 @@ fn alerts(page: &EditorPage<'_>) -> Markup {
             }
         }
         @if let Some(message) = page.publish_error {
-            p.form-error role="alert" { (message) }
+            p.form-error role="alert" {
+                (message)
+                @if page.reauthenticate {
+                    " " a href="/login?reauth=true&return_to=%2Flogin%2Freconnected" target="_blank" rel="noopener" { "Sign in again ↗" }
+                }
+            }
         }
     }
 }
@@ -731,6 +738,7 @@ mod tests {
             action_path: "/write/d1",
             editing: true,
             publish_error: None,
+            reauthenticate: false,
             pick_error: None,
             suggesting: true,
             photos_page,

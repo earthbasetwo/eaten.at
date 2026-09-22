@@ -2589,6 +2589,60 @@ async fn first_publish_creates_the_publication_and_preferences_then_the_document
 }
 
 #[tokio::test]
+async fn expired_publishing_authorization_keeps_the_draft_and_allows_reconnection() {
+    let server = mount(&one_publication()).await;
+    let state = state_for(&server, dns_for_handle());
+    // The browser is signed in, but there is no PDS authorization.
+    let cookie = signed_in(&state).await;
+    let mut fields = good_fields();
+    fields.retain(|(key, _)| *key != "action");
+    fields.push(("action", "publish"));
+    for path in ["/write", "/write/d3"] {
+        let (status, location, body) = post_form(&state, path, &cookie, &fields).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert!(location.is_none());
+        assert!(body.contains("Your publishing connection has expired."));
+        assert!(body.contains("Forty-six *minutes*."));
+        assert!(body.contains("A room with the lights off"));
+        assert!(body.contains("/login?reauth=true&amp;return_to=%2Flogin%2Freconnected"));
+        let (status, location, login) = get_signed(
+            &state,
+            &format!("/login?reauth=true&return_to={path}"),
+            &cookie,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(location.is_none());
+        assert!(login.contains("Sign in with your AT Protocol account"));
+        assert!(login.contains(&format!("name=\"return_to\" value=\"{path}\"")));
+    }
+    assert!(repo_writes(&server).await.is_empty());
+    let (status, location, _) = get_signed(&state, "/login", &cookie).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(location.as_deref(), Some("/"));
+}
+
+#[tokio::test]
+async fn reconnect_confirmation_keeps_the_writer_out_of_the_place_chooser() {
+    let server = mount(&one_publication()).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let (status, location, _) = get_signed(&state, "/login/reconnected", &cookie).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(
+        location.as_deref(),
+        Some("/login?reauth=true&return_to=%2Flogin%2Freconnected")
+    );
+    let cookie = author_session(&state, &server).await;
+    let (status, location, body) = get_signed(&state, "/login/reconnected", &cookie).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(location.is_none());
+    assert!(body.contains("Publishing reconnected."));
+    assert!(body.contains("Return to the tab with your draft"));
+    assert!(!body.contains("Start writing"));
+}
+
+#[tokio::test]
 async fn publishing_to_an_existing_publication_writes_only_the_document() {
     let mut repo = one_publication();
     repo.publications
@@ -2650,8 +2704,12 @@ async fn editing_replaces_the_record_and_deleting_removes_it() {
         ),
         ("action", "publish"),
     ];
-    let (status, body) = post_editor(&state, "/write/d3", &cookie, &fields).await;
+    let (status, location, body) = post_form(&state, "/write/d3", &cookie, &fields).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
+    assert_eq!(
+        location.as_deref(),
+        Some(format!("/at/{DID}/pub1/d3?after=saved").as_str())
+    );
     let writes = repo_writes(&server).await;
     assert_eq!(writes.len(), 1);
     let (name, put) = &writes[0];
@@ -3209,6 +3267,7 @@ async fn a_first_publish_lands_on_the_write_up_and_removing_every_photo_drops_th
     let mut fields = good_fields();
     fields.retain(|(k, _)| *k != "action");
     fields.push(("action", "publish"));
+    fields.push(("draft_id", "12345"));
     let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
     let response = router(state.clone())
@@ -3239,7 +3298,7 @@ async fn a_first_publish_lands_on_the_write_up_and_removing_every_photo_drops_th
         .to_owned();
     assert_eq!(
         location,
-        format!("/at/{DID}/pub1/newdoc"),
+        format!("/at/{DID}/pub1/newdoc?after=published&draft=12345"),
         "no photos stop on the way"
     );
 
@@ -3357,6 +3416,34 @@ async fn the_author_sees_an_edit_link_on_their_document() {
     assert!(!anonymous.contains("href=\"/write/d3\""));
     let (_, _, mine) = get_signed(&state, &format!("/at/{DID}/pub1/d3"), &cookie).await;
     assert!(mine.contains("<a href=\"/write/d3\">edit</a>"), "{mine}");
+}
+
+#[tokio::test]
+async fn publication_confirmation_is_only_shown_to_the_author_after_saving() {
+    let server = mount(&one_publication()).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let path = format!("/at/{DID}/pub1/d3");
+    for (outcome, message) in [
+        ("published", "Your digest is published."),
+        ("saved", "Changes saved."),
+    ] {
+        let url = format!("{path}?after={outcome}");
+        let (_, _, anonymous) = get(&state, &url).await;
+        assert!(!anonymous.contains("publish-confirmation"));
+        let (_, _, mine) = get_signed(&state, &url, &cookie).await;
+        assert!(mine.contains(message), "{mine}");
+        assert!(mine.contains("https://bsky.app/intent/compose?text="));
+        assert!(
+            mine.contains("class=\"permalink\" href=\"https://ross.eaten.at/2026/09/third-post\""),
+            "{mine}"
+        );
+        assert!(mine.contains("Share on Bluesky"));
+    }
+    for url in [path.clone(), format!("{path}?after=unknown")] {
+        let (_, _, mine) = get_signed(&state, &url, &cookie).await;
+        assert!(!mine.contains("publish-confirmation"));
+    }
 }
 
 // ---- the tags field (C3.4) ----

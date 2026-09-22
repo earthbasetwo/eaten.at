@@ -67,6 +67,7 @@ fn routes(state: AppState) -> Router {
         .route("/about", get(about::about))
         .route("/login", get(auth::login_form).post(auth::login_start))
         .route("/login/bluesky", post(auth::authorize_bluesky))
+        .route("/login/reconnected", get(auth::reconnected))
         .route("/oauth/callback", get(auth::callback))
         .route("/logout", post(auth::logout))
         .route("/client-metadata.json", get(auth::client_metadata))

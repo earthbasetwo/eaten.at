@@ -219,3 +219,17 @@ Any name not in the overrides falls through to the real resolvers.
 - The Bluesky AppView (comment-thread reading). The full `make run-dev-env`
   in the atproto checkout provides one, and needs Docker for its Postgres and
   Redis.
+
+### Running a comparison on another port
+
+Use a separate `EATEN_AT_DB` for each public URL. The port is part of the
+local OAuth client identity: sharing `.dev-cache.db` between 3000 and 3003
+can appear to work until the one-hour access token expires, then refresh
+is rejected because the token belongs to the other client.
+
+The composer comparison uses port 3003 and `.dev-composer-cache.db`. Load
+`.env.dev`, then override `EATEN_AT_LISTEN=127.0.0.1:3003`,
+`EATEN_AT_PUBLIC_URL=http://127.0.0.1:3003`, and
+`EATEN_AT_DB=.dev-composer-cache.db` when starting the app. Sign in on that
+port to authorize its client. The local PDS records are still shared; the
+separate database isolates cache and authorization state, not published posts.
