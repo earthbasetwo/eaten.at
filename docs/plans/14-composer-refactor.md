@@ -57,8 +57,8 @@ Checked items are implemented on the local branch, not yet committed or merged.
 - [ ] Improve recovery for long-lived photo drafts: unpublished preview caches
   currently expire after six hours, after which a photo needs re-uploading
   unless its saved record makes the blob available from the PDS.
-- [ ] Add a just-published / changes-saved confirmation with copy-permalink and
-  Bluesky intent sharing. Explicitly deferred.
+- [x] Trial a just-published / changes-saved confirmation with copy-permalink
+  and Bluesky intent sharing (2026-09-22). Thread discovery remains deferred.
 - [ ] Settle how a Bluesky post becomes the comments thread, including multiple
   posts or accounts. Automatic discovery is explicitly deferred.
 - [ ] Publish the updated Snack lexicon when ready. The local schema, Rust

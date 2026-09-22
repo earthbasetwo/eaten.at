@@ -11,6 +11,8 @@ use crate::places::Hit;
 /// Everything the editor form carries, exactly as posted or prefilled.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EditorForm {
+    /// Local draft version, echoed only after a successful write.
+    pub draft_id: Option<u64>,
     pub title: String,
     pub body: String,
     pub description: String,
@@ -319,6 +321,7 @@ impl EditorForm {
             } else {
                 PlaceMode::Manual
             },
+            draft_id: None,
             changing_place: false,
             place_query: String::new(),
             gers_id: visit.place.gers_id.clone().unwrap_or_default(),
@@ -372,6 +375,7 @@ impl EditorForm {
                 "place_address" => form.place_address = value,
                 "place_price" => form.place_price = value,
                 "place_mode" => form.place_mode = PlaceMode::parse(&value),
+                "draft_id" => form.draft_id = value.parse().ok(),
                 "changing_place" => form.changing_place = value == "1",
                 "place_query" => form.place_query = value,
                 "gers_id" => form.gers_id = value,

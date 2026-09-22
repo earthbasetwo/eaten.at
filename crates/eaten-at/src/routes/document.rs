@@ -1,6 +1,6 @@
 //! `/at/{did}/{pub_rkey}/{doc_rkey}` — one document, rendered in full.
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
 use eaten_at_atproto::lexicon::Document;
 use eaten_at_web::components::{
@@ -22,9 +22,16 @@ use crate::security::Nonce;
 use crate::state::AppState;
 use crate::view;
 
+#[derive(Debug, Default, serde::Deserialize)]
+pub struct DocumentQuery {
+    after: Option<String>,
+    draft: Option<u64>,
+}
+
 pub async fn document_page(
     State(state): State<AppState>,
     Path((did, pub_rkey, doc_rkey)): Path<(String, String, String)>,
+    Query(query): Query<DocumentQuery>,
     headers: HeaderMap,
     nonce: Nonce,
     CurrentUser(viewer): CurrentUser,
@@ -50,11 +57,7 @@ pub async fn document_page(
 
     let title = record.value.title.clone();
     let published = record.value.published_at.as_str().to_owned();
-    let body = match body_of(&record.value) {
-        Body::Markdown(text) => Some(PreEscaped(markdown::render(text))),
-        Body::Plain(text) => Some(html! { pre.plain-body { (text) } }),
-        Body::Empty => None,
-    };
+    let body = document_body(&record.value);
     let tags = view::tag_links(
         &did,
         &pub_rkey,
@@ -94,6 +97,10 @@ pub async fn document_page(
             .then(|| format!("/write/{doc_rkey}/photos")),
     };
 
+    let confirmation = (viewer.as_ref() == Some(&did))
+        .then(|| confirmation_message(query.after.as_deref()))
+        .flatten();
+
     Ok(layout::render(&Page {
         title: &[&page_meta.title, &publication.value.name],
         masthead: Masthead::RunningHead {
@@ -103,7 +110,14 @@ pub async fn document_page(
         theme,
         nonce: Some(nonce.0),
         head: meta::head(&page_meta),
+        scripts: confirmation
+            .map(|_| eaten_at_web::assets::PUBLISHED_SCRIPT)
+            .into_iter()
+            .collect(),
         main: html! {
+            @if let Some(message) = confirmation {
+                (publication_confirmation(message, &page_meta.canonical, &paths::document(&did, &pub_rkey, &doc_rkey), query.after.as_deref(), &doc_rkey, query.draft))
+            }
             article.document {
                 p.kicker {
                     time datetime=(published) { (human_date(&published)) }
@@ -126,6 +140,53 @@ pub async fn document_page(
         },
         ..Page::default()
     }))
+}
+
+fn document_body(document: &Document) -> Option<Markup> {
+    match body_of(document) {
+        Body::Markdown(text) => Some(PreEscaped(markdown::render(text))),
+        Body::Plain(text) => Some(html! { pre.plain-body { (text) } }),
+        Body::Empty => None,
+    }
+}
+
+fn confirmation_message(after: Option<&str>) -> Option<&'static str> {
+    match after {
+        Some("published") => Some("Your digest is published."),
+        Some("saved") => Some("Changes saved."),
+        _ => None,
+    }
+}
+
+fn publication_confirmation(
+    message: &str,
+    permalink: &str,
+    dismiss: &str,
+    after: Option<&str>,
+    rkey: &str,
+    draft: Option<u64>,
+) -> Markup {
+    let draft_path = if after == Some("saved") {
+        format!("/write/{rkey}")
+    } else {
+        "/write".to_owned()
+    };
+    let share_url = format!(
+        "https://bsky.app/intent/compose?text={}",
+        layout::urlencoding(permalink)
+    );
+    html! {
+        section.publish-confirmation aria-label="Publication confirmation" data-draft-path=(draft_path) data-draft-id=[draft] {
+            p.publish-message { (message) }
+            div.actions {
+                a.permalink href=(permalink) { "Permalink" }
+                button.copy-permalink type="button" hidden { "Copy link" }
+                a href=(share_url) target="_blank" rel="noopener" { "Share on Bluesky ↗" }
+                a.soft href=(dismiss) { "Dismiss" }
+            }
+            p.copy-status role="status" {}
+        }
+    }
 }
 
 /// The comment thread to show under a document: the replies to the

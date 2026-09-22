@@ -46,7 +46,8 @@
   var timer = null;
   function save() {
     if (!store) return;
-    try { store.setItem(key, JSON.stringify({ at: Date.now(), data: snapshot() })); } catch (e) {}
+    var at = Date.now();
+    try { store.setItem(key, JSON.stringify({ at: at, data: snapshot() })); return at; } catch (e) {}
   }
   function scheduleSave() {
     if (timer) clearTimeout(timer);
@@ -110,7 +111,10 @@
   form.addEventListener("change", scheduleSave);
   form.addEventListener("submit", function (e) {
     var action = e.submitter && e.submitter.value;
-    if (action === "publish" || action === "change_place") forget(); else save();
+    if (action === "change_place") forget(); else {
+      clearTimeout(timer);
+      form.elements.draft_id.value = save() || "";
+    }
   });
   fields().forEach(grow);
 })();

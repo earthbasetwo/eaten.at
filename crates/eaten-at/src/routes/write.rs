@@ -112,6 +112,7 @@ async fn editing(state: &AppState, author: &Author, rkey: &str) -> Result<Editin
 struct Outcome<'a> {
     errors: FieldErrors,
     publish_error: Option<&'a str>,
+    reauthenticate: bool,
     /// Why a picked suggestion could not be taken.
     pick_error: Option<&'a str>,
     /// Where the choosing screen's suggestions would look; unknown
@@ -154,6 +155,7 @@ fn render(
             action_path: &action_path,
             editing: editing.is_some(),
             publish_error: outcome.publish_error,
+            reauthenticate: outcome.reauthenticate,
             pick_error: outcome.pick_error,
             suggesting: state.places_enabled() && outcome.located != Located::Unknown,
             photos_page: photos_page.as_deref(),
@@ -327,12 +329,23 @@ async fn publish_and_continue(
     .await
     {
         Ok(published) => {
-            let document_path = published.document_path();
+            let outcome = if editing.is_some() {
+                "saved"
+            } else {
+                "published"
+            };
+            let draft_id = form.draft_id.map_or_else(String::new, |id| format!("&draft={id}"));
+            let document_path = format!("{}?after={outcome}{draft_id}", published.document_path());
             Ok(after_publish(state, author, &published.doc_rkey, &document_path, draft).await)
         }
-        Err(PublishError::SessionExpired) => {
-            Ok(Redirect::to("/login?return_to=/write").into_response())
-        }
+        Err(PublishError::SessionExpired) => Ok(render(
+            state, nonce, StatusCode::UNAUTHORIZED, editing, form,
+            &Outcome {
+                publish_error: Some("Your publishing connection has expired. Your writing is still here. Sign in again, then retry publishing."),
+                reauthenticate: true,
+                ..Outcome::default()
+            },
+        )),
         Err(PublishError::App(err)) => Err(err),
         Err(PublishError::Home(message)) => {
             // The default subdomain could not be claimed; settings is

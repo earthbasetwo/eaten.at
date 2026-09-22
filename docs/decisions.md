@@ -146,3 +146,27 @@ abandoned previews. This corrects the assumption in Photos in the editor above.
 The trial now uses the underlined restaurant name to open the chooser, with a
 plain-text address and no separate change action. One photo-description string
 serves as the digest caption and the alt text for images without that caption.
+
+Post-publication trial (2026-09-22): successful creation and editing redirect to
+the digest with an author-only confirmation (“Your digest is published.” or
+“Changes saved.”). The confirmation offers the canonical permalink and a
+Bluesky compose intent containing that link. No posting permission is needed
+and no post is sent by this action. Thread discovery remains deferred. The
+confirmation query is removed from browser history by the small copy-link
+island; without JavaScript a Permalink and Dismiss link remain available.
+
+Publishing recovery (2026-09-22): an expired PDS authorization leaves the
+submitted composer visible with a reconnect link that opens in another tab.
+Explicit reauthentication bypasses the normal signed-in redirect from login.
+A publish submission saves its local text draft; only the author’s successful
+publish/save confirmation clears that draft. A failure must not silently
+return the writer to their publication or discard their text.
+
+Reconnection finishes on a dedicated confirmation in the sign-in tab, with
+instructions to return to the existing draft tab. Returning to `/write` was
+misleading because a new visit starts at restaurant selection. The completion
+page requires a stored publishing authorization as well as browser sign-in.
+
+Local draft cleanup matches the submitted draft version echoed after a
+successful write. Revisiting an older confirmation must not clear newer
+writing. The version is only a cleanup correlation value, never authorization.
