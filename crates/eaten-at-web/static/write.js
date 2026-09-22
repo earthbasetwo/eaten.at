@@ -1,6 +1,5 @@
 /* The editor's controls, as the Write Pages handoff draws them. Every
-   one dresses a form control that works on its own: the title's reset
-   mark and the place line that follows it; the date input as a word on
+   one dresses a form control that works on its own: the date input as a word on
    a hairline over a calendar; the meal and price selects as words over
    paper menus; the teaser's fold; the link rows as one card at a time
    under a sentence of their labels; Delete's confirmation in its own
@@ -49,6 +48,17 @@
     return fit;
   })();
 
+  /* Restoring a draft updates both the carried place and its visible heading. */
+  function showPlace() {
+    var change = form.querySelector(".change-place");
+    change.textContent = form.elements.place_name.value || "Choose a restaurant";
+    change.setAttribute("aria-label", "Change restaurant: " + form.elements.place_name.value);
+    form.querySelector(".place-address-text").textContent = form.elements.place_address.value;
+    form.querySelector(".place-line").hidden = !form.elements.place_address.value;
+  }
+  form.elements.place_name.addEventListener("change", showPlace);
+  form.elements.place_address.addEventListener("change", showPlace);
+
   /* ---- popovers: one at a time; outside click and Escape close ---- */
   var open = null;
   function closePopover() {
@@ -62,41 +72,19 @@
     if (open && !open.root.contains(e.target)) closePopover();
   });
 
-  /* ---- title and place ---- */
-  var titleRow = form.querySelector(".title-row");
-  var title = form.elements.title;
-  var placeLine = form.querySelector(".place-line");
-  var placeSlot = form.querySelector(".place-name-slot");
-  var placeName = form.elements.place_name;
-  var reset = titleRow.querySelector(".title-reset");
-  var changePlace = form.querySelector(".change-place");
-  function hasTitle() {
-    var t = title.value.trim();
-    return t !== "" && t !== placeName.value.trim();
+  /* Formatting is a native disclosure without script; with the other
+     islands it follows the same outside-click and Escape behavior. */
+  var formatting = form.querySelector(".formatting-help");
+  if (formatting) {
+    var helpPopover = { root: formatting, close: function () { formatting.open = false; } };
+    formatting.addEventListener("toggle", function () { if (formatting.open) showPopover(helpPopover); });
+    formatting.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        closePopover();
+        formatting.querySelector("summary").focus();
+      }
+    });
   }
-  /* The place's name stands in as the title until the author writes
-     one; then it joins the line under, and the change-place mark moves
-     down with it. */
-  function syncTitle() {
-    var has = hasTitle();
-    titleRow.toggleAttribute("data-has-title", has);
-    placeSlot.hidden = !has;
-    reset.hidden = !has;
-    var home = has ? placeLine : titleRow;
-    if (changePlace && changePlace.parentNode !== home) home.appendChild(changePlace);
-    title.placeholder = placeName.value.trim();
-    fit(title);
-  }
-  title.addEventListener("input", syncTitle);
-  title.addEventListener("change", syncTitle);
-  placeName.addEventListener("input", syncTitle);
-  placeName.addEventListener("change", syncTitle);
-  reset.addEventListener("click", function () {
-    title.value = "";
-    announce(title);
-    title.focus();
-  });
-  syncTitle();
 
   /* ---- the date: a word on a hairline, a calendar under it ---- */
   (function () {
@@ -237,7 +225,7 @@
         row.addEventListener("click", function () { choose(option.value); });
         pop.appendChild(row);
       });
-      var clear = button("note-option note-clear", "no note");
+      var clear = button("note-option note-clear", field.dataset.note === "meal" ? "a meal" : "no note");
       clear.setAttribute("role", "option");
       clear.setAttribute("aria-selected", select.value ? "false" : "true");
       clear.addEventListener("click", function () { choose(""); });

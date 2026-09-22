@@ -14,7 +14,6 @@ use axum::response::{IntoResponse, Json, Redirect, Response};
 use axum::Form;
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
-use eaten_at_atproto::lexicon::at_eaten::Preferences;
 use eaten_at_web::assets::{
     CHOOSE_PLACE_SCRIPT, COMBOBOX_SCRIPT, DIGEST_SCRIPT, EDITOR_SCRIPT, PHOTOS_SCRIPT, TAGS_SCRIPT,
     WRITE_SCRIPT,
@@ -47,14 +46,12 @@ const SUGGEST_LIMIT: usize = 6;
 /// need be (plan 08).
 struct Author {
     identity: Identity,
-    preferences: Preferences,
     /// What the sign-in may do with Bluesky posts.
     posting: PostPermission,
 }
 
 async fn author(state: &AppState, did: &Did) -> Result<Author, AppError> {
     let identity = state.require_identity(did).await?;
-    let preferences = state.preferences(&identity).await?;
     // A session whose grant cannot be read is treated as one that may
     // not post; the worst case is being asked to allow it again.
     let posting = match state.oauth().granted_scopes(did).await {
@@ -64,11 +61,7 @@ async fn author(state: &AppState, did: &Did) -> Result<Author, AppError> {
             PostPermission::default()
         }
     };
-    Ok(Author {
-        identity,
-        preferences,
-        posting,
-    })
+    Ok(Author { identity, posting })
 }
 
 /// The document being edited, when there is one.
@@ -130,18 +123,11 @@ fn render(
     state: &AppState,
     nonce: &str,
     status: StatusCode,
-    author: &Author,
     editing: Option<&Editing>,
     form: &EditorForm,
     outcome: &Outcome<'_>,
 ) -> Response {
     let action_path = editing.map_or_else(|| "/write".to_owned(), |e| format!("/write/{}", e.rkey));
-    let crosspost =
-        match editing.and_then(|e| crate::view::bluesky_post_url(e.visit_doc.document())) {
-            Some(url) => CrosspostState::Posted(url),
-            None if author.posting.create => CrosspostState::Ready,
-            None => CrosspostState::NeedsPermission,
-        };
     let photos_page = editing.map(|e| format!("/write/{}/photos", e.rkey));
     // The choosing screen suggests places; the editing screen keeps a
     // draft, dresses its controls, edits the markdown live, files tags
@@ -169,7 +155,6 @@ fn render(
             editing: editing.is_some(),
             publish_error: outcome.publish_error,
             pick_error: outcome.pick_error,
-            crosspost,
             suggesting: state.places_enabled() && outcome.located != Located::Unknown,
             photos_page: photos_page.as_deref(),
         }),
@@ -187,21 +172,12 @@ pub async fn new_form(
 ) -> Result<Response, AppError> {
     let nonce = nonce.0.as_str();
     let author = author(&state, &did).await?;
-    let mut form = EditorForm::blank();
-    form.crosspost = author.preferences.crosspost_default();
+    let form = EditorForm::blank();
     let outcome = Outcome {
         located: locate(&state, &author.identity, ip).await.1,
         ..Outcome::default()
     };
-    Ok(render(
-        &state,
-        nonce,
-        StatusCode::OK,
-        &author,
-        None,
-        &form,
-        &outcome,
-    ))
+    Ok(render(&state, nonce, StatusCode::OK, None, &form, &outcome))
 }
 
 /// `GET /write/{rkey}` — the editor prefilled from the author's document.
@@ -220,7 +196,6 @@ pub async fn edit_form(
         &state,
         nonce,
         StatusCode::OK,
-        &author,
         Some(&editing),
         &form,
         &outcome,
@@ -282,7 +257,6 @@ async fn submit(
                 state,
                 nonce,
                 StatusCode::UNPROCESSABLE_ENTITY,
-                author,
                 editing,
                 &form,
                 &Outcome {
@@ -304,7 +278,6 @@ async fn submit(
                 state,
                 nonce,
                 StatusCode::OK,
-                author,
                 editing,
                 &form,
                 &Outcome {
@@ -324,7 +297,6 @@ async fn submit(
                 state,
                 nonce,
                 StatusCode::UNPROCESSABLE_ENTITY,
-                author,
                 editing,
                 &form,
                 &Outcome {
@@ -370,7 +342,6 @@ async fn publish_and_continue(
                 state,
                 nonce,
                 StatusCode::UNPROCESSABLE_ENTITY,
-                author,
                 editing,
                 form,
                 &Outcome {
@@ -387,7 +358,6 @@ async fn publish_and_continue(
                 state,
                 nonce,
                 StatusCode::BAD_GATEWAY,
-                author,
                 editing,
                 form,
                 &Outcome {
@@ -455,15 +425,7 @@ async fn pick(
             ..Outcome::default()
         },
     };
-    render(
-        state,
-        nonce,
-        StatusCode::OK,
-        author,
-        editing,
-        &form,
-        &outcome,
-    )
+    render(state, nonce, StatusCode::OK, editing, &form, &outcome)
 }
 
 #[derive(Debug, Deserialize)]

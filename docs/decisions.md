@@ -122,3 +122,27 @@ Cosmetic only; nothing here affects behaviour.
 - Rust identifiers were renamed from "subject document" and "subject
   card" to "visit document" and "visit card" on 2026-09-13, when the
   vocabulary settled.
+
+## Composer refactor trial (2026-09-22)
+
+Ken's feedback authorizes a trial on `composer-refactor`: the restaurant remains
+at the head of the page; an optional title moves inside DIGEST above its body.
+The digest uses the page's paper and horizontal rules only. Filed under moves
+below photos and Elsewhere is left-aligned. Formatting help is a disclosure;
+whole-digest selection preserves the active-line-only markdown presentation.
+The second iteration removes Cancel and the composer’s Bluesky controls.
+Title and body share faint horizontal rules, with a body prompt and Formatting
+beside DIGEST; the title has no full-width underline or explanatory hint.
+Snack is added without removing Late night. This amends the corresponding Write Pages layout and meal choices;
+see `docs/plans/14-composer-refactor.md`. Bluesky and post-publication changes
+remain deferred.
+
+The composer’s unpublished photo previews are cached from the metadata-free JPEG
+at upload time (2026-09-22): the PDS may not serve an uploaded blob until a record
+references it. Preview keys include the author DID and CID, responses require
+sign-in and vary by Cookie, and the existing six-hour image-cache TTL bounds
+abandoned previews. This corrects the assumption in Photos in the editor above.
+
+The trial now uses the underlined restaurant name to open the chooser, with a
+plain-text address and no separate change action. One photo-description string
+serves as the digest caption and the alt text for images without that caption.

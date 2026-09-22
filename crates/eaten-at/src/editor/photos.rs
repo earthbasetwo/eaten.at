@@ -269,7 +269,7 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
                             }
                             div.photo-row-body {
                                 div.field.field-invalid[invalid] {
-                                    label.kicker for=(alt_name) { "Alt text (optional)" }
+                                    label.kicker for=(alt_name) { "Describe this photo (optional)" }
                                     input id=(alt_name) name=(alt_name) type="text" value=(photo.alt);
                                     @if invalid {
                                         @if let Some(error) = page.alt_error {
@@ -308,7 +308,7 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
             div.actions {
                 button type="submit" name="action" value=(PhotosAction::Add.value()) { "Add photos" }
                 @if count > 0 {
-                    button.button-secondary type="submit" name="action" value=(PhotosAction::Save.value()) { "Save alt text" }
+                    button.button-secondary type="submit" name="action" value=(PhotosAction::Save.value()) { "Save descriptions" }
                 }
                 @match page.then {
                     Some(then) => { a.button-link href=(then) { @if count > 0 { "Done" } @else { "Skip for now" } } }

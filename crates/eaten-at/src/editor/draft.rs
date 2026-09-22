@@ -457,6 +457,7 @@ mod tests {
             place_address: " 1 Example St ".into(),
             place_price: "2".into(),
             place_mode: PlaceMode::Picked,
+            changing_place: false,
             place_query: String::new(),
             gers_id: " 08f2a5b6c7d8e9f0a1b2c3d4e5f60718 ".into(),
             lat_e6: "40688838".into(),

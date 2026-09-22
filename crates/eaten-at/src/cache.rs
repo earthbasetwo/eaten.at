@@ -272,6 +272,16 @@ impl Cache {
         }
     }
 
+    /// Store bytes fetched by other means, replacing any negative entry.
+    pub async fn put_bytes(&self, namespace: Namespace, key: &str, value: &[u8]) {
+        // A fetch already in flight must not overwrite this value with a miss.
+        let lock = self.lock_for(namespace, key);
+        let guard = lock.lock().await;
+        self.store(namespace, key, Some(value)).await;
+        drop(guard);
+        self.release_lock(namespace, key, &lock);
+    }
+
     /// Forget one entry.
     pub async fn evict(&self, namespace: Namespace, key: &str) {
         let key = key.to_owned();

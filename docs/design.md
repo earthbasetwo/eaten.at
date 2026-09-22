@@ -722,3 +722,42 @@ which is a decision this project already took and has not reversed.
 | Links with no underline at rest | A link inside prose keeps a faint underline | Colour alone does not mark a link in a paragraph |
 | Multi-select filter chips, typeset, as an alternative for tag filters | The tag chip stays the small mono badge it is | The handoff offers the chip as an alternative, and nothing here filters by several tags at once: a tag chip is a link to a tag page |
 | Google Fonts for Newsreader and JetBrains Mono | The same faces, subset and served from `/static/` | The CSP keeps every request same-origin |
+
+## Composer trial — 2026-09-22
+
+The `composer-refactor` trial amends the editor description above. The restaurant
+remains the headline, with its address and a compact “change” action. The chooser
+uses Margot’s Bistro as its example. DIGEST and a small italic Formatting disclosure
+share a heading row over a faint rule. The disclosure opens a small paper panel;
+with script it closes on outside click or Escape.
+
+Below that rule, the title says only “Title” when empty. It has no full-width rule
+or visible optional-text hint; hover/focus underlines its text. The body beneath
+it is transparent on the page’s paper. Its italic stone placeholder asks “What
+did you eat? Was it good? What else happened?” A faint rule closes the
+writing section and takes the accent on focus. Inactive lines remain formatted
+even when the whole digest is selected.
+
+Filed under sits below photos, full-width and left-aligned. Photos have no
+kicker; the empty target says Add photos at rest. Elsewhere and its link cards
+align left and wrap. Gaps below the digest are 16–24px. The composer has no Cancel
+or Bluesky controls. The calendar, teaser, price, link editor, and inline Delete
+confirmation remain. Snack joins the meal options; Late night stays.
+
+The composing photo lightbox grows to 960px when space allows. Its image height
+adapts to the viewport, preserving room for the caption and actions; the panel
+can scroll in very short windows. Responsive outside gutters keep it inset on
+phones. Its hard 6px drop shadow is retained unchanged.
+
+The composer’s date sentence now reads “For [a meal] on [date].” The meal
+selector sits inline before the date, with lowercase names and “a snack”;
+clearing it restores “a meal.” Price remains beside the rating below the digest.
+
+The digest body starts at six lines (9.6em at its 1.6 line height, six rows for
+the plain textarea), growing with the writing. This prioritizes writing room
+over fitting the entire composer with photos above the fold on smaller laptops.
+
+The restaurant headline is an underlined submit control opening the chooser;
+the address is plain supporting text. Both remain editable in the chooser.
+Photo text uses one “Describe this photo” field, stored as alt text. Digest
+photo links show it once as a visible caption; listing images use it as alt text.

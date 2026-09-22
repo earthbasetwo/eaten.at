@@ -146,7 +146,11 @@ mod tests {
         let (sessions, clock) = sessions();
         let did = Did::parse("did:plc:re3ebnp5v7ffagz6rb6xfei4").unwrap();
         let token = sessions.create(&did).await.unwrap();
-        clock.advance(SESSION_LIFETIME - Duration::from_secs(1));
+        clock.advance(
+            SESSION_LIFETIME
+                .checked_sub(Duration::from_secs(1))
+                .unwrap(),
+        );
         assert_eq!(sessions.lookup(&token).await, Some(did));
         clock.advance(Duration::from_secs(1));
         assert_eq!(sessions.lookup(&token).await, None);

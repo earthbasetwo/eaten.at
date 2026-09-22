@@ -220,8 +220,7 @@ async fn par_state(server: &MockServer) -> String {
     let requests = server.received_requests().await.unwrap();
     let par = requests
         .iter()
-        .filter(|r| r.url.path() == "/oauth/par")
-        .next_back()
+        .rfind(|r| r.url.path() == "/oauth/par")
         .expect("a PAR request was made");
     let body = String::from_utf8_lossy(&par.body).into_owned();
     url::form_urlencoded::parse(body.as_bytes())

@@ -85,7 +85,8 @@ async function main() {
 
   const failures = []
   const check = async (page) => {
-    for (const viewport of WIDTHS) {
+    if (process.env.VISUAL_CHECK_FILTER && !page.name.includes(process.env.VISUAL_CHECK_FILTER)) return
+    for (const viewport of page.viewports ?? WIDTHS) {
       const problems = await browser.visit(page, viewport)
       const name = `${page.name} @ ${viewport.label}`
       if (problems.length) {
@@ -169,10 +170,8 @@ async function main() {
 
   // Signed in.
   await browser.setCookie(cookieName, cookieValue)
-  // The editor checks lean on the seed: the write-up with photos also
-  // carries a teaser and links, the last without photos has neither.
-  // Chosen by shape rather than position, so a write-up published by
-  // hand against the local network does not shift them.
+  // Discover photo and empty-photo states; individual exercises supply
+  // their own prose and teaser content without saving records.
   if (discovered.withPhotos.length === 0) throw new Error(`no write-up with photos listed on ${front}`)
   if (discovered.withoutPhotos.length === 0) throw new Error(`no write-up without photos listed on ${front}`)
   const rkey = discovered.withPhotos[0].split('/').pop()
@@ -225,7 +224,7 @@ async function main() {
     name: 'write-manual',
     path: '/write',
     steps: [byHand('The Cart')],
-    expect: 'input[name="place_mode"][value="manual"]',
+    expect: '.digest-editor.digest-empty[data-placeholder]',
   })
   await check({
     name: 'write-manual-blank',
@@ -246,9 +245,46 @@ async function main() {
   // card, the photos in place, and Delete's confirmation.
   await check({ name: 'edit', path: `/write/${rkey}`, expect: '.digest-editor .md-line' })
   await check({
+    name: 'edit-short-draft', path: `/write/${rkey}`,
+    viewports: [{ label: 'laptop', width: 1440, height: 800, mobile: false }],
+    expect: '.photo-tile',
+    exercise: async (browser) => {
+      await browser.evaluate(`(() => {
+        const body = document.querySelector('#body')
+        body.value = 'The noodles had a little bite. We stayed for another pot of tea.'
+        body.dispatchEvent(new Event('change', { bubbles: true }))
+        const teaser = document.querySelector('#description')
+        teaser.value = ''
+        teaser.dispatchEvent(new Event('input', { bubbles: true }))
+        document.querySelector('details.teaser').open = false
+        document.activeElement.blur()
+        scrollTo(0, 0)
+      })()`)
+      const lines = await browser.evaluate(`(() => { const box = document.querySelector('.digest-editor'); return box.getBoundingClientRect().height / parseFloat(getComputedStyle(box).lineHeight) })()`)
+      if (Math.abs(lines - 6) > 0.1) throw new Error('Short digest should start at six lines: ' + lines)
+    },
+  })
+  await check({ name: 'edit-selection', path: `/write/${rkey}`, exercise: checkDigestSelection, expect: '.digest-editor .md-line' })
+  await check({ name: 'edit-restore-place', path: `/write/${rkey}`, exercise: checkPlaceDraft, expect: '#change_restaurant' })
+  await check({
+    name: 'edit-formatting-help', path: `/write/${rkey}`,
+    steps: [{ press: '.formatting-help summary', wait: '.formatting-help[open]' }],
+    expect: '.formatting-help[open] code',
+  })
+  await check({
+    name: 'edit-long-tags-links', path: `/write/${rkey}`,
+    steps: [{ type: { '#tags': 'a very long tag about dinner, another long tag about the restaurant, a third tag,' }, wait: '.tag-field .chip' }],
+    expect: '.photos-block + .tags-line',
+  })
+  await check({
     name: 'edit-digest',
     path: `/write/${rkey}`,
-    steps: [{ press: '.digest-editor .md-line', wait: '.digest-editor.active .md-active[contenteditable="true"]' }],
+    exercise: async (browser) => browser.evaluate(`(() => {
+      const body = document.querySelector('#body')
+      body.value = '# A heading'
+      body.dispatchEvent(new Event('change', { bubbles: true }))
+      document.querySelector('.md-line').click()
+    })()`),
     expect: '.md-active .md-tok',
   })
   await check({
@@ -261,7 +297,7 @@ async function main() {
     name: 'edit-meal',
     path: `/write/${rkey}`,
     steps: [{ press: '[data-note="meal"] .note-button', wait: '.note-popover:not([hidden]) .note-option' }],
-    expect: '[data-note="meal"] .note-clear',
+    expect: '.date-line [data-note="meal"] .note-clear',
   })
   await check({
     name: 'edit-tags',
@@ -274,10 +310,20 @@ async function main() {
   await check({
     name: 'edit-teaser',
     path: `/write/${bare}`,
-    steps: [{ press: 'details.teaser > summary', wait: 'details.teaser[open] #description' }],
+    exercise: async (browser) => browser.evaluate(`(() => {
+      const description = document.querySelector('#description')
+      description.value = ''
+      description.dispatchEvent(new Event('input', { bubbles: true }))
+      document.querySelector('details.teaser').open = false
+      document.querySelector('details.teaser > summary').click()
+    })()`),
     expect: '.teaser-default:not([hidden])',
   })
-  await check({ name: 'edit-teaser-custom', path: `/write/${rkey}`, expect: 'details.teaser[open] .teaser-custom:not([hidden])' })
+  await check({
+    name: 'edit-teaser-custom', path: `/write/${rkey}`,
+    steps: [{ type: { '#description': 'A short invitation to read.' }, wait: 'details.teaser[open]' }],
+    expect: 'details.teaser[open] .teaser-custom:not([hidden])',
+  })
   // Without photos, the box is the invitation.
   await check({ name: 'edit-no-photos', path: `/write/${bare}`, expect: 'button.photo-empty' })
   await check({
@@ -288,7 +334,34 @@ async function main() {
   })
   await check({
     name: 'edit-photo-detail',
+    exercise: checkPhotoDialog,
     path: `/write/${rkey}`,
+    steps: [{ press: '.photo-tile', wait: '.photo-scrim .photo-caption' }],
+    expect: '.photo-detail img',
+  })
+  await check({
+    name: 'edit-photo-remove', path: `/write/${rkey}`,
+    expect: 'button.photo-empty',
+    exercise: async (browser) => {
+      const ok = await browser.evaluate(`(() => {
+        while (document.querySelector('.photo-tile')) {
+          document.querySelector('.photo-tile').click()
+          document.querySelector('.photo-detail .danger').click()
+          if (document.querySelector('.photo-scrim') || !document.activeElement.matches('.photo-tile, .photo-add, .photo-empty')) return false
+        }
+        return document.activeElement.matches('.photo-empty') && document.querySelector('.photo-fields').children.length === 0
+      })()`)
+      if (!ok) throw new Error('Removing photos lost focus or retained removed photo fields')
+    },
+  })
+  await check({
+    name: 'edit-photo-detail-roomy',
+    exercise: checkPhotoDialog,
+    path: `/write/${rkey}`,
+    viewports: [
+      { label: 'wide', width: 1600, height: 1100, mobile: false },
+      { label: 'short', width: 1080, height: 540, mobile: false },
+    ],
     steps: [{ press: '.photo-tile', wait: '.photo-scrim .photo-caption' }],
     expect: '.photo-detail img',
   })
@@ -303,6 +376,16 @@ async function main() {
     path: `/write/${rkey}`,
     steps: [{ click: 'button[name="action"][value="change_place"]' }],
     expect: '#place_name.headline[value]',
+    exercise: async (browser) => {
+      const selected = await browser.evaluate(`(() => {
+        const name = document.querySelector('#place_name')
+        return name.value.length > 0 && document.activeElement === name && name.selectionStart === 0 && name.selectionEnd === name.value.length
+      })()`)
+      if (!selected) throw new Error('The current restaurant name was not fully selected')
+      if (!await browser.evaluate(`document.querySelector('#start-writing').textContent.trim() === 'Keep writing'`)) throw new Error('Reselecting a restaurant should offer Keep writing')
+      await browser.session.send('Input.insertText', { text: 'Margot’s Bistro' })
+      if (!await browser.evaluate(`document.querySelector('#place_name').value === 'Margot’s Bistro'`)) throw new Error('Typing did not replace the restaurant name')
+    },
   })
   await check({
     name: 'edit-keep',
@@ -335,6 +418,149 @@ async function main() {
       : `\nAll pages passed. Screenshots: ${path.relative(ROOT, OUT)}/`,
   )
   return failures.length > 0
+}
+
+// Exercise real keyboard selection and replacement in the browser. Clipboard
+// events use an in-memory clipboard so these checks never touch the user's.
+async function checkDigestSelection(browser) {
+  const original = '# Heading\n\nA **bold** line.\n\nThe last *line*.'
+  const expectBody = async (value) => {
+    const actual = await browser.evaluate('document.querySelector("#body").value')
+    if (actual !== value) throw new Error(`digest mismatch: ${JSON.stringify(actual)}`)
+  }
+  const key = async (key, modifiers = 2) => {
+    const code = 'Key' + key.toUpperCase()
+    await browser.session.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, modifiers, windowsVirtualKeyCode: key.toUpperCase().charCodeAt(0) })
+    await browser.session.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers })
+  }
+  const selectAll = async (modifiers = 2) => {
+    await key('a', modifiers)
+    const facts = await browser.evaluate(`(() => {
+      const box = document.querySelector('.digest-editor')
+      const sel = getSelection()
+      return { focus: document.activeElement.outerHTML.slice(0,180), anchor: sel.anchorNode?.nodeName, selected: sel.toString(), active: box.querySelectorAll('.md-active').length,
+        folded: [...box.querySelectorAll('.md-line:not(.md-active)')].every(n => !n.querySelector('.md-tok')) }
+    })()`)
+    if (!facts.selected.includes('Heading') || !facts.selected.includes('last') || !facts.folded || facts.active !== 1) {
+      throw new Error('Select All must span the digest and keep inactive lines folded: ' + JSON.stringify({modifiers, ...facts}))
+    }
+  }
+  const clipboard = async (type, text = '') => browser.evaluate(`(() => {
+    const data = new DataTransfer()
+    data.setData('text/plain', ${JSON.stringify(text)})
+    document.querySelector('.md-active').dispatchEvent(new ClipboardEvent(${JSON.stringify(type)}, { bubbles: true, cancelable: true, clipboardData: data }))
+    return data.getData('text/plain')
+  })()`)
+  await browser.evaluate(`(() => {
+    const ta = document.querySelector('#body'); ta.value = ${JSON.stringify(original)}
+    ta.dispatchEvent(new Event('change', { bubbles: true }))
+    document.querySelectorAll('.md-line')[2].click()
+  })()`)
+  await selectAll()
+  if (await clipboard('copy') !== original) throw new Error('Copy lost markdown or line breaks')
+  await expectBody(original)
+  if (await clipboard('cut') !== original) throw new Error('Cut lost markdown or line breaks')
+  await expectBody('')
+  await key('z')
+  await expectBody(original)
+  await selectAll(4) // Cmd+A as well as Ctrl+A.
+  await browser.session.send('Input.insertText', { text: 'Replacement' })
+  await expectBody('Replacement')
+  await key('z')
+  await expectBody(original)
+  await key('z', 10) // Ctrl+Shift+Z
+  await expectBody('Replacement')
+  await key('z')
+  await selectAll()
+  await clipboard('paste', 'Pasted **one**\n\nAnd two')
+  await expectBody('Pasted **one**\n\nAnd two')
+  await key('z')
+  await expectBody(original)
+  for (const [navigation, vk, atStart, modifiers = 0] of [['ArrowLeft', 37, true], ['ArrowRight', 39, false], ['ArrowUp', 38, true], ['ArrowDown', 40, false], ['Home', 36, true], ['End', 35, false], ['ArrowRight', 39, false, 2], ['ArrowRight', 39, false, 4], ['ArrowLeft', 37, true, 1]]) {
+    await selectAll()
+    await browser.session.send('Input.dispatchKeyEvent', { type: 'keyDown', key: navigation, code: navigation, windowsVirtualKeyCode: vk, modifiers })
+    await browser.session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: navigation, code: navigation, windowsVirtualKeyCode: vk, modifiers })
+    if (!await browser.evaluate('getSelection().isCollapsed')) throw new Error(navigation + ' did not collapse the digest selection')
+    await browser.session.send('Input.insertText', { text: '!' })
+    await expectBody(atStart ? '!' + original : original + '!')
+    await key('z')
+    await expectBody(original)
+  }
+}
+
+async function checkPlaceDraft(browser) {
+  const url = await browser.evaluate('location.href')
+  const readPlace = () => browser.evaluate(`(() => {
+    const form = document.querySelector('form.editor-write')
+    return Object.fromEntries(['place_name', 'place_address', 'place_mode', 'gers_id', 'lat_e6', 'lon_e6'].map(name => [name, form.elements[name].value]))
+  })()`)
+  const original = await readPlace()
+  const submit = (selector) => browser.navigate(null, [], () => browser.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`))
+  for (const picked of [true, false]) {
+    await submit('#change_restaurant')
+    await browser.evaluate(`(() => {
+      const name = document.querySelector('#place_name')
+      name.value = ${JSON.stringify(picked ? 'noo' : 'Review Bistro')}
+      name.dispatchEvent(new Event('input', { bubbles: true }))
+      document.querySelector('#place_address').value = ''
+    })()`)
+    if (picked) {
+      if (!await browser.appears('[role="option"]')) throw new Error('No restaurant suggestion for the draft test')
+      await browser.evaluate(`document.querySelector('[role="option"]').click()`)
+    }
+    await submit('#start-writing')
+    const expected = await readPlace()
+    if (picked !== !!expected.gers_id || (picked && (!expected.lat_e6 || !expected.lon_e6))) throw new Error('Place fixture did not carry the expected identity')
+    await browser.evaluate(`(() => {
+      const body = document.querySelector('#body')
+      body.value = 'A draft for the changed restaurant.'
+      body.dispatchEvent(new Event('change', { bubbles: true }))
+      body.dispatchEvent(new Event('input', { bubbles: true }))
+    })()`)
+    await sleep(600)
+    await browser.navigate(url, [])
+    await browser.evaluate(`document.querySelector('.restore button').click()`)
+    if (JSON.stringify(await readPlace()) !== JSON.stringify(expected)) throw new Error('Restoring the draft lost restaurant details or identity')
+    const visible = await browser.evaluate(`({ name: document.querySelector('#change_restaurant').textContent, address: document.querySelector('.place-address-text').textContent, hidden: document.querySelector('.place-line').hidden, body: document.querySelector('#body').value })`)
+    if (visible.name !== expected.place_name || visible.address !== expected.place_address || visible.hidden !== !expected.place_address || visible.body !== 'A draft for the changed restaurant.') throw new Error('Restored place fields and visible composer disagree')
+  }
+  // Legacy drafts cannot safely restore a name without its place identity.
+  await browser.evaluate(`(() => {
+    const key = 'ea:draft:' + location.pathname
+    const saved = JSON.parse(localStorage.getItem(key))
+    delete saved.data.gers_id
+    saved.data.place_name = 'An incomplete legacy restaurant'
+    localStorage.setItem(key, JSON.stringify(saved))
+  })()`)
+  await browser.navigate(url, [])
+  if (!await browser.evaluate(`document.querySelector('.restore').textContent.includes('Check the restaurant')`)) throw new Error('Legacy restoration should explain the missing restaurant details')
+  await browser.evaluate(`document.querySelector('.restore button').click()`)
+  if (JSON.stringify(await readPlace()) !== JSON.stringify(original)) throw new Error('A legacy draft mixed incomplete restaurant metadata with the saved record')
+}
+
+async function checkPhotoDialog(browser) {
+  const layout = await browser.evaluate(`(() => {
+    const panel = document.querySelector('.photo-detail').getBoundingClientRect()
+    const foot = document.querySelector('.photo-detail-foot').getBoundingClientRect()
+    return { width: panel.width, top: panel.top, bottom: panel.bottom, actions: foot.bottom, height: innerHeight, viewport: innerWidth }
+  })()`)
+  if (layout.top < 0 || layout.bottom > layout.height || layout.actions > layout.height) throw new Error('Photo or caption actions extend below the window')
+  if (layout.viewport >= 1200 && layout.width < 900) throw new Error('The photo dialog is not using the available width')
+  const key = async (key, code, modifiers = 0) => {
+    const event = { key, code, modifiers, windowsVirtualKeyCode: key === 'Tab' ? 9 : 27 }
+    await browser.session.send('Input.dispatchKeyEvent', { ...event, type: 'keyDown' })
+    await browser.session.send('Input.dispatchKeyEvent', { ...event, type: 'keyUp' })
+  }
+  await key('Tab', 'Tab', 8)
+  if (!await browser.evaluate(`document.activeElement.matches('.photo-detail .danger')`)) throw new Error('Shift+Tab left the photo dialog')
+  await key('Tab', 'Tab')
+  if (!await browser.evaluate(`document.activeElement.matches('.photo-caption')`)) throw new Error('Tab left the photo dialog')
+  await key('Escape', 'Escape')
+  if (!await browser.evaluate(`!document.querySelector('.photo-scrim') && document.activeElement.matches('.photo-tile')`)) throw new Error('Closing the photo dialog lost keyboard focus')
+  await browser.evaluate(`document.activeElement.click()`)
+  await browser.evaluate(`(() => { document.querySelector('.photo-caption').value = 'A caption kept on Done'; document.querySelector('.photo-detail .hint-action').click() })()`)
+  if (!await browser.evaluate(`document.querySelector('[name="photo_alt_0"]').value === 'A caption kept on Done'`)) throw new Error('Done discarded the caption')
+  await browser.evaluate(`document.activeElement.click()`)
 }
 
 // ---- Chrome over the DevTools protocol ----
@@ -453,6 +679,9 @@ class Browser {
       )
     }
 
+    if (page.exercise) {
+      try { await page.exercise(this) } catch (error) { problems.push(error.message) }
+    }
     const expected = page.status ?? 200
     if (status !== expected) problems.push(`status ${status}, expected ${expected}`)
 

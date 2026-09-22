@@ -280,6 +280,34 @@ impl AppState {
         }
     }
 
+    /// Keep private previews of a successful upload. A PDS stores new blobs
+    /// temporarily and may not serve them through `getBlob` until a record
+    /// references them. Use the metadata-free JPEG we just uploaded instead.
+    /// The existing image-cache TTL bounds abandoned previews; the DID in
+    /// each key keeps unpublished images scoped to their author.
+    pub async fn cache_uploaded_photo(
+        &self,
+        identity: &eaten_at_atproto::identity::Identity,
+        cid: &str,
+        jpeg: Vec<u8>,
+    ) -> Result<(), AppError> {
+        let renditions = tokio::task::spawn_blocking(move || {
+            let image = decode(&jpeg)?;
+            [PhotoSize::Thumb, PhotoSize::Full, PhotoSize::Card]
+                .into_iter()
+                .map(|size| encode_photo(&image, size).map(|bytes| (size, bytes)))
+                .collect::<Result<Vec<_>, ImageError>>()
+        })
+        .await
+        .map_err(|err| AppError::Upstream(err.to_string()))?
+        .map_err(|err| AppError::Upstream(err.to_string()))?;
+        for (size, bytes) in renditions {
+            let key = own_photo_key(identity, cid, size);
+            self.cache().put_bytes(Namespace::Image, &key, &bytes).await;
+        }
+        Ok(())
+    }
+
     /// One of the author's own blobs at `size`, cached, for the editor's
     /// tiles (D37 amended); `None` when the repository has no such blob
     /// or it is not an image. Only reached signed in, for the caller's
@@ -290,7 +318,7 @@ impl AppState {
         cid: &str,
         size: PhotoSize,
     ) -> Option<Rendition> {
-        let key = format!("{}/own/{}/{}", identity.did, cid, size.as_str());
+        let key = own_photo_key(identity, cid, size);
         let build = || async {
             let url = self.repo_for(identity).blob_url(&identity.did, cid);
             let image = self.fetch_and_decode(url).await?;
@@ -354,6 +382,14 @@ fn is_raster_content_type(content_type: &str) -> bool {
         mime,
         "image/jpeg" | "image/png" | "image/gif" | "image/webp"
     )
+}
+
+fn own_photo_key(
+    identity: &eaten_at_atproto::identity::Identity,
+    cid: &str,
+    size: PhotoSize,
+) -> String {
+    format!("{}/own/{}/{}", identity.did, cid, size.as_str())
 }
 
 /// Why an image was rejected or could not be produced.

@@ -110,9 +110,13 @@ pub fn photo_grid(photos: &[PhotoView]) -> Markup {
                 ul.photo-grid {
                     @for photo in photos {
                         li {
-                            a href=(photo.full_src) {
-                                img src=(photo.thumb_src) alt=(photo.alt)
-                                    width=(THUMB_SIDE) height=(THUMB_SIDE) loading="lazy";
+                            a href=(photo.full_src) aria-label=[photo.alt.is_empty().then_some("View photo")] {
+                                figure {
+                                    // The visible caption names the link without repeating the image description.
+                                    img src=(photo.thumb_src) alt=""
+                                        width=(THUMB_SIDE) height=(THUMB_SIDE) loading="lazy";
+                                    @if !photo.alt.is_empty() { figcaption { (photo.alt) } }
+                                }
                             }
                         }
                     }
@@ -680,7 +684,7 @@ mod tests {
             "{out}"
         );
         assert!(
-            out.contains("<a href=\"/img/d/r/c?size=full\"><img src=\"/img/d/r/c?size=thumb\" alt=\"The &lt;room&gt;\" width=\"400\" height=\"400\" loading=\"lazy\"></a>"),
+            out.contains("<a href=\"/img/d/r/c?size=full\"><figure><img src=\"/img/d/r/c?size=thumb\" alt=\"\" width=\"400\" height=\"400\" loading=\"lazy\"><figcaption>The &lt;room&gt;</figcaption></figure></a>"),
             "{out}"
         );
     }

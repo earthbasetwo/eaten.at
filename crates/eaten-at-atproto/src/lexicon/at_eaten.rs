@@ -98,6 +98,7 @@ known_values! {
         Brunch => "brunch", "Brunch";
         Lunch => "lunch", "Lunch";
         Dinner => "dinner", "Dinner";
+        Snack => "snack", "Snack";
         LateNight => "lateNight", "Late night";
     }
 }

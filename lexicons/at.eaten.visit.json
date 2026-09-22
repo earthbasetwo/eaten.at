@@ -29,6 +29,7 @@
             "brunch",
             "lunch",
             "dinner",
+            "snack",
             "lateNight"
           ],
           "maxLength": 640

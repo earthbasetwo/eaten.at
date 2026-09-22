@@ -99,4 +99,10 @@
     if (e.key === "Enter") { e.preventDefault(); name.blur(); }
   });
   arm();
+  // On arrival, typing replaces the current restaurant. Do this once,
+  // so later clicks can still position the caret for a small correction.
+  if (name.value) {
+    name.focus();
+    name.select();
+  }
 })();
