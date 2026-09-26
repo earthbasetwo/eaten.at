@@ -1,15 +1,9 @@
-/* The digest: a live markdown editor over the write-up's textarea. The
-   text is shown formatted, one line of source per line on the page;
-   the line the caret is on shows its raw markdown, the syntax in faint
-   ink around the formatting it makes, and folds back when the caret
-   leaves. Headings to three levels, bullet and numbered lists, quotes,
-   bold, italic, code, and links are drawn; anything else stays as
-   written and the server renders it. The textarea stays the carrier:
-   every change is written back to it, so the draft island and the send
-   see the same text, and a restored draft comes back through it.
-   The prompt is written in markdown and drawn as the caret line
-   would draw it, so the marks are seen where they are typed. Without
-   this the textarea is the editor. */
+/* The digest: a live markdown editor over the write-up's textarea, one
+   source line a line on the page, drawn formatted; the caret's line
+   shows its raw markdown with the marks faint. What is not drawn stays
+   as written for the server. The textarea stays the carrier, so the
+   draft and the send see the same text. The prompt is drawn as the
+   caret line would draw it. Without this the textarea is the editor. */
 (function () {
   "use strict";
   var ta = document.querySelector("form.editor-write textarea[name=\"body\"]");
@@ -77,18 +71,28 @@
     });
     return html || "<br>";
   }
-  function lineClass(text, i) {
+  /* Prose right under a list item or a quote, no blank line between,
+     is published inside it (a lazy continuation), so it is drawn there:
+     `was` is what the line before leaves open, "li", "q", or "". */
+  function context(text, was) {
+    var b = block(text), t = b.type;
+    return !text.trim() || t[0] === "h" ? "" : t === "p" ? was : text.slice(b.prefix.length).trim() ? (t === "q" ? "q" : "li") : "";
+  }
+  function lineClass(text, i, was) {
     var b = block(text);
     var c = "md-line md-" + b.type;
     if (i > 0 && (b.type === "h1" || b.type === "h2")) c += " md-after";
+    if (b.type === "p" && was && text.trim()) c += " md-in-" + was;
     return c;
   }
   function render() {
     box.textContent = "";
+    var was = "";
     lines.forEach(function (text, i) {
       var d = document.createElement("div");
       d.dataset.md = i;
-      d.className = lineClass(text, i);
+      d.className = lineClass(text, i, was);
+      was = context(text, was);
       d.innerHTML = lineHtml(text, i === active);
       if (i === active) {
         d.contentEditable = "true";
@@ -100,19 +104,20 @@
     var empty = lines.join("\n").trim() === "";
     box.classList.toggle("digest-empty", empty);
     box.classList.toggle("active", active !== null);
-    if (empty) {
-      /* The prompt, drawn as the caret line draws its marks. */
-      var ghost = document.createElement("div");
-      ghost.className = "md-line digest-ghost";
-      ghost.setAttribute("aria-hidden", "true");
-      ghost.innerHTML = lineHtml(prompt, true);
-      box.appendChild(ghost);
-    }
+    if (empty) addGhost();
     if (active !== null) {
       var el = box.children[active];
       el.focus({ preventScroll: true });
       setCaret(el, caret);
     }
+  }
+  /* The prompt, drawn as the caret line draws its marks. */
+  function addGhost() {
+    var ghost = document.createElement("div");
+    ghost.className = "md-line digest-ghost";
+    ghost.setAttribute("aria-hidden", "true");
+    ghost.innerHTML = lineHtml(prompt, true);
+    box.appendChild(ghost);
   }
   function sync() {
     box.classList.toggle("digest-empty", lines.join("\n").trim() === "");
@@ -336,19 +341,14 @@
     caret = caretOffset(el);
     var text = el.textContent.replace(/\n/g, " ");
     lines[active] = text;
-    el.className = lineClass(text, active) + " md-active";
+    for (var j = 0, was = ""; j < active; j++) was = context(lines[j], was);
+    el.className = lineClass(text, active, was) + " md-active";
     el.innerHTML = lineHtml(text, true);
     setCaret(el, caret);
     var ghost = box.querySelector(".digest-ghost");
     var empty = lines.join("\n").trim() === "";
     if (ghost && !empty) ghost.remove();
-    else if (!ghost && empty) {
-      ghost = document.createElement("div");
-      ghost.className = "md-line digest-ghost";
-      ghost.setAttribute("aria-hidden", "true");
-      ghost.innerHTML = lineHtml(prompt, true);
-      box.appendChild(ghost);
-    }
+    else if (!ghost && empty) addGhost();
     sync();
   }
 
@@ -357,25 +357,8 @@
     e.preventDefault();
     var text = (e.clipboardData || window.clipboardData).getData("text/plain");
     if (!text) return;
-    var range = selection();
-    if (range) { replaceSelection(text, range); return; }
-    remember(true);
-    var el = box.children[active];
-    var off = caretOffset(el);
-    var current = lines[active];
-    var pieces = split(text);
-    var left = current.slice(0, off), right = current.slice(off);
-    var inserted = pieces.map(function (piece, k) {
-      var line = piece;
-      if (k === 0) line = left + line;
-      if (k === pieces.length - 1) line = line + right;
-      return line;
-    });
-    lines.splice.apply(lines, [active, 1].concat(inserted));
-    var lastPiece = pieces[pieces.length - 1];
-    var end = (pieces.length === 1 ? left.length : 0) + lastPiece.length;
-    activate(active + pieces.length - 1, end);
-    sync();
+    var at = { line: active, offset: caretOffset(box.children[active]) };
+    replaceSelection(text, selection() || { start: at, end: at });
   });
 
   box.addEventListener("keydown", function (e) {
@@ -429,21 +412,19 @@
       var b = block(text);
       var left = text.slice(0, off), right = text.slice(off);
       var listy = b.type === "li" || b.type === "ol" || b.type === "q";
-      /* Return on an empty list or quote line ends the list. */
-      if (listy && left === b.prefix && !right) {
-        lines[i] = "";
-        activate(i, 0);
-        sync();
-        return;
-      }
+      /* The source keeps the blank line CommonMark needs, so the page
+         is what the editor shows: Return on an empty list or quote line
+         ends it with one, and Return in prose starts a paragraph. */
+      var gap = b.type === "p" && left.trim() ? 1 : 0;
+      if (listy && left === b.prefix && !right) left = "";
       var next = 0;
-      if (listy && off >= b.prefix.length) {
+      if (listy && left && off >= b.prefix.length) {
         var prefix = b.type === "ol" ? (Number(b.prefix) + 1) + ". " : b.prefix;
         right = prefix + right;
         next = prefix.length;
       }
-      lines.splice(i, 1, left, right);
-      activate(i + 1, next);
+      lines.splice.apply(lines, [i, 1, left].concat(gap ? [""] : [], [right]));
+      activate(i + 1 + gap, next);
       sync();
       return;
     }

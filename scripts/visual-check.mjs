@@ -319,6 +319,49 @@ async function main() {
     })()`),
     expect: '.md-active .md-tok',
   })
+  // What the editor shows is what publishes (CB2): Return in prose
+  // starts a paragraph, Return on an empty item ends the list with the
+  // blank line CommonMark needs, prose left under an item is drawn in
+  // it, and the headings are the sizes the page sets them at.
+  await check({
+    name: 'edit-digest-blocks',
+    path: `/write/${rkey}`,
+    expect: '.digest-editor .md-in-li',
+    exercise: async (browser) => {
+      await browser.evaluate(`(() => {
+        const body = document.querySelector('#body')
+        body.value = ''
+        body.dispatchEvent(new Event('change', { bubbles: true }))
+        document.querySelector('.md-line').click()
+      })()`)
+      const typeText = (text) => browser.session.send('Input.insertText', { text })
+      const enter = async () => {
+        await browser.session.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' })
+        await browser.session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+      }
+      for (const step of ['# Big', enter, '## Middle', enter, 'One.', enter, 'Two.', enter, '- a', enter, 'b', enter, enter, 'After.', enter, '> q', enter, enter, 'End.']) {
+        if (typeof step === 'string') await typeText(step); else await step()
+      }
+      const body = await browser.evaluate(`document.querySelector('#body').value`)
+      const expected = '# Big\n## Middle\nOne.\n\nTwo.\n\n- a\n- b\n\nAfter.\n\n> q\n\nEnd.'
+      if (body !== expected) throw new Error('The editor wrote ' + JSON.stringify(body))
+      const sizes = await browser.evaluate(`(() => {
+        const probe = document.createElement('div'); probe.className = 'prose'; probe.innerHTML = '<h2>a</h2><h3>b</h3>'
+        document.querySelector('main').appendChild(probe)
+        const size = (e) => getComputedStyle(e).fontSize
+        const same = size(document.querySelector('.md-h1')) === size(probe.children[0]) && size(document.querySelector('.md-h2')) === size(probe.children[1])
+        probe.remove()
+        return same
+      })()`)
+      if (!sizes) throw new Error('The editor does not draw headings at the sizes they publish at')
+      await browser.evaluate(`(() => {
+        const body = document.querySelector('#body')
+        body.value = '- item\\nunder the item\\n\\n> said\\nunder the quote'
+        body.dispatchEvent(new Event('change', { bubbles: true }))
+      })()`)
+      if (!await browser.evaluate(`document.querySelectorAll('.md-in-li').length === 1 && document.querySelectorAll('.md-in-q').length === 1`)) throw new Error('Prose under an item or a quote is not drawn inside it')
+    },
+  })
   await check({
     name: 'edit-date',
     path: `/write/${rkey}`,
