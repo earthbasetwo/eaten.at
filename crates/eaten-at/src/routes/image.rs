@@ -26,7 +26,8 @@ pub struct ImageQuery {
 /// moved to the front, removed, the place renamed), so pages ask for it
 /// at the document's revision; that URL may be cached as a photo is.
 /// Asked for at no revision, or an older one, the answer is the current
-/// cover, and every cache must ask again before reusing it.
+/// cover, and every cache must ask again before reusing it. A feed's
+/// icon is the same at the publication record's revision.
 const SETTLED: &str = "public, max-age=3600";
 const MUTABLE: &str = "public, no-cache";
 
@@ -41,7 +42,12 @@ pub async fn cover(
             .publication(&identity, &rkey)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("feed {rkey} not found")))?;
-        (state.icon_rendition(&identity, &publication).await, SETTLED)
+        let caching = if query.v.as_deref() == Some(publication.cid.as_str()) {
+            SETTLED
+        } else {
+            MUTABLE
+        };
+        (state.icon_rendition(&identity, &publication).await, caching)
     } else {
         let record = state
             .document(&identity, &rkey)
