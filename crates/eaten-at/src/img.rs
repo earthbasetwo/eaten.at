@@ -18,7 +18,9 @@ use image::imageops::FilterType;
 use image::metadata::Orientation;
 use image::{
     DynamicImage, GenericImageView, ImageDecoder, ImageFormat, ImageReader, Rgb, RgbImage,
+    RgbaImage,
 };
+use moxcms::{ColorProfile, DataColorSpace, Layout, TransformOptions, Xyzd};
 use url::Url;
 
 use crate::cache::Namespace;
@@ -507,9 +509,10 @@ fn card_dimensions((w, h): (u32, u32)) -> (u32, u32) {
 }
 
 /// Decode with format sniffed from the bytes (never from the declared
-/// type), dimensions checked before pixels are allocated, and the EXIF
-/// orientation applied so a phone photo comes out the way up it was
-/// taken.
+/// type), dimensions checked before pixels are allocated, the pixels
+/// converted to sRGB when the file embeds another RGB colour profile
+/// (see [`to_srgb`]), and the EXIF orientation applied so a phone photo
+/// comes out the way up it was taken.
 pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     let reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
     let format = reader.format().ok_or(ImageError::Format)?;
@@ -537,9 +540,104 @@ pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     reader.limits(limits);
     let mut decoder = reader.into_decoder()?;
     let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
+    let icc = decoder.icc_profile().ok().flatten();
     let mut image = DynamicImage::from_decoder(decoder)?;
+    if let Some(icc) = icc {
+        image = to_srgb(image, &icc);
+    }
     image.apply_orientation(orientation);
     Ok(image)
+}
+
+/// The image's pixels converted from the colour profile `icc` to sRGB.
+///
+/// Everything we write is a profile-free JPEG, which every viewer reads
+/// as sRGB, so a Display P3 (every iPhone) or Adobe RGB photo whose
+/// numbers were copied across as they were would look duller than it
+/// is. Only RGB profiles that are not sRGB already are converted: a
+/// CMYK JPEG reaches us already turned into RGB by the decoder, and a
+/// grey image has nothing to shift. An unreadable profile, or one the
+/// colour engine cannot handle, leaves the pixels as they are: a photo
+/// is never refused over its profile.
+fn to_srgb(image: DynamicImage, icc: &[u8]) -> DynamicImage {
+    match convert_to_srgb(&image, icc) {
+        Ok(Some(converted)) => converted,
+        Ok(None) => image,
+        Err(err) => {
+            tracing::debug!(%err, "colour profile not applied; pixels used as they are");
+            image
+        }
+    }
+}
+
+/// [`to_srgb`]'s work: `None` when no conversion is needed. The result is
+/// 8-bit (RGB, or RGBA to keep transparency for [`flatten`]), which is
+/// all a JPEG holds anyway.
+fn convert_to_srgb(
+    image: &DynamicImage,
+    icc: &[u8],
+) -> Result<Option<DynamicImage>, moxcms::CmsError> {
+    let profile = ColorProfile::new_from_slice(icc)?;
+    if profile.color_space != DataColorSpace::Rgb || !image.color().has_color() || is_srgb(&profile)
+    {
+        return Ok(None);
+    }
+    let srgb = ColorProfile::new_srgb();
+    let options = TransformOptions::default();
+    let (width, height) = image.dimensions();
+    if image.color().has_alpha() {
+        let transform =
+            profile.create_transform_8bit(Layout::Rgba, &srgb, Layout::Rgba, options)?;
+        let src = image.to_rgba8();
+        let mut dst = vec![0; src.len()];
+        transform.transform(&src, &mut dst)?;
+        Ok(RgbaImage::from_raw(width, height, dst).map(DynamicImage::ImageRgba8))
+    } else {
+        let transform = profile.create_transform_8bit(Layout::Rgb, &srgb, Layout::Rgb, options)?;
+        let src = image.to_rgb8();
+        let mut dst = vec![0; src.len()];
+        transform.transform(&src, &mut dst)?;
+        Ok(RgbImage::from_raw(width, height, dst).map(DynamicImage::ImageRgb8))
+    }
+}
+
+/// Whether an RGB profile is sRGB in all but name: sRGB's primaries, and
+/// a tone curve that sends every 8-bit value back to itself. Most
+/// Android phones and cameras tag their JPEGs this way; converting would
+/// cost time and only nudge values by rounding.
+fn is_srgb(profile: &ColorProfile) -> bool {
+    let srgb = ColorProfile::new_srgb();
+    let close = |a: Xyzd, b: Xyzd| {
+        (a.x - b.x).abs() < 2e-3 && (a.y - b.y).abs() < 2e-3 && (a.z - b.z).abs() < 2e-3
+    };
+    if !profile.is_matrix_shaper()
+        || !close(profile.red_colorant, srgb.red_colorant)
+        || !close(profile.green_colorant, srgb.green_colorant)
+        || !close(profile.blue_colorant, srgb.blue_colorant)
+    {
+        return false;
+    }
+    let Some(Ok(encode)) = srgb
+        .red_trc
+        .as_ref()
+        .map(moxcms::ToneReprCurve::make_gamma_evaluator)
+    else {
+        return false;
+    };
+    [&profile.red_trc, &profile.green_trc, &profile.blue_trc]
+        .into_iter()
+        .all(|trc| {
+            let Some(Ok(decode)) = trc
+                .as_ref()
+                .map(moxcms::ToneReprCurve::make_linear_evaluator)
+            else {
+                return false;
+            };
+            (0..=255u8).all(|code| {
+                let v = f32::from(code) / 255.0;
+                (encode.evaluate_value(decode.evaluate_value(v)) - v).abs() * 255.0 < 0.5
+            })
+        })
 }
 
 /// Fit the image to `size` and encode it as JPEG.
@@ -823,6 +921,54 @@ mod tests {
             image::Rgba([0, 0, 0, 128]),
         ));
         assert_eq!(flatten(&half).get_pixel(0, 0).0, [127, 127, 127]);
+    }
+
+    /// A PNG of `image` carrying the ICC profile `icc`.
+    fn png_with_profile(image: &DynamicImage, icc: Vec<u8>) -> Vec<u8> {
+        use image::ImageEncoder;
+        let mut out = Cursor::new(Vec::new());
+        let mut encoder = image::codecs::png::PngEncoder::new(&mut out);
+        encoder.set_icc_profile(icc).unwrap();
+        encoder
+            .write_image(
+                image.as_bytes(),
+                image.width(),
+                image.height(),
+                image.color().into(),
+            )
+            .unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn wide_gamut_photos_are_converted_to_srgb() {
+        let red = DynamicImage::ImageRgb8(RgbImage::from_pixel(8, 8, Rgb([230, 40, 40])));
+        let p3 = ColorProfile::new_display_p3().encode().unwrap();
+        let converted = decode(&png_with_profile(&red, p3.clone()))
+            .unwrap()
+            .to_rgb8();
+        let [r, g, b] = converted.get_pixel(4, 4).0;
+        // P3 red is redder than sRGB's (ColorSync gives 251, 0, 18).
+        assert!(r >= 246 && g <= 8 && (10..=26).contains(&b), "{r},{g},{b}");
+
+        // Transparency survives the conversion, for flattening.
+        let clear =
+            DynamicImage::ImageRgba8(RgbaImage::from_pixel(8, 8, image::Rgba([230, 40, 40, 0])));
+        let converted = decode(&png_with_profile(&clear, p3)).unwrap();
+        assert!(converted.color().has_alpha());
+        assert_eq!(converted.to_rgba8().get_pixel(4, 4).0[3], 0);
+
+        // An sRGB profile, a grey profile on grey pixels, and a profile
+        // that cannot be read all leave the pixels alone.
+        let srgb = ColorProfile::new_srgb().encode().unwrap();
+        let same = decode(&png_with_profile(&red, srgb)).unwrap();
+        assert_eq!(same.to_rgb8().get_pixel(4, 4).0, [230, 40, 40]);
+        let grey = DynamicImage::ImageLuma8(image::GrayImage::from_pixel(8, 8, image::Luma([90])));
+        let gray_profile = ColorProfile::new_gray_with_gamma(2.2).encode().unwrap();
+        let same = decode(&png_with_profile(&grey, gray_profile)).unwrap();
+        assert_eq!(same.to_luma8().get_pixel(4, 4).0, [90]);
+        assert!(convert_to_srgb(&red, b"not a profile").is_err());
+        assert_eq!(to_srgb(red.clone(), b"not a profile"), red);
     }
 
     #[test]
