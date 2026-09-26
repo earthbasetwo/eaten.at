@@ -869,7 +869,12 @@
   .editor .chip::after, .editor .tile-remove::after, .editor .photo-add::after, .editor button.photo-empty::after,
   .editor .confirm-yes::after, .editor .confirm-no::after, .photo-detail button::after,
   .editor button.hint-action::before, .editor .mark::before, .editor .date-button::before, .editor .note-button::before,
-  .editor .confirm-yes::before, .editor .confirm-no::before { content: none; }
+  .editor .confirm-yes::before, .editor .confirm-no::before, .editor .note-option::before, .editor .date-nav::before,
+  .editor .date-day::before, .editor .photo-add::before, .editor button.photo-empty::before { content: none; }
+  /* A button that keeps the phone's touch halo must be the halo's
+     containing block; left static, the halo is laid out against the
+     page and takes every tap on it. */
+  .editor .link-word, .editor .chip, .photo-detail button { position: relative; }
   .editor button.hint-action:hover, .editor .mark:hover, .editor .date-button:hover, .editor .note-button:hover,
   .editor .link-word:hover, .editor .chip:hover, .editor .confirm-yes:hover, .editor .confirm-no:hover { box-shadow: none; text-decoration-line: underline; }
   .hint {

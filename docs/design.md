@@ -382,6 +382,10 @@ Pressing turns the label vermilion. Disabled, label and rule go
   the handoff; no page uses it yet.
 - **Touch targets:** below 40rem every action carries an invisible halo
   that makes its tap 44px tall without moving the rule from the label.
+  The halo is laid out against the button, so a button that keeps it is
+  positioned. In the editor the tiles, the empty photo box, the calendar
+  and the paper menus' options go without one: they are big enough, or
+  packed so tightly that a halo would take a neighbour's tap.
 
 Actions sit in an `.actions` row on a shared baseline, 24px apart. An
 action beside a field (`.lookup-row`) shares the field's baseline, 16px
