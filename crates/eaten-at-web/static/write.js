@@ -319,7 +319,6 @@
     var block = form.querySelector(".elsewhere");
     if (!block) return;
     var words = block.querySelector(".link-words");
-    var nowhere = block.querySelector(".nowhere");
     var addSlot = block.querySelector(".add-link-slot");
     var addButton = block.querySelector(".add-link");
     var cards = Array.prototype.slice.call(block.querySelectorAll(".link-card"));
@@ -357,7 +356,6 @@
         }
         words.appendChild(document.createTextNode(" "));
       });
-      nowhere.hidden = filled.length > 0;
       block.classList.toggle("has-links", filled.length > 0);
       addSlot.hidden = editing !== null;
     }
