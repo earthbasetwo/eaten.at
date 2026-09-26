@@ -110,6 +110,7 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | 2026-09-20 | Script tripwire | D43's tripwire is raised from 24 KB to 72 KB: the live markdown editor, the calendar and menus, the link cards, and photos in place are the handoff's interactions and earn their keep; every page still works without them. |
 | 2026-09-17 | Checkboxes and radios | A checkbox is a 16px square of 1px ink, empty on the paper, that takes `paper-bright` and the handoff's vermilion pen-stroke check when checked; the mark is an SVG, never a font glyph. The handoff draws no radio, so the same box is drawn round with a vermilion dot rather than left to the browser beside it. The check is a data URL and carries the vermilion literal, the one colour a publication theme does not reach; no themed page carries a form. |
 | 2026-09-25 | Vocabulary | A single post is a digest; the publication is a feed; write-up goes; visit stays for the visit a digest describes; protocol and code names unchanged. |
+| 2026-09-25 | Composer: nothing on the page explains markdown. The prompt is written in it, with one bold word between faint marks drawn as the caret line draws them. The Formatting disclosure goes, and so does the DIGEST kicker: the whole post is the digest, and the meal line is its head on that rule. | Ken, with Fable, on a canvas of nine glyphs and six patterns. A bold ghost prompt and a specimen line were too heavy; a pilcrow in the margin was built, tried on the local server, and cut as more than the page needs. |
 
 ## Left over from the fork
 

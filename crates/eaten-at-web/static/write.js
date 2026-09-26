@@ -72,20 +72,6 @@
     if (open && !open.root.contains(e.target)) closePopover();
   });
 
-  /* Formatting is a native disclosure without script; with the other
-     islands it follows the same outside-click and Escape behavior. */
-  var formatting = form.querySelector(".formatting-help");
-  if (formatting) {
-    var helpPopover = { root: formatting, close: function () { formatting.open = false; } };
-    formatting.addEventListener("toggle", function () { if (formatting.open) showPopover(helpPopover); });
-    formatting.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") {
-        closePopover();
-        formatting.querySelector("summary").focus();
-      }
-    });
-  }
-
   /* ---- the date: a word on a hairline, a calendar under it ---- */
   (function () {
     var input = form.elements.visited_on;

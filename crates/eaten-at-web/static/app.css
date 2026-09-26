@@ -926,7 +926,6 @@
   .editor-write .place-line { margin-block-start: var(--space-xs); }
   .place-line .mark { margin-inline-start: var(--space-s); vertical-align: -2px; padding: 0; }
   .visit-row {
-    margin-block-start: var(--space-l);
     display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-s) 2rem;
   }
   .date-line { min-inline-size: 0; }
@@ -962,11 +961,11 @@
   @supports not (field-sizing: content) { .tag-field input { inline-size: 8ch; } }
   .field-invalid .tag-field input { text-decoration-color: var(--color-vermilion); }
 
-  /* The digest is a writing surface on the page. Its faint rules frame
-     title and body together; help lives beside the kicker. */
+  /* The digest is a writing surface on the page. Its head is the meal
+     line on a faint rule; the title and the text follow between that
+     rule and the one under the block. */
   .digest { margin-block-start: var(--space-l); border-block-end: var(--rule-hairline); padding-block-end: var(--space-m); }
-  .digest-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-m); border-block-end: var(--rule-hairline); padding-block-end: var(--space-s); }
-  .digest-heading > .kicker { margin: 0; color: var(--color-ink-soft); }
+  .digest > .visit-row { border-block-end: var(--rule-hairline); padding-block-end: var(--space-s); }
   .digest-title { margin-block: var(--space-m) var(--space-s); }
   .digest-title input {
     display: block; inline-size: 100%; padding: 0; border: 0; background: transparent;
@@ -976,14 +975,6 @@
   .digest-title input:hover { box-shadow: none; text-decoration-color: var(--color-hairline); }
   .digest-title input:focus-visible { box-shadow: none; outline: none; text-decoration-color: var(--color-vermilion); }
   .digest-title input::placeholder { font-style: normal; color: var(--color-stone); }
-  .formatting-help { position: relative; flex: none; font-size: var(--text-small); color: var(--color-ink-soft); }
-  .formatting-help summary { cursor: pointer; font-style: italic; list-style: none; text-decoration: underline; text-decoration-color: var(--color-hairline); text-underline-offset: 0.14em; }
-  .formatting-help summary::-webkit-details-marker { display: none; }
-  .formatting-help summary:hover { color: var(--color-vermilion); }
-  .formatting-examples { position: absolute; inset-inline-end: 0; inset-block-start: 100%; z-index: 20; inline-size: min(19rem, 80vw); padding: var(--space-m); margin-block-start: var(--space-s); background: var(--color-paper-bright); border: var(--rule-hairline); box-shadow: var(--menu-shadow); }
-  .formatting-examples p { margin: 0; }
-  .formatting-examples ul { margin-block-end: 0; padding-inline-start: var(--space-m); }
-  .formatting-examples code { overflow-wrap: anywhere; }
   .editor-write .place-head .headline { inline-size: 100%; }
   .editor button.change-place {
     display: inline; padding: 0; margin: 0; border: 0; background: none; box-shadow: none;
@@ -1005,7 +996,8 @@
     position: relative; inline-size: 100%; min-block-size: 9.6em; padding: 0; cursor: text;
     background: transparent; font-size: var(--text-prose); line-height: 1.6; color: var(--color-ink);
   }
-  .digest-editor.digest-empty::before { content: attr(data-placeholder); position: absolute; inset: 0 auto auto 0; color: var(--color-stone); font-style: italic; pointer-events: none; user-select: none; }
+  .digest-ghost { position: absolute; inset: 0 auto auto 0; inline-size: 100%; color: var(--color-stone); font-style: italic; pointer-events: none; user-select: none; }
+  .digest-ghost .md-tok { font-style: normal; }
   .digest:focus-within { border-block-end-color: var(--color-vermilion); }
   .digest-editor:focus-visible { outline: none; }
   .md-line { white-space: pre-wrap; overflow-wrap: break-word; outline: none; min-block-size: 1.6em; caret-color: var(--color-vermilion); }

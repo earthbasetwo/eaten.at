@@ -87,9 +87,6 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
             // sent by accident.
             button.visually-hidden type="submit" name="action" value=(Action::Keep.value()) tabindex="-1" aria-hidden="true" { "Keep editing" }
             (place_heading(form, errors))
-            div.visit-row {
-                (date_line(form, errors))
-            }
             (digest(form, errors))
             (teaser(form, errors))
             div.verdict-row {
@@ -181,39 +178,35 @@ fn tags_line(form: &EditorForm, errors: &FieldErrors) -> Markup {
     }
 }
 
-/// The write-up, under its kicker. The textarea is the carrier; the
-/// island puts a live markdown editor in its place.
+/// The digest. Its head is the `For [a meal] on [date].` line on a
+/// hairline; there is no kicker, because the whole post is the digest.
+/// Markdown is discovered from the prompt, which is written in it. The
+/// textarea is the carrier; the island puts a live markdown editor in
+/// its place.
 fn digest(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.digest.field-invalid[errors.get("body").is_some()] {
-            div.digest-heading {
-                p.kicker #body-label { "Digest" }
-                details.formatting-help {
-                    summary { "Formatting" }
-                    div.formatting-examples {
-                        p { "Type markdown in your digest. Only the line you’re editing shows the marks." }
-                        ul {
-                            li { code { "**bold**" } " and " code { "*italic*" } }
-                            li { code { "## Heading" } }
-                            li { code { "- A list item" } }
-                            li { code { "> A quotation" } }
-                            li { code { "[link text](https://example.com)" } }
-                        }
-                    }
-                }
+            div.visit-row {
+                (date_line(form, errors))
             }
+            p.visually-hidden #body-label { "Digest" }
             div.digest-title {
                 label.visually-hidden for="title" { "Title (optional)" }
                 input #title name="title" type="text" value=(form.title) placeholder="Title"
                     autocomplete="off" aria-describedby=[described(errors, "title")];
                 (field_error(errors, "title"))
             }
-            textarea #body.editor-body name="body" rows="6" required placeholder="What did you eat? Was it good? What else happened?"
+            textarea #body.editor-body name="body" rows="6" required placeholder=(BODY_PROMPT)
                 aria-labelledby="body-label" aria-describedby=[described(errors, "body")] { (form.body) }
             (field_error(errors, "body"))
         }
     }
 }
+
+/// The digest's prompt, in markdown: one bold word shows the marks in
+/// the place they are typed. The island draws it as the caret line
+/// would; without script the textarea shows it as written.
+pub const BODY_PROMPT: &str = "What did you eat? Was it good? Describe it with **markdown**.";
 
 /// The teaser (the record's `description`, D19): folded to one line
 /// while the first lines stand in, open once the author writes their
@@ -744,6 +737,36 @@ mod tests {
             photos_page,
         })
         .into_string()
+    }
+
+    #[test]
+    fn the_meal_line_heads_the_digest_and_the_prompt_is_in_markdown() {
+        let mut form = EditorForm::blank();
+        form.place_mode = PlaceMode::Manual;
+        form.place_name = "Noodle House".into();
+        let out = page_for(&form, None);
+        let digest = out.find("class=\"digest").unwrap();
+        let visit = out.find("class=\"visit-row\"").unwrap();
+        let title = out.find("class=\"digest-title\"").unwrap();
+        assert!(
+            digest < visit && visit < title,
+            "the meal line is the digest's head: {out}"
+        );
+        assert!(
+            !out.contains("class=\"kicker\" id=\"body-label\""),
+            "no DIGEST kicker: {out}"
+        );
+        assert!(
+            out.contains("<p class=\"visually-hidden\" id=\"body-label\">Digest</p>"),
+            "the label stays for assistive technology: {out}"
+        );
+        assert!(!out.contains("formatting-help"), "no disclosure: {out}");
+        assert!(
+            out.contains(
+                "placeholder=\"What did you eat? Was it good? Describe it with **markdown**.\""
+            ),
+            "{out}"
+        );
     }
 
     #[test]

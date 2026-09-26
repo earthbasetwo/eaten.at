@@ -261,7 +261,7 @@ async function main() {
     name: 'write-manual',
     path: '/write',
     steps: [byHand('The Cart')],
-    expect: '.digest-editor.digest-empty[data-placeholder]',
+    expect: '.digest-editor.digest-empty .digest-ghost strong',
   })
   await check({
     name: 'write-manual-blank',
@@ -303,11 +303,6 @@ async function main() {
   })
   await check({ name: 'edit-selection', path: `/write/${rkey}`, exercise: checkDigestSelection, expect: '.digest-editor .md-line' })
   await check({ name: 'edit-restore-place', path: `/write/${rkey}`, exercise: checkPlaceDraft, expect: '#change_restaurant' })
-  await check({
-    name: 'edit-formatting-help', path: `/write/${rkey}`,
-    steps: [{ press: '.formatting-help summary', wait: '.formatting-help[open]' }],
-    expect: '.formatting-help[open] code',
-  })
   await check({
     name: 'edit-long-tags-links', path: `/write/${rkey}`,
     steps: [{ type: { '#tags': 'a very long tag about dinner, another long tag about the restaurant, a third tag,' }, wait: '.tag-field .chip' }],

@@ -7,7 +7,9 @@
    written and the server renders it. The textarea stays the carrier:
    every change is written back to it, so the draft island and the send
    see the same text, and a restored draft comes back through it.
-   Without this the textarea is the editor. */
+   The prompt is written in markdown and drawn as the caret line
+   would draw it, so the marks are seen where they are typed. Without
+   this the textarea is the editor. */
 (function () {
   "use strict";
   var ta = document.querySelector("form.editor-write textarea[name=\"body\"]");
@@ -19,8 +21,8 @@
   box.setAttribute("aria-multiline", "true");
   box.setAttribute("aria-labelledby", "body-label");
   box.tabIndex = 0;
-  box.dataset.placeholder = ta.placeholder;
-  box.setAttribute("aria-placeholder", ta.placeholder);
+  var prompt = ta.placeholder;
+  box.setAttribute("aria-placeholder", prompt.replace(/\*\*/g, ""));
   ta.hidden = true;
   ta.parentNode.insertBefore(box, ta.nextSibling);
 
@@ -95,8 +97,17 @@
       }
       box.appendChild(d);
     });
-    box.classList.toggle("digest-empty", lines.join("\n").trim() === "");
+    var empty = lines.join("\n").trim() === "";
+    box.classList.toggle("digest-empty", empty);
     box.classList.toggle("active", active !== null);
+    if (empty) {
+      /* The prompt, drawn as the caret line draws its marks. */
+      var ghost = document.createElement("div");
+      ghost.className = "md-line digest-ghost";
+      ghost.setAttribute("aria-hidden", "true");
+      ghost.innerHTML = lineHtml(prompt, true);
+      box.appendChild(ghost);
+    }
     if (active !== null) {
       var el = box.children[active];
       el.focus({ preventScroll: true });
@@ -328,6 +339,16 @@
     el.className = lineClass(text, active) + " md-active";
     el.innerHTML = lineHtml(text, true);
     setCaret(el, caret);
+    var ghost = box.querySelector(".digest-ghost");
+    var empty = lines.join("\n").trim() === "";
+    if (ghost && !empty) ghost.remove();
+    else if (!ghost && empty) {
+      ghost = document.createElement("div");
+      ghost.className = "md-line digest-ghost";
+      ghost.setAttribute("aria-hidden", "true");
+      ghost.innerHTML = lineHtml(prompt, true);
+      box.appendChild(ghost);
+    }
     sync();
   }
 
