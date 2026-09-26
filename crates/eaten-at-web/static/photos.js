@@ -117,21 +117,21 @@
   var busy = false;
   var batchProblems = [];
   function megabytes(bytes) { return Math.round(bytes / (1024 * 1024)); }
+  // Sent in turn while there is room: a refused file takes none.
+  var left = 0;
   function upload(files) {
     if (!busy && queue.length === 0) batchProblems = [];
-    // As many as fit on the digest are sent; the rest are named by count.
-    var room = maxPhotos - photos.length - queue.length - (busy ? 1 : 0);
-    var full = room <= 0, left = 0;
+    var full = photos.length >= maxPhotos;
     files.forEach(function (f) {
       if (f.size === 0) batchProblems.push(f.name + " is empty.");
       else if (f.type && f.type.indexOf("image/") !== 0) batchProblems.push(f.name + " isn't an image we can use. JPEG, PNG, GIF, or WebP, please.");
       else if (maxBytes && f.size > maxBytes) batchProblems.push(f.name + " is over " + megabytes(maxBytes) + " MB.");
-      else if (room <= 0) left++;
-      else { queue.push(f); room--; }
+      else if (full) left = -1;
+      else queue.push(f);
     });
-    if (left) {
-      batchProblems.push("At most " + maxPhotos + " photos on a digest; " +
-        (full ? "remove some first." : "the last " + left + (left === 1 ? " was" : " were") + " not added."));
+    if (left < 0) {
+      batchProblems.push("At most " + maxPhotos + " photos on a digest; remove some first.");
+      left = 0;
     }
     showProblems(batchProblems);
     next();
@@ -141,6 +141,12 @@
      dropped. Room is counted again as each answer lands. */
   var round = 0;
   function next() {
+    if (!busy && photos.length >= maxPhotos) { left += queue.length; queue = []; }
+    if (!busy && left && !queue.length) {
+      batchProblems.push("At most " + maxPhotos + " photos on a digest; the last " + left + (left === 1 ? " was" : " were") + " not added.");
+      left = 0;
+      showProblems(batchProblems);
+    }
     if (!busy && queue.length) {
       busy = true;
       var mine = round, file = queue.shift();
@@ -448,6 +454,7 @@
     photos = list;
     round++;
     queue = [];
+    left = 0;
     busy = false;
     showProblems([]);
     changed();
