@@ -460,9 +460,10 @@ fn elsewhere(form: &EditorForm, errors: &FieldErrors) -> Markup {
                                 " · "
                                 button.hint-action type="button" data-link-cancel { "never mind" }
                             }
-                            @if rows > 1 {
-                                button.hint-action.danger type="submit" name="action" value=(Action::RemoveRow(RowKind::Link, i).value()) formnovalidate { "remove it" }
-                            }
+                            // One link can go too (the last row stays,
+                            // cleared); a blank one has nothing to remove.
+                            button.hint-action.danger type="submit" name="action" value=(Action::RemoveRow(RowKind::Link, i).value()) formnovalidate
+                                hidden[rows == 1 && link.url.trim().is_empty()] { "remove it" }
                         }
                     }
                 }
@@ -831,6 +832,21 @@ mod tests {
         form.place_address.clear();
         let out = page_for(&form, None);
         assert!(out.contains("<span class=\"place-where\" hidden>"), "{out}");
+    }
+
+    #[test]
+    fn a_single_link_can_be_removed() {
+        let mut form = EditorForm::blank();
+        form.place_mode = PlaceMode::Manual;
+        form.place_name = "Noodle House".into();
+        let remove = "value=\"remove_link:0\" formnovalidate";
+        // A blank row alone has nothing to remove; the button waits,
+        // hidden, for the island to fill the row.
+        let out = page_for(&form, None);
+        assert!(out.contains(&format!("{remove} hidden>remove it")), "{out}");
+        form.links[0].url = "https://example.com/menu".into();
+        let out = page_for(&form, None);
+        assert!(out.contains(&format!("{remove}>remove it")), "{out}");
     }
 
     #[test]
