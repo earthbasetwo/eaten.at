@@ -20,10 +20,18 @@
   var endpoint = mount.getAttribute("data-upload");
   var hint = block.querySelector(".photo-hint");
 
+  /* Each photo on the page has a key of its own, so two tiles of the
+     same blob (the same file picked twice, or two files that encode
+     alike) are two photos: captioned, moved, and removed apart. */
   var photos = [];
+  var keys = 0;
+  function keyed(photo) {
+    photo.key = "p" + (++keys);
+    return photo;
+  }
   Array.prototype.forEach.call(block.querySelectorAll(".photo-tile"), function (tile) {
     var img = tile.querySelector("img");
-    photos.push({
+    photos.push(keyed({
       cid: tile.dataset.cid,
       mime: tile.dataset.mime || "",
       size: tile.dataset.size || "",
@@ -32,7 +40,7 @@
       alt: tile.dataset.alt || "",
       thumb: img ? img.getAttribute("src") : "",
       full: tile.dataset.full || ""
-    });
+    }));
   });
 
   var grid = document.createElement("div");
@@ -170,11 +178,11 @@
       .then(function (res) {
         var body = res.body || {};
         (body.photos || []).forEach(function (p) {
-          photos.push({
+          photos.push(keyed({
             cid: p.cid, mime: p.mime || "", size: p.size == null ? "" : p.size,
             width: p.width == null ? "" : p.width, height: p.height == null ? "" : p.height,
             alt: p.alt || "", thumb: p.thumb, full: p.full
-          });
+          }));
         });
         var messages = (body.problems || []).slice();
         if (body.error) messages.push(body.error);
@@ -197,12 +205,12 @@
 
   /* ---- the grid ---- */
   var dragging = null;
-  function indexOf(cid) {
-    for (var i = 0; i < photos.length; i++) if (photos[i].cid === cid) return i;
+  function indexOf(key) {
+    for (var i = 0; i < photos.length; i++) if (photos[i].key === key) return i;
     return -1;
   }
-  function remove(cid) {
-    var i = indexOf(cid);
+  function remove(key) {
+    var i = indexOf(key);
     if (i < 0) return;
     photos.splice(i, 1);
     changed();
@@ -230,6 +238,7 @@
       tile.setAttribute("role", "listitem");
       tile.draggable = true;
       tile.dataset.cid = photo.cid;
+      tile.dataset.key = photo.key;
       tile.tabIndex = 0;
       tile.setAttribute("aria-label", photo.alt ? photo.alt : "Photo " + (i + 1));
       var img = el("img");
@@ -244,24 +253,24 @@
       removeMark.appendChild(cross(10));
       removeMark.addEventListener("click", function (e) {
         e.stopPropagation();
-        remove(photo.cid);
+        remove(photo.key);
       });
       tile.appendChild(removeMark);
       tile.addEventListener("click", function () {
         if (dragging !== null) return;
-        openDetail(photo.cid);
+        openDetail(photo.key);
       });
       tile.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(photo.cid); }
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(photo.key); }
       });
       tile.addEventListener("dragstart", function (e) {
         e.dataTransfer.effectAllowed = "move";
         try { e.dataTransfer.setData("text/plain", photo.cid); } catch (err) { /* older engines */ }
-        setTimeout(function () { dragging = photo.cid; tile.classList.add("dragging"); }, 0);
+        setTimeout(function () { dragging = photo.key; tile.classList.add("dragging"); }, 0);
       });
       tile.addEventListener("dragenter", function () {
-        if (dragging === null || dragging === photo.cid) return;
-        var from = grid.querySelector("[data-cid=\"" + dragging + "\"]");
+        if (dragging === null || dragging === photo.key) return;
+        var from = grid.querySelector("[data-key=\"" + dragging + "\"]");
         if (!from) return;
         var tiles = Array.prototype.slice.call(grid.querySelectorAll(".photo-tile"));
         var a = tiles.indexOf(from), b = tiles.indexOf(tile);
@@ -273,7 +282,7 @@
       tile.addEventListener("dragend", function () {
         tile.classList.remove("dragging");
         var order = Array.prototype.map.call(grid.querySelectorAll(".photo-tile"), function (t) {
-          return photos[indexOf(t.dataset.cid)];
+          return photos[indexOf(t.dataset.key)];
         }).filter(Boolean);
         setTimeout(function () { dragging = null; }, 150);
         if (order.length === photos.length) photos = order;
@@ -293,8 +302,8 @@
 
   /* ---- one photo, large, with its caption ---- */
   var detail = null;
-  function openDetail(cid) {
-    var i = indexOf(cid);
+  function openDetail(key) {
+    var i = indexOf(key);
     if (i < 0) return;
     var photo = photos[i];
     closeDetail();
@@ -328,7 +337,7 @@
     done.addEventListener("click", closeDetail);
     removeIt.addEventListener("click", function () {
       closeDetail(true);
-      remove(cid);
+      remove(key);
       var next = grid.querySelector(".photo-tile, .photo-add, .photo-empty");
       if (next) next.focus();
     });
@@ -337,7 +346,7 @@
     });
     document.body.appendChild(scrim);
     document.body.classList.add("has-scrim");
-    detail = { cid: cid, scrim: scrim, caption: caption };
+    detail = { key: key, scrim: scrim, caption: caption };
     caption.focus();
   }
   /* Closing keeps the caption as typed. */
@@ -347,13 +356,13 @@
     detail = null;
     d.scrim.remove();
     document.body.classList.remove("has-scrim");
-    var i = indexOf(d.cid);
+    var i = indexOf(d.key);
     if (discard !== true && i >= 0) {
       photos[i].alt = d.caption.value.trim();
       changed();
     }
-    // render() replaces the opener, so focus its replacement by CID.
-    var opener = grid.querySelector('[data-cid="' + d.cid + '"]') || grid.querySelector(".photo-add, .photo-empty");
+    // render() replaces the opener, so focus its replacement by key.
+    var opener = grid.querySelector('[data-key="' + d.key + '"]') || grid.querySelector(".photo-add, .photo-empty");
     if (opener) opener.focus();
   }
   document.addEventListener("keydown", function (e) {
@@ -378,11 +387,11 @@
     for (var i = 0; Object.prototype.hasOwnProperty.call(data, "photo_cid_" + i); i++) {
       var cid = data["photo_cid_" + i];
       if (!cid) continue;
-      list.push({
+      list.push(keyed({
         cid: cid, mime: data["photo_mime_" + i] || "", size: data["photo_size_" + i] || "",
         width: data["photo_width_" + i] || "", height: data["photo_height_" + i] || "",
         alt: data["photo_alt_" + i] || "", thumb: ownPhoto(cid, "thumb"), full: ownPhoto(cid, "full")
-      });
+      }));
     }
     closeDetail(true);
     photos = list;
