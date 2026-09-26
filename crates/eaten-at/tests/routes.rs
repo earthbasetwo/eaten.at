@@ -1222,16 +1222,27 @@ async fn cover_proxy_serves_blob_as_jpeg_with_safe_headers() {
         .contains("sandbox"));
     assert_eq!(jpeg_dimensions(&body), (800, 800));
 
-    let (status, _, og) = get_image(&state, &format!("/img/{DID}/cov?size=og")).await;
+    let (status, headers, og) =
+        get_image(&state, &format!("/img/{DID}/cov?size=og&v=bafycid")).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(jpeg_dimensions(&og), (1200, 630));
+    // At the document's revision the cover may be cached like a photo;
+    // at none, or an older one, every cache must ask again (PH9).
+    assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
+    for stale in ["", "&v=bafyold"] {
+        let (status, headers, again) =
+            get_image(&state, &format!("/img/{DID}/cov?size=og{stale}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(again, og, "the current cover, whatever the revision");
+        assert_eq!(headers[header::CACHE_CONTROL], "public, no-cache");
+    }
 
-    // The page points unfurlers at the proxy, never at the PDS; it shows
-    // no image itself (D32).
+    // The page points unfurlers at the proxy, at the document's revision,
+    // never at the PDS; it shows no image itself (D32).
     let (_, _, page) = get(&state, &format!("/at/{DID}/pub1/cov")).await;
     assert!(
         page.contains(&format!(
-            "content=\"https://eaten.at/img/{DID}/cov?size=og\""
+            "content=\"https://eaten.at/img/{DID}/cov?size=og&amp;v=bafycid\""
         )),
         "{page}"
     );
@@ -1438,7 +1449,7 @@ async fn document_head_byo_domain_points_canonical_away_and_derives_description(
         "derived excerpt: {head}"
     );
     assert!(!head.contains("modified_time"), "{head}");
-    assert!(head.contains("<meta property=\"og:image\" content=\"https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d3?size=og\">"), "{head}");
+    assert!(head.contains("<meta property=\"og:image\" content=\"https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d3?size=og&amp;v=bafycid\">"), "{head}");
     assert!(
         head.contains("<meta property=\"og:title\" content=\"Third Post\">"),
         "{head}"
@@ -1534,9 +1545,20 @@ async fn feed_lists_visit_documents_with_canonical_links() {
         "{body}"
     );
     assert!(
-        body.contains(&format!("url=\"https://eaten.at/img/{DID}/d3?size=og\"")),
+        body.contains(&format!(
+            "url=\"https://eaten.at/img/{DID}/d3?size=og&amp;v=bafycid\""
+        )),
         "{body}"
     );
+    // The enclosure says how long the cover is (PH19): the bytes the
+    // proxy serves for it.
+    let (_, _, cover) = get_image(&state, &format!("/img/{DID}/d3?size=og&v=bafycid")).await;
+    assert!(!cover.is_empty());
+    assert!(
+        body.contains(&format!("type=\"image/jpeg\" length=\"{}\"", cover.len())),
+        "{body}"
+    );
+    assert!(!body.contains("length=\"0\""), "{body}");
     assert!(
         body.contains(&format!(
             "href=\"https://eaten.at/at/{DID}/pub1/feed.xml\" rel=\"self\""
@@ -4029,6 +4051,42 @@ async fn suggestions_say_when_search_is_off_and_never_fail_loudly() {
 }
 
 // ---- settings and hosted subdomains (C3.6) ----
+
+#[tokio::test]
+async fn a_sign_in_posted_under_another_host_moves_to_the_bare_origin_with_its_handle() {
+    let repo = one_publication();
+    let server = mount(&repo).await;
+    let state = state_for(&server, dns_for_handle());
+    // A form post answered with a redirect to another origin is blocked
+    // by `form-action 'self'` with nothing shown, so the answer is a
+    // page that navigates there instead, the handle filled in.
+    let response = router(state.clone())
+        .oneshot(
+            Request::post("/login")
+                .header(header::HOST, "localhost:3000")
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from("handle=alice.test&return_to=%2Fwrite"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(response.headers().get(header::LOCATION).is_none());
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = String::from_utf8(body.to_vec()).unwrap();
+    assert!(
+        body.contains(
+            "content=\"0;url=https://eaten.at/login?handle=alice.test&amp;return_to=%2Fwrite\""
+        ),
+        "{body}"
+    );
+    assert!(body.contains("Continuing to eaten.at"), "{body}");
+
+    // The bare origin's form then has the handle in it.
+    let (status, _, body) = get_host(&state, "eaten.at", "/login?handle=alice.test").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains("value=\"alice.test\""), "{body}");
+}
 
 async fn get_host(state: &AppState, host: &str, uri: &str) -> (StatusCode, Option<String>, String) {
     let response = router(state.clone())
