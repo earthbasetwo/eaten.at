@@ -175,6 +175,7 @@ fn date_line(form: &EditorForm, errors: &FieldErrors) -> Markup {
                 " " span.soft { "on" } " "
                 span.date-field {
                     input #visited_on name="visited_on" type="date" value=(form.visited_on) required
+                        max=(eaten_at_atproto::lexicon::VisitDate::today().as_string())
                         aria-label="Date of the visit" aria-describedby=[described(errors, "visited_on")];
                 }
                 span.soft { "." }

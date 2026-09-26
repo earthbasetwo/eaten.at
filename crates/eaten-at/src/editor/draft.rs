@@ -153,8 +153,15 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         }
         raw => {
             let date = VisitDate::parse(raw).ok();
-            if date.is_none() {
-                errors.add("visited_on", "Use a date like 2026-09-12.");
+            match &date {
+                None => errors.add("visited_on", "Use a date like 2026-09-12."),
+                // A visit is never dated ahead. The line is drawn at
+                // tomorrow in the server's zone, so a writer whose day
+                // began before the server's is not refused today.
+                Some(d) if d.date() > latest_visit_day() => {
+                    errors.add("visited_on", "That day hasn't come yet.");
+                }
+                Some(_) => {}
             }
             date
         }
@@ -457,6 +464,12 @@ pub fn parse_tags(raw: &str) -> Result<Vec<String>, String> {
     Ok(tags)
 }
 
+/// The last day a visit may be dated: tomorrow, in the server's zone.
+fn latest_visit_day() -> jiff::civil::Date {
+    let today = VisitDate::today().date();
+    today.tomorrow().unwrap_or(today)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -504,6 +517,20 @@ mod tests {
 
     fn ctx() -> Context<'static> {
         Context { original: None }
+    }
+
+    #[test]
+    fn a_visit_is_not_dated_past_tomorrow() {
+        let mut form = good_form();
+        let tomorrow = latest_visit_day();
+        form.visited_on = VisitDate::from_date(tomorrow).as_string();
+        assert!(
+            validate(&form, &ctx()).is_ok(),
+            "tomorrow passes, for time zones"
+        );
+        form.visited_on = VisitDate::from_date(tomorrow.tomorrow().unwrap()).as_string();
+        let errors = validate(&form, &ctx()).unwrap_err();
+        assert_eq!(errors.get("visited_on"), Some("That day hasn't come yet."));
     }
 
     #[test]
