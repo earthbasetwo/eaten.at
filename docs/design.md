@@ -648,7 +648,10 @@ results page any more.
   accident.
 - **Drafts:** with JavaScript on, a draft kept on the device is offered
   back in a `.notice.restore` banner at the top of the form. It is one
-  line and two link buttons, "Restore it" and "Discard it".
+  line and two link buttons, "Restore it" and "Discard it". The draft
+  carries the photos as the form does, blob references and captions in
+  order, and is saved whenever a photo is added, captioned, moved, or
+  removed; restoring it redraws the tiles from the author's own blobs.
 
 Under 36rem the two-ended rows stack, both ends at the left, and the
 tiles go three to a row.

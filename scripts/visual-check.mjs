@@ -380,6 +380,32 @@ async function main() {
     },
   });
   await check({ name: 'edit-no-photos', path: `/write/${bare}`, exercise: checkTapTargets, expect: 'button.photo-empty' })
+  // The draft on the device carries the photos: remove one, come back,
+  // restore, and the list is the one left behind, captions and all.
+  await check({
+    name: 'edit-restore-photos', path: `/write/${rkey}`,
+    expect: '.photo-tile',
+    exercise: async (browser) => {
+      const url = await browser.evaluate('location.href')
+      const tiles = () => browser.evaluate(`[...document.querySelectorAll('.photo-tile')].map(t => t.dataset.cid)`)
+      const before = await tiles()
+      await browser.evaluate(`(() => {
+        document.querySelector('.photo-tile').click()
+        document.querySelector('.photo-detail .danger').click()
+        document.querySelector('.photo-tile').click()
+        document.querySelector('.photo-caption').value = 'A caption kept in the draft'
+        document.querySelector('.photo-detail .hint-action').click()
+      })()`)
+      const left = await tiles()
+      if (left.length !== before.length - 1) throw new Error('Removing a photo did not remove its tile')
+      await sleep(600)
+      await browser.navigate(url, [])
+      if (JSON.stringify(await tiles()) !== JSON.stringify(before)) throw new Error('Reloading changed the photos before restoring')
+      await browser.evaluate(`document.querySelector('.restore button').click()`)
+      if (JSON.stringify(await tiles()) !== JSON.stringify(left)) throw new Error('Restoring the draft did not bring back its photos: ' + JSON.stringify(await tiles()))
+      if (!await browser.evaluate(`document.querySelector('[name="photo_alt_0"]').value === 'A caption kept in the draft'`)) throw new Error('Restoring the draft lost a caption')
+    },
+  })
   await check({
     name: 'edit-link',
     path: `/write/${rkey}`,
