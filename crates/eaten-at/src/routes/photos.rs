@@ -287,18 +287,20 @@ pub async fn photos_submit(
     let photos = match photos::with_alts(current.clone(), &form.alts) {
         Ok(photos) => photos,
         Err(alt_error) => {
+            // Every caption comes back as it was typed, the refused one
+            // too, so the author can shorten it rather than retype them.
             return Ok(render(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 wants,
                 &did,
                 &visit_doc,
-                &current,
+                &photos::as_typed(current, &form.alts),
                 &query,
                 &Outcome {
                     alt_error: Some(alt_error),
                     ..Outcome::default()
                 },
-            ))
+            ));
         }
     };
 

@@ -2955,21 +2955,60 @@ async fn the_photos_page_captions_reorders_and_removes_with_one_write_each() {
     assert!(record["content"].get("photos").is_none());
     assert!(record.get("coverImage").is_none());
     assert!(body.contains("No photos yet."), "{body}");
+}
 
-    // Too long an alt text is refused before anything is written.
+#[tokio::test]
+async fn a_caption_too_long_is_named_and_every_caption_comes_back_as_typed() {
+    let mut repo = one_publication();
+    repo.documents.insert(
+        0,
+        (
+            "ph".into(),
+            visit_doc_with_photos("pub1", &["bafkcover", "bafytwo"]),
+        ),
+    );
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    // Too long a caption is refused before anything is written, named
+    // by its photo, and every caption comes back as typed (PH15, PH17).
     let writes_before = repo_writes(&server).await.len();
     let long = "x".repeat(1001);
     let (status, _, body) = post_photos(
         &state,
         "/write/ph/photos",
         &cookie,
-        &[("alt_1", long.as_str()), ("action", "save")],
+        &[
+            ("alt_0", "Kept as typed"),
+            ("alt_1", long.as_str()),
+            ("action", "save"),
+        ],
         &[],
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
-    assert!(body.contains("under 1000 characters"), "{body}");
+    assert!(
+        body.contains("Photo 2&#39;s caption is too long; keep it to 1000 characters or fewer.")
+            || body.contains("Photo 2's caption is too long; keep it to 1000 characters or fewer."),
+        "{body}"
+    );
+    assert!(!body.contains("alt text"), "{body}");
+    assert!(body.contains("Kept as typed"), "{body}");
+    assert!(body.contains(&long), "{body}");
     assert_eq!(repo_writes(&server).await.len(), writes_before);
+    // Short to the eye, too long to store: said so.
+    let emoji = "👨\u{200d}👩\u{200d}👧\u{200d}👦".repeat(150);
+    let (status, _, body) = post_photos(
+        &state,
+        "/write/ph/photos",
+        &cookie,
+        &[("alt_0", emoji.as_str()), ("action", "save")],
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(body.contains("too long to store: emoji"), "{body}");
 }
 
 #[tokio::test]
@@ -3066,7 +3105,7 @@ async fn the_editor_manages_photos_through_the_same_endpoint_as_json() {
         json["problems"][0]
             .as_str()
             .unwrap()
-            .contains("under 1000 characters"),
+            .contains("Photo 1's caption is too long; keep it to 1000 characters or fewer."),
         "{json}"
     );
 

@@ -212,6 +212,36 @@ pub struct AltError {
     pub message: String,
 }
 
+/// Why a photo's caption (its alt text) cannot be stored, naming the
+/// photo by its place, `n` counting from 1; `None` when it can. The
+/// lexicon bounds it twice: in characters as they are seen, and in
+/// bytes, which an emoji or an accented letter spends several of, so a
+/// caption can be short to the eye and still too long to store.
+pub fn caption_problem(n: usize, caption: &str) -> Option<String> {
+    let caption = caption.trim();
+    if caption.graphemes(true).count() > MAX_ALT_GRAPHEMES {
+        Some(format!(
+            "Photo {n}'s caption is too long; keep it to {MAX_ALT_GRAPHEMES} characters or fewer."
+        ))
+    } else if caption.len() > MAX_ALT_BYTES {
+        Some(format!(
+            "Photo {n}'s caption is too long to store: emoji and some letters take more room \
+             than they show. Shorten it a little."
+        ))
+    } else {
+        None
+    }
+}
+
+/// The photos with the alt texts as typed, unchecked: what the page
+/// shows again when one of them is refused, so nothing typed is lost.
+pub fn as_typed(mut photos: Vec<Photo>, alts: &[String]) -> Vec<Photo> {
+    for (photo, alt) in photos.iter_mut().zip(alts) {
+        photo.alt = (!alt.trim().is_empty()).then(|| alt.clone());
+    }
+    photos
+}
+
 /// The photos with the typed alt texts applied: trimmed, blank meaning
 /// none, and bounded by the lexicon.
 pub fn with_alts(mut photos: Vec<Photo>, alts: &[String]) -> Result<Vec<Photo>, AltError> {
@@ -219,13 +249,10 @@ pub fn with_alts(mut photos: Vec<Photo>, alts: &[String]) -> Result<Vec<Photo>, 
         let Some(alt) = alts.get(index) else {
             continue;
         };
-        let alt = alt.trim();
-        if alt.graphemes(true).count() > MAX_ALT_GRAPHEMES || alt.len() > MAX_ALT_BYTES {
-            return Err(AltError {
-                index,
-                message: format!("Keep alt text under {MAX_ALT_GRAPHEMES} characters."),
-            });
+        if let Some(message) = caption_problem(index + 1, alt) {
+            return Err(AltError { index, message });
         }
+        let alt = alt.trim();
         photo.alt = (!alt.is_empty()).then(|| alt.to_owned());
     }
     Ok(photos)

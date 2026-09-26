@@ -362,7 +362,6 @@
     caption.type = "text";
     caption.placeholder = "Describe this photo";
     caption.value = photo.alt;
-    caption.maxLength = 1000;
     caption.setAttribute("aria-label", "Describe this photo");
     var foot = el("p", "hint photo-detail-foot");
     var done = button("hint-action");
