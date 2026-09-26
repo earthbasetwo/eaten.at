@@ -48,16 +48,34 @@
     return fit;
   })();
 
-  /* Restoring a draft updates both the carried place and its visible heading. */
+  /* Restoring a draft or choosing a place updates the head: the name
+     stands in as the title, and the place line names the restaurant
+     only once the title is something else. */
+  /* The address as shown: without a trailing postcode (the record keeps it). */
+  function shownAddress(address) {
+    var parts = address.split(", ");
+    var last = parts[parts.length - 1] || "";
+    var code = function (s) { return /\d/.test(s) && /^[A-Za-z0-9 -]+$/.test(s) && s.replace(/[^A-Za-z]/g, "").length <= 4; };
+    var m = /^([A-Z]{2}) (.+)$/.exec(last);
+    if (m && code(m[2])) parts[parts.length - 1] = m[1];
+    else if (parts.length > 1 && code(last)) parts.pop();
+    return parts.join(", ");
+  }
   function showPlace() {
-    var change = form.querySelector(".change-place");
-    change.textContent = form.elements.place_name.value || "Choose a restaurant";
-    change.setAttribute("aria-label", "Change restaurant: " + form.elements.place_name.value);
-    form.querySelector(".place-address-text").textContent = form.elements.place_address.value;
-    form.querySelector(".place-line").hidden = !form.elements.place_address.value;
+    var name = form.elements.place_name.value, address = form.elements.place_address.value;
+    var titled = form.elements.title.value.trim() !== "";
+    form.elements.title.placeholder = name;
+    form.querySelector(".change-place").setAttribute("aria-label", "Change restaurant: " + name);
+    form.querySelector(".place-name-text").textContent = name;
+    form.querySelector(".place-name-text").hidden = !titled;
+    form.querySelector(".place-comma").hidden = !titled || !address;
+    form.querySelector(".place-address-text").textContent = shownAddress(address);
+    form.querySelector(".place-where").hidden = !titled && !address;
   }
   form.elements.place_name.addEventListener("change", showPlace);
   form.elements.place_address.addEventListener("change", showPlace);
+  form.elements.title.addEventListener("input", showPlace);
+  form.elements.title.addEventListener("change", showPlace);
 
   /* ---- popovers: one at a time; outside click and Escape close ---- */
   var open = null;
@@ -211,7 +229,7 @@
         row.addEventListener("click", function () { choose(option.value); });
         pop.appendChild(row);
       });
-      var clear = button("note-option note-clear", field.dataset.note === "meal" ? "a meal" : "no note");
+      var clear = button("note-option note-clear", field.dataset.note === "meal" ? "food" : "no note");
       clear.setAttribute("role", "option");
       clear.setAttribute("aria-selected", select.value ? "false" : "true");
       clear.addEventListener("click", function () { choose(""); });

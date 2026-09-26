@@ -111,6 +111,7 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | 2026-09-17 | Checkboxes and radios | A checkbox is a 16px square of 1px ink, empty on the paper, that takes `paper-bright` and the handoff's vermilion pen-stroke check when checked; the mark is an SVG, never a font glyph. The handoff draws no radio, so the same box is drawn round with a vermilion dot rather than left to the browser beside it. The check is a data URL and carries the vermilion literal, the one colour a publication theme does not reach; no themed page carries a form. |
 | 2026-09-25 | Vocabulary | A single post is a digest; the publication is a feed; write-up goes; visit stays for the visit a digest describes; protocol and code names unchanged. |
 | 2026-09-25 | Composer: nothing on the page explains markdown. The prompt is written in it, with one bold word between faint marks drawn as the caret line draws them. The Formatting disclosure goes, and so does the DIGEST kicker: the whole post is the digest, and the meal line is its head on that rule. | Ken, with Fable, on a canvas of nine glyphs and six patterns. A bold ghost prompt and a specimen line were too heavy; a pilcrow in the margin was built, tried on the local server, and cut as more than the page needs. |
+| 2026-09-25 | Composer: the headline is the title, the restaurant's name standing in until one is typed; the place line under it reads `at [name,] [address] — somewhere else`, and the shrug is how the restaurant is changed. No title line in the digest. | Ken: retitling and changing the place were one headline doing two jobs, which is what made both hard to find. Two lines, no hint, no icon: words are the page's idiom. |
 
 ## Left over from the fork
 
@@ -135,7 +136,7 @@ whole-digest selection preserves the active-line-only markdown presentation.
 The second iteration removes Cancel and the composer’s Bluesky controls.
 Title and body share faint horizontal rules, with a body prompt and Formatting
 beside DIGEST; the title has no full-width underline or explanatory hint.
-Snack is added without removing Late night. This amends the corresponding Write Pages layout and meal choices;
+Snack is added; Late night was kept at first and dropped from the picker on 2026-09-25 (Ken and Ross), with records that carry it still read. This amends the corresponding Write Pages layout and meal choices;
 see `docs/plans/14-composer-refactor.md`. Bluesky and post-publication changes
 remain deferred.
 

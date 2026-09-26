@@ -87,6 +87,9 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
             // sent by accident.
             button.visually-hidden type="submit" name="action" value=(Action::Keep.value()) tabindex="-1" aria-hidden="true" { "Keep editing" }
             (place_heading(form, errors))
+            div.visit-row {
+                (date_line(form, errors))
+            }
             (digest(form, errors))
             (teaser(form, errors))
             div.verdict-row {
@@ -112,18 +115,32 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
     }
 }
 
-/// The restaurant stays the headline throughout choosing and writing.
+/// The headline is the title, with the restaurant's name standing in
+/// until one is typed; the line under it is the place: `at [name,]
+/// [address] — somewhere else`, the name shown there once the title
+/// is something else. Changing the restaurant is the shrug at the end
+/// of that line, so the two jobs sit on two lines (C6, 2026-09-25).
 fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
+    let titled = !form.title.trim().is_empty();
+    let has_address = !form.place_address.trim().is_empty();
     html! {
         div.place-head {
-            button #change_restaurant.headline.change-place type="submit" name="action" value=(Action::ChangePlace.value())
-                aria-label=(format!("Change restaurant: {}", form.place_name))
-                aria-describedby=[described(errors, "place_name")] formnovalidate {
-                    @if form.place_name.is_empty() { "Choose a restaurant" } @else { (form.place_name) }
-                }
+            label.visually-hidden for="title" { "Title" }
+            input #title.headline name="title" type="text" value=(form.title) placeholder=(form.place_name)
+                autocomplete="off" aria-describedby=[described(errors, "title")];
+            (field_error(errors, "title"))
         }
-        p.place-line hidden[form.place_address.is_empty()] {
-            span.soft { "at" } " " span.place-address-text { (form.place_address) }
+        p.place-line {
+            span.place-where hidden[!titled && !has_address] {
+                span.soft { "at" } " "
+                span.place-name-text hidden[!titled] { (form.place_name) }
+                span.place-comma hidden[!titled || !has_address] { ", " }
+                span.place-address-text { (crate::view::display_address(&form.place_address)) }
+                " " span.soft { "—" } " "
+            }
+            button #change_restaurant.hint-action.change-place type="submit" name="action" value=(Action::ChangePlace.value())
+                aria-label=(format!("Change restaurant: {}", form.place_name))
+                aria-describedby=[described(errors, "place_name")] formnovalidate { "somewhere else" }
         }
         input type="hidden" name="place_name" value=(form.place_name);
         input type="hidden" name="place_address" value=(form.place_address);
@@ -137,20 +154,19 @@ fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
     }
 }
 
-/// `For [a meal] on [date].` The date input is the carrier; the island
-/// draws the calendar over it.
+/// `for [a meal] on [date]`, lowercase like the `at` line above it. The
+/// date input is the carrier; the island draws the calendar over it.
 fn date_line(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.date-line {
             p.prose-line {
-                span.soft { "For" } " "
+                span.soft { "for" } " "
                 (meal_field(form, errors))
                 " " span.soft { "on" } " "
                 span.date-field {
                     input #visited_on name="visited_on" type="date" value=(form.visited_on) required
                         aria-label="Date of the visit" aria-describedby=[described(errors, "visited_on")];
                 }
-                "."
             }
             (field_error(errors, "meal"))
             (field_error(errors, "visited_on"))
@@ -178,24 +194,17 @@ fn tags_line(form: &EditorForm, errors: &FieldErrors) -> Markup {
     }
 }
 
-/// The digest. Its head is the `For [a meal] on [date].` line on a
-/// hairline; there is no kicker, because the whole post is the digest.
+/// The digest: the text between two faint rules. There is no kicker,
+/// because the whole post is the digest, and no title line, because
+/// the title is the page's headline. The visit's facts (title, place,
+/// meal and date) sit above the first rule.
 /// Markdown is discovered from the prompt, which is written in it. The
 /// textarea is the carrier; the island puts a live markdown editor in
 /// its place.
 fn digest(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.digest.field-invalid[errors.get("body").is_some()] {
-            div.visit-row {
-                (date_line(form, errors))
-            }
             p.visually-hidden #body-label { "Digest" }
-            div.digest-title {
-                label.visually-hidden for="title" { "Title (optional)" }
-                input #title name="title" type="text" value=(form.title) placeholder="Title"
-                    autocomplete="off" aria-describedby=[described(errors, "title")];
-                (field_error(errors, "title"))
-            }
             textarea #body.editor-body name="body" rows="6" required placeholder=(BODY_PROMPT)
                 aria-labelledby="body-label" aria-describedby=[described(errors, "body")] { (form.body) }
             (field_error(errors, "body"))
@@ -275,14 +284,16 @@ fn rating_control(form: &EditorForm, errors: &FieldErrors) -> Markup {
 }
 
 /// The meal note: a select the island redraws as a word on a hairline
-/// over a paper menu. Blank reads as "a meal" in stone.
+/// over a paper menu. Blank reads as "food" in stone (Ross, 2026-09-25).
 fn meal_field(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
-        span.note-field.field-invalid[errors.get("meal").is_some()] data-note="meal" data-unset="a meal" {
+        span.note-field.field-invalid[errors.get("meal").is_some()] data-note="meal" data-unset="food" {
             span.select-rule {
                 select #meal name="meal" aria-label="Meal" aria-describedby=[described(errors, "meal")] {
-                    option value="" selected[form.meal == Choice::None] { "a meal" }
-                    @for meal in Meal::ALL {
+                    option value="" selected[form.meal == Choice::None] { "food" }
+                    // Late night is not offered any more (Ken and Ross,
+                    // 2026-09-25); a record that has it still reads.
+                    @for meal in Meal::ALL.iter().filter(|meal| **meal != Meal::LateNight) {
                         option value=(meal.as_str()) selected[form.meal == Choice::Known(*meal)] {
                             (match meal {
                                 Meal::Snack => "a snack".to_owned(),
@@ -747,10 +758,14 @@ mod tests {
         let out = page_for(&form, None);
         let digest = out.find("class=\"digest").unwrap();
         let visit = out.find("class=\"visit-row\"").unwrap();
-        let title = out.find("class=\"digest-title\"").unwrap();
+        let body = out.find("id=\"body\"").unwrap();
         assert!(
-            digest < visit && visit < title,
-            "the meal line is the digest's head: {out}"
+            visit < digest && digest < body,
+            "the meal line is above the digest, not its head: {out}"
+        );
+        assert!(
+            !out.contains("digest-title"),
+            "no title line in the digest: {out}"
         );
         assert!(
             !out.contains("class=\"kicker\" id=\"body-label\""),
@@ -770,19 +785,50 @@ mod tests {
     }
 
     #[test]
-    fn restaurant_and_digest_title_are_separate() {
+    fn the_headline_is_the_title_and_the_place_line_changes_the_restaurant() {
         let mut form = EditorForm::blank();
         form.place_mode = PlaceMode::Manual;
         form.place_name = "Noodle House".into();
+        form.place_address = "12 Example Lane, Brooklyn, NY 11201".into();
         let out = page_for(&form, None);
-        let digest = out.find("id=\"body-label\"").unwrap();
-        assert!(out.find("id=\"change_restaurant\"").unwrap() < digest);
-        assert!(out.find("id=\"title\"").unwrap() > digest);
-        assert!(out.find("id=\"title\"").unwrap() < out.find("id=\"body\"").unwrap());
-        assert!(out.contains("Change restaurant"));
+        assert!(!out.contains("<h1>"), "{out}");
+        // The name stands in as the title; the line under it is the address
+        // and the shrug that changes the restaurant.
         assert!(
-            out.find("class=\"tags-line").unwrap() > out.find("class=\"photos-block\"").unwrap()
+            out.contains("<input class=\"headline\" id=\"title\" name=\"title\" type=\"text\" value=\"\" placeholder=\"Noodle House\" autocomplete=\"off\">"),
+            "{out}"
         );
+        assert!(
+            out.contains("<span class=\"place-name-text\" hidden>Noodle House</span>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("name=\"place_address\" value=\"12 Example Lane, Brooklyn, NY 11201\""),
+            "the code stays on the record: {out}"
+        );
+        assert!(
+            out.contains("<span class=\"place-address-text\">12 Example Lane, Brooklyn, NY</span>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("<button class=\"hint-action change-place\" id=\"change_restaurant\" type=\"submit\" name=\"action\" value=\"change_place\" aria-label=\"Change restaurant: Noodle House\" formnovalidate>somewhere else</button>"),
+            "{out}"
+        );
+        assert!(out.find("id=\"title\"").unwrap() < out.find("id=\"change_restaurant\"").unwrap());
+        assert!(out.find("id=\"change_restaurant\"").unwrap() < out.find("id=\"body\"").unwrap());
+        // With a title of its own, the place line names the restaurant.
+        form.title = "Late at the Noodle House".into();
+        let out = page_for(&form, None);
+        assert!(
+            out.contains("value=\"Late at the Noodle House\" placeholder=\"Noodle House\""),
+            "{out}"
+        );
+        assert!(out.contains("<span class=\"place-name-text\">Noodle House</span><span class=\"place-comma\">, </span>"), "{out}");
+        // No address and no title: only the shrug.
+        form.title.clear();
+        form.place_address.clear();
+        let out = page_for(&form, None);
+        assert!(out.contains("<span class=\"place-where\" hidden>"), "{out}");
     }
 
     #[test]
