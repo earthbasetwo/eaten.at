@@ -15,6 +15,10 @@ Checked items are implemented on the local branch, not yet committed or merged.
 - [x] Use page-colored paper and faint horizontal rules around title and body.
 - [x] Add the italic stone prompt: “What did you eat? Was it good? What else happened?” It is never saved as content.
 - [x] Put Formatting beside DIGEST, with examples in a disclosure.
+- [x] Remove the Formatting disclosure and the DIGEST kicker. `For [a meal] on
+  [date].` is the digest's head on its rule, and the prompt, written in markdown,
+  shows one bold word between faint marks; that is the whole discovery. A pilcrow
+  that disclosed the marks was built and cut the same day (2026-09-25).
 - [x] Preserve active-line-only markdown while supporting whole-digest Select
   All, copy, cut, replacement, paste, undo, and redo.
 - [x] Collapse whole-digest selections with navigation keys before typing.
