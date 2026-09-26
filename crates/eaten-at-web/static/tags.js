@@ -43,8 +43,7 @@
     input.placeholder = tags.length ? "another tag" : "a tag";
   }
   function announce() { carrier.dispatchEvent(new Event("input", { bubbles: true })); }
-  /* A tag filed from the keyboard lands where the pointer may be resting,
-     so its strike-through waits for the pointer to move. */
+  // A chip filed from the keyboard strikes through only once the pointer moves.
   function still() {
     chips.classList.add("still");
     document.addEventListener("pointermove", function () { chips.classList.remove("still"); }, { once: true });

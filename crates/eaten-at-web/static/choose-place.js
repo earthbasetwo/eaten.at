@@ -13,8 +13,7 @@
   var start = form.querySelector("#start-writing");
   var picked = null;
 
-  /* Where field-sizing is not understood, an inline field is measured
-     against a mirror of its text. */
+  // Measured against a mirror where field-sizing is not understood.
   (function () {
     if (window.CSS && CSS.supports && CSS.supports("field-sizing", "content")) return;
     var mirror = document.createElement("span");
@@ -37,8 +36,7 @@
   function matchesPick() {
     return picked !== null && name.value === picked.name && address.value === picked.address;
   }
-  /* Start writing appears once there is a name, and says whether it is
-     the pick or what was typed. */
+  // Start writing shows once there is a name, as the pick or by hand.
   function arm() {
     if (start) {
       start.hidden = !name.value.trim();

@@ -97,8 +97,7 @@
         });
     });
   }
-  /* A change: rewrite the fields, redraw, and tell the form, so the
-     draft is saved with the photos in it. */
+  // A change: the fields, the tiles, and the form (so the draft).
   function tell() { form.dispatchEvent(new Event("change", { bubbles: true })); }
   function changed() {
     sync();
@@ -107,10 +106,7 @@
     tell();
   }
 
-  /* ---- uploading ----
-     One file a request, in the order picked: each is judged on its own
-     and a big batch never meets the request's size cap. A file over
-     the upload limit is named at once and never sent. */
+  /* ---- uploading: one file a request, in the order picked ---- */
   var maxBytes = Number(mount.getAttribute("data-max-bytes")) || 0;
   var maxPhotos = Number(mount.getAttribute("data-max-photos")) || 24;
   var queue = [];
@@ -136,9 +132,8 @@
     showProblems(batchProblems);
     next();
   }
-  /* A restored draft replaces the list, and with it what was on its
-     way: `round` counts the lists, and an answer for an earlier one is
-     dropped. Room is counted again as each answer lands. */
+  // A restored draft replaces the list: an answer for an earlier
+  // `round` is dropped, and room is counted again as each lands.
   var round = 0;
   function next() {
     if (!busy && photos.length >= maxPhotos) { left += queue.length; queue = []; }
@@ -171,9 +166,7 @@
     waiting();
   }
 
-  /* Until the last upload answers, Publish (or Save) is held, with
-     every submit but Delete's, and two lines say how many are on their
-     way. More can be picked meanwhile. */
+  // Publish, and every submit but Delete's, waits for the uploads.
   var submit = form.querySelector(".editor-actions button[value=publish]");
   var wait = el("span", "hint upload-wait");
   wait.setAttribute("role", "status");
@@ -436,8 +429,7 @@
     }
   }, true);
 
-  /* The draft kept on the device, restored: its photos replace the
-     ones on the page, drawn from the author's own blobs. */
+  // A restored draft's photos replace the page's.
   form.addEventListener("draft-restore", function (e) {
     var data = e.detail || {};
     var list = [];
