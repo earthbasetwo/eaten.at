@@ -620,6 +620,10 @@ results page any more.
   fields like every other value, and Publish or Save writes it with
   the record (D37 amended). A tile is drawn from the author's own blob
   (`/write/photo/{cid}`), so it shows before any record lists it.
+  While a photo is on its way the tiles dim, the line under them and
+  one beside Publish (or Save changes) read "Uploading 3 photos…", and
+  the button, with every submit but Delete's, waits until the last
+  upload answers, taken or refused; more can be picked meanwhile.
   Without script the tiles link to the photos page once there is a
   record, which stays the way photos are managed by hand.
 - **Links** on one two-ended row. `Bluesky: see the thread.` once

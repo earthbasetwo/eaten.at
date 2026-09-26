@@ -1094,7 +1094,12 @@
   .photos-block { margin-block-start: var(--space-l); }
   .photo-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
   .photo-tiles.photos-empty { display: block; }
-  .photo-tiles.busy { opacity: 0.6; pointer-events: none; }
+  /* Uploading: the tiles rest (a redraw would drop a drag) and dim; the
+     add tile still takes more. */
+  .photo-tiles.busy .photo-tile { opacity: 0.6; pointer-events: none; }
+  .editor .upload-wait { color: var(--color-ink-soft); }
+  /* Empty, it stays in the page for its announcement but out of the row. */
+  .editor .upload-wait:empty { position: absolute; }
   .photo-tile {
     position: relative; margin: 0; aspect-ratio: 1; background: var(--color-recessed); cursor: grab;
     transition: opacity 150ms ease-out;
