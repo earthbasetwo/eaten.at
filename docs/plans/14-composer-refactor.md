@@ -57,6 +57,8 @@ Checked items are implemented on the local branch, not yet committed or merged.
 
 ## Still to consider
 
+- [x] Give the digest and the teaser the standard field rule for hover and
+  focus, so the multi-line inputs show focus the way every other field does.
 - [ ] Try the agreed title/body prompt with real writing.
 - [ ] Test place selection with duplicate names, multiple branches, long
   addresses, distant restaurants, and no location/history. The local stub

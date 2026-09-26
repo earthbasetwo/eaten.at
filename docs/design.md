@@ -564,9 +564,11 @@ results page any more.
   cells, the chosen day ink on paper, today underlined in vermilion,
   recessed paper under the pointer. `Filed under [tags].` is right-set
   (see **Filed under**).
-- **Digest.** The kicker, then the digest's text on the bright surface
-  inside an ink rule (vermilion while active), padded 16px 18px, at
-  least 384px tall. The textarea is the carrier; the island draws a
+- **Digest.** No kicker: the digest's text on the page's paper between
+  two hairlines, a step inside each, at least six lines tall. Its lower
+  rule is a field's rule: 2px of ink under the pointer, 2px of
+  vermilion while the writing has focus, the padding giving the pixel
+  back so nothing moves (C7, settled 2026-09-25). The textarea is the carrier; the island draws a
   live markdown editor over it (`.digest-editor`): each source line a
   block, formatted (h1 25px/500, h2 20px/500, h3 600; bullets as
   vermilion `•`; quotes on a 2px hairline in italic soft ink; bold,
@@ -579,7 +581,8 @@ results page any more.
   left as written for the server to render.
 - **Teaser.** Folded, one italic stone line: "In listings, the piece
   opens with its first lines — or *write your own teaser*." Open: "In
-  listings it opens:", a two-row transparent textarea whose placeholder
+  listings it opens:", a two-row transparent textarea on the standard
+  field rule (ink, then vermilion with focus) whose placeholder
   is the first lines in quotes, and a note: "Drawn from the first lines
   — type to say it differently, or *leave it be*." while it is empty,
   "*never mind — use the first lines*" once written. The fold is a
@@ -732,19 +735,18 @@ changing the restaurant were one headline doing two jobs; now they are two lines
 (C6, settled 2026-09-25). The chooser
 uses St. John Bread and Wine, at 94–96 Commercial Street, as its example: a real
 place whose name says food on its own (settled 2026-09-25). There is no DIGEST
-kicker: the whole post is the digest, so the `For [a meal] on [date].` line is the
-digest's head, on the faint rule the kicker used to sit on (settled 2026-09-25).
+kicker: the whole post is the digest. The `for [food] on [date].` line sits under
+the place line, and the digest follows it between two hairlines (settled 2026-09-25).
 Nothing on the page explains markdown. The prompt in the empty digest is written in
 it, with one bold word between faint asterisks, drawn as the editor draws the line
 the caret is on, so the marks are seen in the place they are typed. A Formatting
 disclosure, and then a pilcrow that disclosed the marks, were both tried and cut:
 the prompt is enough (Ken, 2026-09-25).
 
-Below that rule, the title says only “Title” when empty. It has no full-width rule
-or visible optional-text hint; hover/focus underlines its text. The body beneath
-it is transparent on the page’s paper. Its italic stone placeholder asks “What
-did you eat? Was it good? What else happened?” A faint rule closes the
-writing section and takes the accent on focus. Inactive lines remain formatted
+The body is transparent on the page’s paper. Its italic stone placeholder asks
+“What did you eat? Was it good? Describe it with **markdown**.” The rule that
+closes the writing section is a field’s rule: it thickens to ink under the
+pointer and to vermilion with focus, and the teaser sits on the same rule. Inactive lines remain formatted
 even when the whole digest is selected.
 
 Filed under sits below photos, full-width and left-aligned. Photos have no
@@ -758,9 +760,9 @@ adapts to the viewport, preserving room for the caption and actions; the panel
 can scroll in very short windows. Responsive outside gutters keep it inset on
 phones. Its hard 6px drop shadow is retained unchanged.
 
-The composer’s date sentence now reads “For [a meal] on [date].” The meal
+The composer’s date sentence reads “for [food] on [date].” The meal
 selector sits inline before the date, with lowercase names and “a snack”;
-clearing it restores “a meal.” Price remains beside the rating below the digest.
+clearing it restores “food.” Price remains beside the rating below the digest.
 
 The digest body starts at six lines (9.6em at its 1.6 line height, six rows for
 the plain textarea), growing with the writing. This prioritizes writing room
