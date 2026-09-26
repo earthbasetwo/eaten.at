@@ -606,8 +606,10 @@ results page any more.
   the pointer), and the verdict's word in tracked mono capitals
   (vermilion when rated, stone for UNRATED). The radios are the
   carrier and the stylesheet does the rest, so this needs no script:
-  the steps are set in reverse so a sibling selector can fill the lower
-  ones from the checked one. The **meal** ("a meal" in stone unset;
+  the steps run in the order they are seen, so the arrow keys go the
+  way the pluses do, and `:has` fills the ones before the checked one.
+  Each radio is named by its verdict ("Solid" … "Can't Miss", "No
+  rating"), not by its `+`. The **meal** ("a meal" in stone unset;
   the lexicon's Breakfast, Brunch, Lunch, Dinner, Late night) and the
   **price** (`$?` unset; `$` to `$$$$`) are selects the island redraws
   as words over small right-aligned paper menus (options at 15px on

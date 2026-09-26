@@ -266,15 +266,18 @@ fn rating_control(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         fieldset.rating-control.field-invalid[errors.get("rating").is_some()] {
             legend.visually-hidden { "Rating" }
-            input #rating_none.r0 name="rating" type="radio" value="" checked[current.is_empty()];
+            // Each radio is named by its verdict, and they run in the
+            // order they are seen, so the arrow keys go the way the
+            // pluses do; the stylesheet fills the lower steps with :has.
+            input #rating_none.r0 name="rating" type="radio" value="" checked[current.is_empty()] aria-label="No rating";
             label.rating-clear for="rating_none" title="Clear rating" { (cross_icon(10)) }
             span.pluses {
-                @for rating in Rating::ALL.iter().rev() {
+                @for rating in Rating::ALL {
                     @let value = rating.value();
                     @let id = format!("rating_{value}");
                     input id=(id) class=(format!("r{value}")) name="rating" type="radio" value=(value)
-                        checked[current == value.to_string()];
-                    label class=(format!("plus plus-{value}")) for=(id) title=(rating.word()) { "+" }
+                        checked[current == value.to_string()] aria-label=(rating.word());
+                    label class=(format!("plus plus-{value}")) for=(id) title=(rating.word()) aria-hidden="true" { "+" }
                 }
             }
             span.rating-word aria-hidden="true" {
@@ -868,7 +871,7 @@ mod tests {
     }
 
     #[test]
-    fn the_rating_is_set_in_reverse_so_the_stylesheet_can_fill_it() {
+    fn the_rating_runs_as_it_is_seen_and_each_step_is_named() {
         let mut form = EditorForm::blank();
         form.place_mode = PlaceMode::Manual;
         form.place_name = "Cart".into();
@@ -885,8 +888,12 @@ mod tests {
             .match_indices("id=\"rating_")
             .map(|(i, _)| &pluses[i + 11..i + 12])
             .collect();
-        assert_eq!(order, ["4", "3", "2", "1"]);
-        assert!(pluses.contains("value=\"3\" checked"), "{pluses}");
+        assert_eq!(order, ["1", "2", "3", "4"]);
+        assert!(
+            pluses.contains("value=\"3\" checked aria-label=\"Strongly Recommended\""),
+            "{pluses}"
+        );
+        assert!(out.contains("value=\"\" aria-label=\"No rating\""), "{out}");
         assert!(
             out.contains("<span class=\"word word-3\">Strongly Recommended</span>"),
             "{out}"

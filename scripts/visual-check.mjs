@@ -528,7 +528,7 @@ async function main() {
         await browser.navigate(url, [])
         await browser.evaluate(`document.querySelector('.restore button').click()`)
         const radios = await browser.evaluate(`[...document.querySelectorAll('input[name=rating]')].map(r => r.value + (r.checked ? '*' : '')).join(' ')`)
-        const expected = ['', '4', '3', '2', '1'].map(v => v + (v === rating ? '*' : '')).join(' ')
+        const expected = ['', '1', '2', '3', '4'].map(v => v + (v === rating ? '*' : '')).join(' ')
         if (radios !== expected) throw new Error('Restoring a draft rated ' + JSON.stringify(rating) + ' gave ' + radios)
       }
       await browser.evaluate(`localStorage.removeItem('ea:draft:' + location.pathname)`)
