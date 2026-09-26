@@ -1,14 +1,7 @@
-/* A combobox over a text input (plan 10): a listbox injected under the
-   field and filled by a source the page names, following the WAI-ARIA
-   pattern (arrow keys move, Enter picks, Escape closes). The form it
-   enhances works without it; this only saves typing.
-
-   Enter never swallows the send. With a row highlighted it takes that
-   row; with none it leaves what was typed alone. Either way, a source
-   that asks for it (opts.send) then submits the form, so the field
-   answers Enter the same whether the reader chose a suggestion or
-   ignored the menu. A source whose pick submits on its own leaves
-   opts.send unset. */
+/* A combobox over a text input (plan 10), the WAI-ARIA pattern: arrows
+   move, Enter picks, Escape closes. Enter never swallows the send: it
+   takes a highlighted row or leaves the typing, then submits when the
+   source asks (opts.send). The form works without it. */
 window.eaCombobox = function (input, opts) {
   "use strict";
   var id = input.id + "-list";

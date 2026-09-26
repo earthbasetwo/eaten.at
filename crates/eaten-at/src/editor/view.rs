@@ -128,8 +128,11 @@ fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.place-head {
             label.visually-hidden for="title" { "Title" }
-            input #title.headline name="title" type="text" value=(form.title) placeholder=(form.place_name)
-                autocomplete="off" aria-describedby=[described(errors, "title")];
+            // A textarea, so a long title, or a long name standing in,
+            // wraps rather than scrolling out of sight (CB10). A line
+            // break in it is taken as a space.
+            textarea #title.headline name="title" rows="1" placeholder=(form.place_name)
+                autocomplete="off" aria-describedby=[described(errors, "title")] { (form.title) }
             (field_error(errors, "title"))
         }
         p.place-line {
@@ -805,7 +808,7 @@ mod tests {
         // The name stands in as the title; the line under it is the address
         // and the shrug that changes the restaurant.
         assert!(
-            out.contains("<input class=\"headline\" id=\"title\" name=\"title\" type=\"text\" value=\"\" placeholder=\"Noodle House\" autocomplete=\"off\">"),
+            out.contains("<textarea class=\"headline\" id=\"title\" name=\"title\" rows=\"1\" placeholder=\"Noodle House\" autocomplete=\"off\"></textarea>"),
             "{out}"
         );
         assert!(
@@ -830,7 +833,7 @@ mod tests {
         form.title = "Late at the Noodle House".into();
         let out = page_for(&form, None);
         assert!(
-            out.contains("value=\"Late at the Noodle House\" placeholder=\"Noodle House\""),
+            out.contains("placeholder=\"Noodle House\" autocomplete=\"off\">Late at the Noodle House</textarea>"),
             "{out}"
         );
         assert!(out.contains("<span class=\"place-name-text\">Noodle House</span><span class=\"place-comma\">, </span>"), "{out}");

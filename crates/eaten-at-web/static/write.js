@@ -70,6 +70,10 @@
   }
   form.elements.place_name.addEventListener("change", showPlace);
   form.elements.place_address.addEventListener("change", showPlace);
+  // Return in the title goes on to the digest; it is one line.
+  form.elements.title.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); (form.querySelector(".digest-editor") || form.elements.body).focus(); }
+  });
   form.elements.title.addEventListener("input", showPlace);
   form.elements.title.addEventListener("change", showPlace);
 

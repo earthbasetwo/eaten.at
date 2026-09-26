@@ -90,7 +90,9 @@ pub struct Context<'a> {
 pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, FieldErrors> {
     let mut errors = FieldErrors::default();
 
-    let title = form.title.trim();
+    // The title is one line: a line break typed into it is a space.
+    let title = form.title.replace(['\r', '\n'], " ");
+    let title = title.trim();
     if graphemes(title) > MAX_TITLE_GRAPHEMES {
         errors.add(
             "title",

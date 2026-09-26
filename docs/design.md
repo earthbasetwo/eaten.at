@@ -522,7 +522,10 @@ islands dress it and fall away.
   32px/500 with a transparent underline idle; its placeholder is a real
   value standing in (the place's name as the title, "St. John Bread and Wine" on the
   choosing screen), so it is roman, and it dims to `--color-disabled`
-  when the field takes focus.
+  when the field takes focus. On the editing screen it is a one-row
+  textarea, so a long title, or a long name standing in, wraps onto a
+  second line instead of scrolling out of sight; Return in it goes on
+  to the digest, and a line break sent without script is a space.
 - **Prose connectives** (`.soft`) — "at", "From a visit on", "Filed
   under", "Bluesky:", "Elsewhere:" — are italic soft ink.
 - **Buttons as prose.** The primary action is the site's typeset
