@@ -10,7 +10,7 @@ use eaten_at_atproto::lexicon::{Photo, MAX_PHOTOS};
 use maud::{html, Markup};
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::img::MAX_PHOTO_UPLOAD_BYTES;
+use crate::img::{MAX_PHOTO_UPLOAD_BYTES, MAX_SOURCE_MEGAPIXELS};
 
 /// Most files one request may add: as many as fit under
 /// [`MAX_REQUEST_BYTES`] at the upload limit, so the limits the page
@@ -138,9 +138,9 @@ pub struct PhotosForm {
     /// Files chosen with nothing in them, by name, so they are named
     /// back rather than dropped.
     pub empty: Vec<String>,
-    /// More files were chosen than one request may add; the extra ones
-    /// were not read.
-    pub too_many: bool,
+    /// Files chosen past the most one request may add, by name: they
+    /// were not read, and are named back.
+    pub too_many: Vec<String>,
     /// Photos already in the editor's form, which the upload cannot
     /// see: the island says how many, so the digest's limit holds.
     pub existing: usize,
@@ -174,7 +174,7 @@ impl PhotosForm {
                     continue;
                 }
                 if form.files.len() >= MAX_FILES_PER_REQUEST {
-                    form.too_many = true;
+                    form.too_many.push(file_name);
                     continue;
                 }
                 form.files.push(Upload { file_name, bytes });
@@ -210,6 +210,16 @@ impl PhotosForm {
 pub struct AltError {
     pub index: usize,
     pub message: String,
+}
+
+/// Names as a sentence lists them: "a", "a and b", "a, b, and c".
+pub fn listed(names: &[String]) -> String {
+    match names {
+        [] => String::new(),
+        [one] => one.clone(),
+        [first, second] => format!("{first} and {second}"),
+        [rest @ .., last] => format!("{}, and {last}", rest.join(", ")),
+    }
 }
 
 /// Why a photo's caption (its alt text) cannot be stored, naming the
@@ -377,7 +387,8 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
                 input #photos name="photos" type="file" accept="image/*" multiple;
             }
             p.meta.field-hint {
-                "Up to " (MAX_FILES_PER_REQUEST) " at a time, " (mb) " MB each, " (MAX_PHOTOS)
+                "Up to " (MAX_FILES_PER_REQUEST) " at a time, " (mb) " MB and "
+                (MAX_SOURCE_MEGAPIXELS) " megapixels each, " (MAX_PHOTOS)
                 " on a digest. Photos are re-encoded and stripped of "
                 "their metadata, location included, before they are uploaded."
             }
@@ -401,6 +412,15 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn names_are_listed_as_a_sentence_lists_them() {
+        let names = |list: &[&str]| list.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        assert_eq!(listed(&names(&[])), "");
+        assert_eq!(listed(&names(&["a.jpg"])), "a.jpg");
+        assert_eq!(listed(&names(&["a.jpg", "b.jpg"])), "a.jpg and b.jpg");
+        assert_eq!(listed(&names(&["a", "b", "c"])), "a, b, and c");
+    }
 
     fn photo(cid: &str) -> Photo {
         serde_json::from_value(serde_json::json!({
