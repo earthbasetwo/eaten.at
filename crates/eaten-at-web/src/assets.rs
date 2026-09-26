@@ -81,8 +81,11 @@ pub const INLINE_SCRIPTS: &[&str] = &[
 /// is the moment to look at how the site feels, not a reason to trim
 /// by itself. Raised from 24 KB on 2026-09-20 when the editor's islands
 /// (the live markdown editor, the calendar and menus, photos in place)
-/// landed with the Write Pages handoff.
-pub const JS_BUDGET_BYTES: usize = 72 * 1024;
+/// landed with the Write Pages handoff, and to 80 KB on 2026-09-26: the
+/// composer trial had already crossed 72, and the photo fixes (the draft
+/// keeping photos, the upload queue and its hold on Publish, the
+/// keyboard's reorder, naming refused files) added about 6 KB.
+pub const JS_BUDGET_BYTES: usize = 80 * 1024;
 
 /// Self-hosted web fonts. Newsreader and the mono face are OFL
 /// (`static/fonts/OFL.txt`), as latin and latin-ext subsets that the
