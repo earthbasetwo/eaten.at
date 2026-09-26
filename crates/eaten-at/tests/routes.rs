@@ -3305,7 +3305,18 @@ async fn a_first_publish_lands_on_the_write_up_and_removing_every_photo_drops_th
     );
 
     // Editing the photo post opens with its photo carried; saving with
-    // the row gone removes the photo and the cover it derived.
+    // the row gone removes the photo and the cover it derived, and the
+    // cover drawn from that photo is not served from the cache again.
+    for size in ["card", "og"] {
+        state
+            .cache()
+            .put_bytes(
+                eaten_at::cache::Namespace::Image,
+                &format!("{DID}/ph/{size}"),
+                b"the old cover",
+            )
+            .await;
+    }
     let (_, _, page) = get_signed(&state, "/write/ph", &cookie).await;
     assert!(
         page.contains("name=\"photo_cid_0\" value=\"bafkcover\""),
@@ -3328,6 +3339,18 @@ async fn a_first_publish_lands_on_the_write_up_and_removing_every_photo_drops_th
     let record = last_put(&repo_writes(&server).await);
     assert!(record["content"].get("photos").is_none(), "{record}");
     assert!(record.get("coverImage").is_none(), "{record}");
+    for size in ["card", "og"] {
+        let cached = state
+            .cache()
+            .get_or_fetch_bytes::<(), _, _>(
+                eaten_at::cache::Namespace::Image,
+                &format!("{DID}/ph/{size}"),
+                || async { Ok(Some(b"drawn again".to_vec())) },
+            )
+            .await
+            .unwrap();
+        assert_eq!(cached.as_deref(), Some(&b"drawn again"[..]), "{size}");
+    }
 }
 
 #[tokio::test]
