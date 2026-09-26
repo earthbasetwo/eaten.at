@@ -33,19 +33,14 @@
       if (live) return;
       live = true;
 
-      /* Where the rule starts, how thick it is at either end, and how
-         tall the block is, before anything changes. The block's corner
-         is the same in both states, so one origin serves both
-         measurements. */
+      // Measured before anything changes; one origin serves both ends.
       var origin = root.getBoundingClientRect();
       var from = button.getBoundingClientRect();
       var startHeight = root.offsetHeight;
       var thickFrom = rule(root, "--connect-rule-from");
       var thickTo = rule(root, "--connect-rule-to");
 
-      /* Lift the row out of the flow and bring the form in, then read
-         where the rule ends and how tall the block becomes. Nothing has
-         painted yet, so the reader sees none of this. */
+      // The form in, measured before anything paints.
       root.classList.add("connect-live");
       form.hidden = false;
       var to = input.getBoundingClientRect();
@@ -57,9 +52,7 @@
       moving.style.height = thickFrom + "px";
       root.style.height = startHeight + "px";
       root.appendChild(moving);
-      /* The block clips while it grows, so focus must not scroll the
-         field into view inside it: that would shift the form mid-flight.
-         The field stands where the button just was, so it is in view. */
+      // No scroll: the block clips while it grows, and the field is in view.
       input.focus({ preventScroll: true });
 
       /* Commit the starting frame, then set the destination; the

@@ -98,6 +98,8 @@
       if (i === active) {
         d.contentEditable = "true";
         d.tabIndex = -1;
+        d.setAttribute("role", "textbox");
+        d.setAttribute("aria-labelledby", "body-label");
         d.classList.add("md-active");
       }
       box.appendChild(d);
