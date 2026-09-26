@@ -475,6 +475,42 @@ async function main() {
       if (result !== 'ok') throw new Error(result)
     },
   })
+  // Files the island cannot use are named, not dropped: an empty one, a
+  // text file, and then the upload itself, which meets a sign-in that has
+  // run out (the cookie is dropped for it), said in words, and the file
+  // queued behind it is not sent.
+  await check({
+    name: 'edit-photo-refusals', path: `/write/${bare}`,
+    expect: 'button.photo-empty',
+    exercise: async (browser) => {
+      await browser.session.send('Network.deleteCookies', { name: cookieName, url: BASE })
+      let result
+      try {
+        result = await browser.evaluate(`(async () => {
+          const real = window.fetch
+          let sent = 0
+          window.fetch = (...args) => { sent++; return real(...args) }
+          const input = document.querySelector('.photos-block input[type=file]')
+          const files = new DataTransfer()
+          files.items.add(new File([], 'empty.jpg', { type: 'image/jpeg' }))
+          files.items.add(new File(['plain words'], 'notes.txt', { type: 'text/plain' }))
+          files.items.add(new File(['x'], 'one.jpg', { type: 'image/jpeg' }))
+          files.items.add(new File(['y'], 'two.jpg', { type: 'image/jpeg' }))
+          input.files = files.files
+          input.dispatchEvent(new Event('change'))
+          const publish = document.querySelector('.editor-actions button[value=publish]')
+          for (let i = 0; i < 100 && publish.disabled; i++) await new Promise((r) => setTimeout(r, 100))
+          return { sent, problems: document.querySelector('.photos-block > .field-error').textContent }
+        })()`)
+      } finally {
+        await browser.setCookie(cookieName, cookieValue)
+      }
+      const expected = "empty.jpg is empty. notes.txt isn't an image we can use. JPEG, PNG, GIF, or WebP, please. " +
+        'Your sign-in has expired. Sign in again in another tab, then add the missing photos.'
+      if (result.problems !== expected) throw new Error('The refusals were not named: ' + result.problems)
+      if (result.sent !== 1) throw new Error(`${result.sent} uploads were sent after the sign-in had expired`)
+    },
+  })
   await check({
     name: 'edit-photo-detail-roomy',
     exercise: checkPhotoDialog,

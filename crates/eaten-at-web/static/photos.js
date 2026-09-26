@@ -136,7 +136,9 @@
     var room = maxPhotos - photos.length - queue.length - (busy ? 1 : 0);
     var full = room <= 0, left = 0;
     files.forEach(function (f) {
-      if (maxBytes && f.size > maxBytes) batchProblems.push(f.name + " is over " + megabytes(maxBytes) + " MB.");
+      if (f.size === 0) batchProblems.push(f.name + " is empty.");
+      else if (f.type && f.type.indexOf("image/") !== 0) batchProblems.push(f.name + " isn't an image we can use. JPEG, PNG, GIF, or WebP, please.");
+      else if (maxBytes && f.size > maxBytes) batchProblems.push(f.name + " is over " + megabytes(maxBytes) + " MB.");
       else if (room <= 0) left++;
       else { queue.push(f); room--; }
     });
@@ -200,10 +202,13 @@
       headers: { Accept: "application/json" }
     })
       .then(function (r) {
-        return r.json().then(function (body) { return { ok: r.ok, body: body }; }, function () { return { ok: false, body: {} }; });
+        return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; }, function () { return { ok: false, body: {} }; });
       })
       .then(function (res) {
         var body = res.body || {};
+        // Signed out: the rest would fare no better, and the message
+        // says to add the missing ones once signed in again.
+        if (res.status === 401) queue = [];
         (body.photos || []).forEach(function (p) {
           photos.push(keyed({
             cid: p.cid, mime: p.mime || "", size: p.size == null ? "" : p.size,
@@ -224,9 +229,7 @@
     picker.click();
   }
   picker.addEventListener("change", function () {
-    var files = Array.prototype.filter.call(picker.files || [], function (f) {
-      return !f.type || f.type.indexOf("image/") === 0;
-    });
+    var files = Array.prototype.slice.call(picker.files || []);
     if (files.length) upload(files);
   });
 

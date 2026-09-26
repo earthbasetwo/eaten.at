@@ -133,6 +133,9 @@ impl FormError {
 pub struct PhotosForm {
     pub alts: Vec<String>,
     pub files: Vec<Upload>,
+    /// Files chosen with nothing in them, by name, so they are named
+    /// back rather than dropped.
+    pub empty: Vec<String>,
     /// More files were chosen than one request may add; the extra ones
     /// were not read.
     pub too_many: bool,
@@ -162,6 +165,10 @@ impl PhotosForm {
                     .await
                     .map_err(|e| FormError::from_multipart(&e))?;
                 if bytes.is_empty() {
+                    // A file input left blank sends a nameless empty part.
+                    if !file_name.trim().is_empty() {
+                        form.empty.push(file_name);
+                    }
                     continue;
                 }
                 if form.files.len() >= MAX_FILES_PER_REQUEST {

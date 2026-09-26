@@ -3238,6 +3238,130 @@ async fn an_upload_counts_the_photos_already_in_the_form() {
     assert_eq!(uploads, 0);
 }
 
+/// A POST of files to `/write/upload`, as the island sends it when
+/// `json`, with the session cookie when there is one.
+async fn upload_files(
+    state: &AppState,
+    cookie: Option<&str>,
+    json: bool,
+    files: &[(&str, &[u8])],
+) -> (StatusCode, Option<String>, Value) {
+    let (content_type, body) = multipart_body(&[("existing", "0")], files);
+    let mut request = Request::post("/write/upload").header(header::CONTENT_TYPE, content_type);
+    if let Some(cookie) = cookie {
+        request = request.header(header::COOKIE, cookie);
+    }
+    if json {
+        request = request.header(header::ACCEPT, "application/json");
+    }
+    let response = router(state.clone())
+        .oneshot(request.body(Body::from(body)).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .map(|v| v.to_str().unwrap().to_owned());
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (
+        status,
+        location,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+/// A JPEG of `w`×`h`, whole.
+fn jpeg_bytes(w: u32, h: u32) -> Vec<u8> {
+    use image::{DynamicImage, ImageFormat, RgbImage};
+    let img = RgbImage::from_fn(w, h, |x, y| {
+        image::Rgb([u8::try_from(x % 256).unwrap(), u8::try_from(y % 256).unwrap(), 90])
+    });
+    let mut out = std::io::Cursor::new(Vec::new());
+    DynamicImage::ImageRgb8(img)
+        .write_to(&mut out, ImageFormat::Jpeg)
+        .unwrap();
+    out.into_inner()
+}
+
+#[tokio::test]
+async fn empty_and_cut_short_files_are_named_not_dropped() {
+    let mut repo = one_publication();
+    repo.documents
+        .insert(0, ("ph0".into(), visit_doc_with_photos("pub1", &[])));
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let jpeg = jpeg_bytes(64, 48);
+    let cut = &jpeg[..jpeg.len() / 2];
+
+    // The photos page: each is named, and "choose one" is not said of
+    // files that were chosen.
+    let (status, _, body) = post_photos(
+        &state,
+        "/write/ph0/photos",
+        &cookie,
+        &[("action", "add")],
+        &[("empty.jpg", b""), ("cut.jpg", cut)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(body.contains("empty.jpg is empty."), "{body}");
+    assert!(
+        body.contains("cut.jpg is incomplete; the file ends partway through the photo."),
+        "{body}"
+    );
+    assert!(!body.contains("Choose at least one photo."), "{body}");
+
+    // The island's upload: the good one goes in beside the empty one.
+    let (status, _, json) = upload_files(
+        &state,
+        Some(&cookie),
+        true,
+        &[("empty.jpg", b""), ("whole.jpg", &jpeg)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["photos"].as_array().unwrap().len(), 1, "{json}");
+    assert_eq!(json["problems"], json!(["empty.jpg is empty."]));
+    let (status, _, json) = upload_files(&state, Some(&cookie), true, &[("empty.jpg", b"")]).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(json["problems"], json!(["empty.jpg is empty."]));
+}
+
+#[tokio::test]
+async fn an_upload_says_so_when_the_sign_in_has_run_out() {
+    let server = mount(&one_publication()).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let png = png_bytes(4, 6);
+    let expired = "Your sign-in has expired. Sign in again in another tab, then add the missing photos.";
+
+    // A browser session whose OAuth tokens are gone, and no session at
+    // all: the island is told in words, not sent to a page it cannot read.
+    let cookie = signed_in(&state).await;
+    for cookie in [Some(cookie.as_str()), None] {
+        let (status, location, json) = upload_files(&state, cookie, true, &[("one.png", &png)]).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{json}");
+        assert_eq!(location, None);
+        assert_eq!(json["problems"], json!([expired]));
+        assert_eq!(json["photos"], json!([]));
+    }
+    // Anything but the island goes to the sign-in page, and back to the editor.
+    let (status, location, _) = upload_files(&state, None, false, &[("one.png", &png)]).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(location.as_deref(), Some("/login?return_to=%2Fwrite"));
+    let uploads = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/xrpc/com.atproto.repo.uploadBlob")
+        .count();
+    assert_eq!(uploads, 0);
+}
+
 async fn assert_private_upload_previews(state: &AppState, server: &MockServer, cookie: &str) {
     // The author's own blob draws the tile, whether or not a record
     // lists it yet.
