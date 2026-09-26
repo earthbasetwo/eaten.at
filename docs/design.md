@@ -747,7 +747,7 @@ disclosure, and then a pilcrow that disclosed the marks, were both tried and cut
 the prompt is enough (Ken, 2026-09-25).
 
 The body is transparent on the page’s paper. Its italic stone placeholder asks
-“What did you eat? Was it good? Describe it with *markdown*.” The rule that
+“What did you eat? Was it good? Describe it. Use *markdown* if you want.” The rule that
 closes the writing section, and the one that opens it, go to ink under the
 pointer and to vermilion with focus, staying a hairline; the teaser sits on a
 hairline that does the same. Inactive lines remain formatted
