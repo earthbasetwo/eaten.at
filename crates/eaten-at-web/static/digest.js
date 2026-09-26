@@ -71,9 +71,8 @@
     });
     return html || "<br>";
   }
-  /* Prose right under a list item or a quote, no blank line between,
-     is published inside it (a lazy continuation), so it is drawn there:
-     `was` is what the line before leaves open, "li", "q", or "". */
+  // Prose right under an item or a quote publishes inside it, and is
+  // drawn there; `was` is what the line before leaves open.
   function context(text, was) {
     var b = block(text), t = b.type;
     return !text.trim() || t[0] === "h" ? "" : t === "p" ? was : text.slice(b.prefix.length).trim() ? (t === "q" ? "q" : "li") : "";
@@ -172,8 +171,7 @@
     pre.setEnd(node, off);
     return pre.toString().length;
   }
-  /* A folded line shows less than its source; a click on it lands the
-     caret at the matching place in the source. */
+  // A click on a folded line lands at the same place in its source.
   function shownToRaw(text, shown) {
     var b = block(text);
     var raw = b.prefix.length, seen = 0;
@@ -191,9 +189,7 @@
     return text.length;
   }
 
-  /* Selection spans the digest, even though only the active line shows
-     source. Map folded DOM offsets back to markdown for the clipboard
-     and replacement; never unfold the other lines just to select them. */
+  // A selection spans folded lines: its ends map back to the source.
   function endpoint(node, offset) {
     // An end outside the digest (Chrome moves a select-all's start to
     // the label before it) is its first or last place.
@@ -319,15 +315,13 @@
     }
     activate(i, offset);
   });
-  /* A click that no mousedown announced (a script's, or assistive
-     technology's) opens the line at its end. */
+  // A click no mousedown announced opens the line at its end.
   box.addEventListener("click", function (e) {
     var line = e.target.closest && e.target.closest("[data-md]");
     if (line && Number(line.dataset.md) !== active) activate(Number(line.dataset.md), lines[Number(line.dataset.md)].length);
     else if (!line && active === null) activate(lines.length - 1, lines[lines.length - 1].length);
   });
-  /* Reached by keyboard, the editor opens at its first line; leaving it
-     folds the line that was open. */
+  // Reached by keyboard, it opens at its first line.
   box.addEventListener("focus", function () {
     if (leaving) { leaving = false; return; }
     if (active === null) activate(0, 0);
@@ -393,8 +387,7 @@
     }
     if (meta && e.key === "y") { e.preventDefault(); restore(redo, undo); return; }
     var selected = selection();
-    // A range spanning folded lines crosses editing hosts. Collapse it
-    // ourselves: native arrow navigation can leave the whole range selected.
+    // Native arrows can leave a range across lines selected: collapse it.
     if (selected && !e.shiftKey && /^(ArrowLeft|ArrowRight|ArrowUp|ArrowDown|Home|End)$/.test(e.key)) {
       e.preventDefault();
       var start = /^(ArrowLeft|ArrowUp|Home)$/.test(e.key);
@@ -424,9 +417,8 @@
       var b = block(text);
       var left = text.slice(0, off), right = text.slice(off);
       var listy = b.type === "li" || b.type === "ol" || b.type === "q";
-      /* The source keeps the blank line CommonMark needs, so the page
-         is what the editor shows: Return on an empty list or quote line
-         ends it with one, and Return in prose starts a paragraph. */
+      // Keep the blank line CommonMark needs: Return in prose, or on an
+      // empty item, starts a paragraph (CB2).
       var gap = b.type === "p" && left.trim() ? 1 : 0;
       if (listy && left === b.prefix && !right) left = "";
       var next = 0;
@@ -484,8 +476,7 @@
     }
   });
 
-  /* A restored draft, or anything else that sets the textarea, is read
-     back into the lines. */
+  // A restored draft, or anything that sets the textarea, is read back.
   ta.addEventListener("change", function () {
     lines = split(ta.value);
     active = null;

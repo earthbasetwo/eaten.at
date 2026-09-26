@@ -130,12 +130,12 @@ fn render(
 ) -> Response {
     let action_path = editing.map_or_else(|| "/write".to_owned(), |e| format!("/write/{}", e.rkey));
     let photos_page = editing.map(|e| format!("/write/{}/photos", e.rkey));
-    // The choosing screen suggests places; the editing screen keeps a
-    // draft, dresses its controls, edits the markdown live, files tags
-    // as chips, and manages photos in place. Each ships only its own
-    // islands.
+    // The choosing screen suggests places and offers a kept draft; the
+    // editing screen keeps a draft, dresses its controls, edits the
+    // markdown live, files tags as chips, and manages photos in place.
+    // Each ships only its own islands.
     let scripts = if form.place_mode == PlaceMode::Choosing {
-        vec![COMBOBOX_SCRIPT, CHOOSE_PLACE_SCRIPT]
+        vec![COMBOBOX_SCRIPT, CHOOSE_PLACE_SCRIPT, EDITOR_SCRIPT]
     } else {
         vec![
             EDITOR_SCRIPT,

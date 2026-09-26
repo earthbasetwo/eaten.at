@@ -3922,7 +3922,7 @@ async fn each_editor_state_carries_its_own_nonced_scripts_and_nothing_else_chang
     let inlined =
         |nonce: &str, script: &str| format!("<script nonce=\"{nonce}\">{script}</script>");
 
-    // Choosing: the combobox and the place chooser, in that order.
+    // Choosing: the combobox, the place chooser, and the drafts (CB8).
     let response = router(state.clone())
         .oneshot(
             Request::get("/write")
@@ -3935,11 +3935,10 @@ async fn each_editor_state_carries_its_own_nonced_scripts_and_nothing_else_chang
     let (nonce, body) = nonce_and_body(response).await;
     let combobox = inlined(&nonce, eaten_at_web::assets::COMBOBOX_SCRIPT);
     let suggest = inlined(&nonce, eaten_at_web::assets::CHOOSE_PLACE_SCRIPT);
-    assert_eq!(body.matches("<script").count(), 2, "{body}");
-    assert!(
-        body.contains(&combobox) && body.contains(&suggest),
-        "{body}"
-    );
+    let drafts = inlined(&nonce, eaten_at_web::assets::EDITOR_SCRIPT);
+    assert_eq!(body.matches("<script").count(), 3, "{body}");
+    let scripts = [&combobox, &suggest, &drafts];
+    assert!(scripts.iter().all(|s| body.contains(s.as_str())));
     assert!(
         body.find(&combobox) < body.find(&suggest),
         "the combobox comes first"
@@ -3948,7 +3947,9 @@ async fn each_editor_state_carries_its_own_nonced_scripts_and_nothing_else_chang
         !body.contains("navigator.geolocation"),
         "no location island (D44): {body}"
     );
-    let without = body.replace(&combobox, "").replace(&suggest, "");
+    let without = scripts
+        .iter()
+        .fold(body.clone(), |b, s| b.replace(s.as_str(), ""));
     assert!(!without.contains("<script"));
     assert!(
         without.contains("<form class=\"editor editor-choosing\""),
