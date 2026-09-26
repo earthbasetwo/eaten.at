@@ -1,9 +1,8 @@
-/* The editor island (plan §6.3, C3.5). Everything here is a convenience
-   on top of a form that already works: the draft is kept in localStorage
-   under the page's path, a banner offers to restore it, and the textareas
-   grow with their text. No network, no dependencies, nothing the page
-   needs. The photos ride in the draft as their hidden fields; restoring
-   hands them to the photos island, which redraws its tiles. */
+/* The editor island (plan §6.3, C3.5), a convenience on a form that
+   already works: the draft is kept in localStorage under the page's
+   path, a banner offers to restore it, and the textareas grow with
+   their text. The photos ride in the draft as their hidden fields;
+   restoring hands them to the photos island, which redraws. */
 (function () {
   "use strict";
   var form = document.querySelector("form.editor");
@@ -30,9 +29,15 @@
     }
     return out;
   }
+  /* A radio group or a checkbox is kept as the value that is checked
+     ("" for none), once; restoring checks the control with that value. */
+  function ticks(el) { return el.type === "radio" || el.type === "checkbox"; }
   function snapshot() {
     var data = {};
-    fields().forEach(function (el) { data[el.name] = el.value; });
+    fields().forEach(function (el) {
+      if (!ticks(el)) data[el.name] = el.value;
+      else if (el.checked || !(el.name in data)) data[el.name] = el.checked ? el.value : "";
+    });
     return data;
   }
   function same(a, b) {
@@ -52,7 +57,8 @@
     var at = Date.now();
     // `photos` marks a draft that carries its photo list, so restoring
     // an older one leaves the photos on the page alone.
-    try { store.setItem(key, JSON.stringify({ at: at, photos: true, data: snapshot() })); return at; } catch (e) {}
+    // `v: 2` marks a draft that keeps radios by what is checked.
+    try { store.setItem(key, JSON.stringify({ at: at, photos: true, v: 2, data: snapshot() })); return at; } catch (e) {}
   }
   function scheduleSave() {
     if (timer) clearTimeout(timer);
@@ -85,12 +91,14 @@
     restore.addEventListener("click", function () {
       // Older drafts lack place identity fields. Never restore only a
       // name/address over a different restaurant's ID and coordinates.
+      // Older drafts kept the last radio's value, not the checked one.
       var restored = fields().filter(function (el) {
         return Object.prototype.hasOwnProperty.call(saved.data, el.name) && !isPhotoField(el.name) &&
-          (completePlace || placeFields.indexOf(el.name) < 0);
+          (completePlace || placeFields.indexOf(el.name) < 0) && (saved.v || !ticks(el));
       });
       restored.forEach(function (el) {
-        el.value = saved.data[el.name];
+        if (ticks(el)) el.checked = el.value === saved.data[el.name];
+        else el.value = saved.data[el.name];
         grow(el);
       });
       // Notify islands only after all related fields are restored. The

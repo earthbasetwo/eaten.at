@@ -406,6 +406,30 @@ async function main() {
       if (!await browser.evaluate(`document.querySelector('[name="photo_alt_0"]').value === 'A caption kept in the draft'`)) throw new Error('Restoring the draft lost a caption')
     },
   })
+  // A restored draft brings back the rating that was checked, every step
+  // and none, and leaves each radio's own value alone.
+  await check({
+    name: 'edit-restore-rating', path: `/write/${rkey}`,
+    expect: '.rating-control',
+    exercise: async (browser) => {
+      const url = await browser.evaluate('location.href')
+      for (const rating of ['', '1', '2', '3', '4']) {
+        await browser.evaluate(`(() => {
+          document.querySelector('label[for="rating_' + (${JSON.stringify(rating)} || 'none') + '"]').click()
+          const body = document.querySelector('#body')
+          body.value += ' '
+          body.dispatchEvent(new Event('input', { bubbles: true }))
+        })()`)
+        await sleep(600)
+        await browser.navigate(url, [])
+        await browser.evaluate(`document.querySelector('.restore button').click()`)
+        const radios = await browser.evaluate(`[...document.querySelectorAll('input[name=rating]')].map(r => r.value + (r.checked ? '*' : '')).join(' ')`)
+        const expected = ['', '4', '3', '2', '1'].map(v => v + (v === rating ? '*' : '')).join(' ')
+        if (radios !== expected) throw new Error('Restoring a draft rated ' + JSON.stringify(rating) + ' gave ' + radios)
+      }
+      await browser.evaluate(`localStorage.removeItem('ea:draft:' + location.pathname)`)
+    },
+  })
   await check({
     name: 'edit-link',
     path: `/write/${rkey}`,
