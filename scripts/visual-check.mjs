@@ -714,6 +714,46 @@ async function main() {
       if (result !== 'ok') throw new Error(result)
     },
   })
+  // A file the server refuses takes no room (PH22): with one place left,
+  // [refused, good, good] adds the first good one and names the rest.
+  await check({
+    name: 'edit-photo-room', path: `/write/${rkey}`,
+    expect: '.photo-tile',
+    exercise: async (browser) => {
+      const url = await browser.evaluate('location.href')
+      await browser.evaluate(`(() => {
+        const first = document.querySelector('.photo-tile')
+        const data = { body: 'A draft one photo short' }
+        for (let i = 0; i < 23; i++) Object.assign(data, { ['photo_cid_' + i]: first.dataset.cid, ['photo_mime_' + i]: 'image/jpeg', ['photo_size_' + i]: '5', ['photo_alt_' + i]: '', ['photo_width_' + i]: '1', ['photo_height_' + i]: '1' })
+        localStorage.setItem('ea:draft:' + location.pathname, JSON.stringify({ at: Date.now(), photos: true, v: 2, data }))
+      })()`)
+      await browser.navigate(url, [])
+      const result = await browser.evaluate(`(async () => {
+        document.querySelector('.restore button').click()
+        let sent = []
+        window.fetch = (u, init) => {
+          const name = init.body.get('photos').name
+          sent.push(name)
+          const first = document.querySelector('.photo-tile')
+          const refused = name === 'words.jpg'
+          const body = refused ? { photos: [], problems: [name + " isn't an image we can use. JPEG, PNG, GIF, or WebP, please."] }
+            : { photos: [{ cid: first.dataset.cid, thumb: '', full: '', mime: 'image/jpeg', size: 5, width: 1, height: 1 }], problems: [] }
+          return Promise.resolve(new Response(JSON.stringify(body), { status: refused ? 422 : 200, headers: { 'content-type': 'application/json' } }))
+        }
+        const input = document.querySelector('.photos-block input[type=file]')
+        const files = new DataTransfer()
+        for (const name of ['words.jpg', 'one.jpg', 'two.jpg']) files.items.add(new File(['x'], name, { type: 'image/jpeg' }))
+        input.files = files.files
+        input.dispatchEvent(new Event('change'))
+        for (let i = 0; i < 50 && document.querySelector('.editor-actions button[value=publish]').disabled; i++) await new Promise((r) => setTimeout(r, 50))
+        localStorage.removeItem('ea:draft:' + location.pathname)
+        return { tiles: document.querySelectorAll('.photo-tile').length, sent, problems: document.querySelector('.photos-block > .field-error').textContent }
+      })()`)
+      if (result.tiles !== 24) throw new Error('A refused file took the last place: ' + JSON.stringify(result))
+      if (result.sent.join() !== 'words.jpg,one.jpg') throw new Error('Sent ' + result.sent.join())
+      if (!result.problems.includes('the last 1 was not added.')) throw new Error('The file left over was not counted: ' + result.problems)
+    },
+  })
   // Files the island cannot use are named, not dropped: an empty one, a
   // text file, and then the upload itself, which meets a sign-in that has
   // run out (the cookie is dropped for it), said in words, and the file

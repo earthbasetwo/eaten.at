@@ -588,9 +588,11 @@ async fn add(
         }
         return Ok((photos, problems));
     }
-    // As many as fit are added; the rest are named by count.
-    let room = MAX_PHOTOS.saturating_sub(photos.len() + form.existing);
-    if room == 0 {
+    // Files are judged in turn and only a good one takes room, so a
+    // refused file never costs a good one its place; once the digest is
+    // full the rest are named by count, never decoded.
+    let room = |photos: &Vec<Photo>| MAX_PHOTOS.saturating_sub(photos.len() + form.existing);
+    if room(&photos) == 0 {
         tracing::info!(
             files = form.files.len(),
             "photos refused: the digest has its {MAX_PHOTOS}"
@@ -600,14 +602,6 @@ async fn add(
         ));
         return Ok((photos, problems));
     }
-    if form.files.len() > room {
-        let left = form.files.len() - room;
-        tracing::info!(left, "photos refused: past the digest's {MAX_PHOTOS}");
-        problems.push(format!(
-            "At most {MAX_PHOTOS} photos on a digest; the last {left} {} not added.",
-            if left == 1 { "was" } else { "were" }
-        ));
-    }
     let session =
         state.oauth().session(&identity.did).await.map_err(|err| {
             match PublishError::from(err) {
@@ -615,7 +609,17 @@ async fn add(
                 _ => Refused::Repo(problems.clone()),
             }
         })?;
-    for upload in form.files.into_iter().take(room) {
+    let total = form.files.len();
+    for (taken, upload) in form.files.into_iter().enumerate() {
+        if room(&photos) == 0 {
+            let left = total - taken;
+            tracing::info!(left, "photos refused: past the digest's {MAX_PHOTOS}");
+            problems.push(format!(
+                "At most {MAX_PHOTOS} photos on a digest; the last {left} {} not added.",
+                if left == 1 { "was" } else { "were" }
+            ));
+            break;
+        }
         let name = if upload.file_name.trim().is_empty() {
             "A file".to_owned()
         } else {

@@ -3282,6 +3282,38 @@ async fn an_upload_counts_the_photos_already_in_the_form() {
         json["problems"][0],
         "At most 24 photos on a digest; the last 1 was not added."
     );
+    // A refused file takes no room (PH22): at 23, [not an image, good,
+    // good] adds the first good one and names the refusal and the rest.
+    let (content_type, body) = multipart_body(
+        &[("existing", "23")],
+        &[
+            ("words.png", b"plain words"),
+            ("one.png", &png),
+            ("two.png", &png),
+        ],
+    );
+    let response = router(state.clone())
+        .oneshot(
+            Request::post("/write/upload")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, content_type)
+                .header(header::ACCEPT, "application/json")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let json: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(json["photos"].as_array().unwrap().len(), 1, "{json}");
+    assert_eq!(
+        json["problems"],
+        json!([
+            "words.png isn't an image we can use. JPEG, PNG, GIF, or WebP, please.",
+            "At most 24 photos on a digest; the last 1 was not added."
+        ])
+    );
     // Full: nothing is sent to the repository.
     let before = server.received_requests().await.unwrap().len();
     let response = upload("24").await.unwrap();
