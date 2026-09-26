@@ -520,7 +520,7 @@ islands dress it and fall away.
   choosing screen), so it is roman, and it dims to `--color-disabled`
   when the field takes focus.
 - **Prose connectives** (`.soft`) — "at", "From a visit on", "Filed
-  under", "Bluesky:" — are italic soft ink.
+  under", "Bluesky:", "Elsewhere:" — are italic soft ink.
 - **Buttons as prose.** The primary action is the site's typeset
   primary (Start writing, Save changes, Publish). A **hidden
   affordance** (`.hint-action`: add a link, write your own teaser, save
@@ -619,10 +619,10 @@ results page any more.
   record, which stays the way photos are managed by hand.
 - **Links** on one two-ended row. `Bluesky: see the thread.` once
   there is a post; before one, `Bluesky: [ ] post it too, saying
-  [text].` The place's links as words with commas, then "add a link", shown
-  while the row is hovered (always, when empty). No "Elsewhere:" label,
-  no "nowhere yet", no dash: the words are their own label (C11,
-  settled 2026-09-25). Each link is a **card** (`.link-card`:
+  [text].` `Elsewhere:` the place's links as words with commas, then "add a
+  link", shown while the row is hovered (always, when empty). No
+  "nowhere yet" and no dash: an empty row is `Elsewhere: add a link`
+  (C11, settled 2026-09-25). Each link is a **card** (`.link-card`:
   paper, up to 420px, right-set) of two prose rows, `shown as [label]`
   and `pointing at [url]` with a chain-link mark to open it, and a foot
   of "save it · never mind" and "remove it". With script one card is
@@ -752,8 +752,8 @@ hairline that does the same. Inactive lines remain formatted
 even when the whole digest is selected.
 
 Filed under sits below photos, full-width and left-aligned. Photos have no
-kicker; the empty target says Add photos at rest. The links row and its link cards
-align left and wrap; the row is only the link words and "add a link". Gaps below the digest are 16–24px. The composer has no Cancel
+kicker; the empty target says Add photos at rest. Elsewhere and its link cards
+align left and wrap; the row is the label, the link words and "add a link". Gaps below the digest are 16–24px. The composer has no Cancel
 or Bluesky controls. The calendar, teaser, price, link editor, and inline Delete
 confirmation remain. Snack joins the meal options; Late night is no longer offered (a record that has it still reads).
 
