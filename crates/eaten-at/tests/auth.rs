@@ -186,7 +186,8 @@ async fn sign_in_sets_a_session_and_sign_out_clears_it() {
     let form = get(&state, "/login?return_to=/write", None).await;
     assert_eq!(form.status, StatusCode::OK);
     assert!(
-        form.body.contains("action=\"https://eaten.at/login\" method=\"post\""),
+        form.body
+            .contains("action=\"https://eaten.at/login\" method=\"post\""),
         "{}",
         form.body
     );
