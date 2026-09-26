@@ -10,6 +10,7 @@
 //! encoded JPEG. Uploads go the same way (plan 07): re-encoded, so no
 //! metadata block, and with it no camera position, reaches the repo.
 
+use std::borrow::Cow;
 use std::io::Cursor;
 
 use eaten_at_atproto::lexicon::MAX_PHOTO_BYTES;
@@ -435,7 +436,8 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
     if bytes.len() > MAX_PHOTO_UPLOAD_BYTES {
         return Err(ImageError::TooBig(bytes.len(), MAX_PHOTO_UPLOAD_BYTES));
     }
-    let image = decode(bytes)?;
+    let decoded = decode(bytes)?;
+    let image = &*opaque(&decoded);
     // Smaller and coarser until it fits. A photograph fits on the first
     // try; only something like pure noise gets as far as the last.
     for limit in [PHOTO_FIT_DIMENSION, 1600, 1200, 800] {
@@ -446,7 +448,7 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
             image.clone()
         };
         let (width, height) = fitted.dimensions();
-        let rgb = fitted.to_rgb8();
+        let rgb = flatten(&fitted);
         for quality in [JPEG_QUALITY, 72, 60] {
             let mut out = Cursor::new(Vec::new());
             let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality);
@@ -468,6 +470,7 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
 /// rendition fitted to its long side, or the card's 3:2 crop, none of
 /// them upscaled.
 pub fn encode_photo(image: &DynamicImage, size: PhotoSize) -> Result<Vec<u8>, ImageError> {
+    let image = &*opaque(image);
     let framed = match size {
         PhotoSize::Thumb => image.resize_to_fill(THUMB_SIDE, THUMB_SIDE, FilterType::Lanczos3),
         PhotoSize::Full => {
@@ -485,7 +488,7 @@ pub fn encode_photo(image: &DynamicImage, size: PhotoSize) -> Result<Vec<u8>, Im
     };
     let mut out = Cursor::new(Vec::new());
     let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY);
-    framed.to_rgb8().write_with_encoder(encoder)?;
+    flatten(&framed).write_with_encoder(encoder)?;
     Ok(out.into_inner())
 }
 
@@ -541,6 +544,7 @@ pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
 
 /// Fit the image to `size` and encode it as JPEG.
 pub fn encode(image: &DynamicImage, size: Size) -> Result<Vec<u8>, ImageError> {
+    let image = &*opaque(image);
     let framed = match size {
         Size::Card => {
             let (w, h) = image.dimensions();
@@ -554,8 +558,40 @@ pub fn encode(image: &DynamicImage, size: Size) -> Result<Vec<u8>, ImageError> {
     };
     let mut out = Cursor::new(Vec::new());
     let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY);
-    framed.to_rgb8().write_with_encoder(encoder)?;
+    flatten(&framed).write_with_encoder(encoder)?;
     Ok(out.into_inner())
+}
+
+/// The image as 8-bit RGB, with any transparency composited over white.
+/// JPEG has no alpha channel, and dropping it would publish whatever
+/// colour sits under a transparent pixel (black, often, or magenta)
+/// instead of what every viewer shows.
+fn flatten(image: &DynamicImage) -> RgbImage {
+    if !image.color().has_alpha() {
+        return image.to_rgb8();
+    }
+    let rgba = image.to_rgba8();
+    RgbImage::from_fn(rgba.width(), rgba.height(), |x, y| {
+        let [r, g, b, a] = rgba.get_pixel(x, y).0;
+        let a = u16::from(a);
+        // c·a + 255·(1 − a), rounded: at most 255·255 + 127, and the
+        // quotient is at most 255.
+        let over = |c: u8| {
+            u8::try_from((u16::from(c) * a + 255 * (255 - a) + 127) / 255).unwrap_or(u8::MAX)
+        };
+        Rgb([over(r), over(g), over(b)])
+    })
+}
+
+/// The image unchanged when it has no alpha channel, else [`flatten`]ed.
+/// Flattening before resizing keeps the colour under transparent pixels
+/// from bleeding into the edges of what is visible.
+fn opaque(image: &DynamicImage) -> Cow<'_, DynamicImage> {
+    if image.color().has_alpha() {
+        Cow::Owned(DynamicImage::ImageRgb8(flatten(image)))
+    } else {
+        Cow::Borrowed(image)
+    }
 }
 
 /// Centre the image on a 1200×630 canvas filled with its average color.
@@ -567,7 +603,7 @@ fn frame_for_og(image: &DynamicImage) -> DynamicImage {
     let (fw, fh) = fitted.dimensions();
     let x = i64::from((W - fw) / 2);
     let y = i64::from((H - fh) / 2);
-    image::imageops::overlay(&mut canvas, &fitted.to_rgb8(), x, y);
+    image::imageops::overlay(&mut canvas, &flatten(&fitted), x, y);
     DynamicImage::ImageRgb8(canvas)
 }
 
@@ -730,6 +766,63 @@ mod tests {
             photo_upload(b"not an image"),
             Err(ImageError::Format)
         ));
+    }
+
+    #[test]
+    fn transparency_is_flattened_onto_white() {
+        // Left: opaque red. Right: fully transparent, black under the top
+        // and magenta under the bottom. A band of 50% transparent black
+        // across the middle of the left half.
+        let img = image::RgbaImage::from_fn(64, 64, |x, y| {
+            if x >= 32 {
+                if y < 32 {
+                    image::Rgba([0, 0, 0, 0])
+                } else {
+                    image::Rgba([255, 0, 255, 0])
+                }
+            } else if (24..40).contains(&y) {
+                image::Rgba([0, 0, 0, 128])
+            } else {
+                image::Rgba([200, 30, 30, 255])
+            }
+        });
+        let mut png = Cursor::new(Vec::new());
+        DynamicImage::ImageRgba8(img)
+            .write_to(&mut png, ImageFormat::Png)
+            .unwrap();
+        let near =
+            |got: Rgb<u8>, want: [u8; 3]| got.0.iter().zip(want).all(|(g, w)| g.abs_diff(w) <= 6);
+        let photo = photo_upload(&png.into_inner()).unwrap();
+        let back = decode(&photo.jpeg).unwrap().to_rgb8();
+        for (x, y, want) in [
+            (48, 12, [255, 255, 255]),
+            (48, 52, [255, 255, 255]),
+            (12, 32, [127, 127, 127]),
+            (12, 8, [200, 30, 30]),
+        ] {
+            let got = *back.get_pixel(x, y);
+            assert!(near(got, want), "({x},{y}) is {got:?}, want {want:?}");
+        }
+        // The renditions and the cover flatten too.
+        let rgba = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            50,
+            50,
+            image::Rgba([0, 0, 0, 0]),
+        ));
+        let full = decode(&encode_photo(&rgba, PhotoSize::Full).unwrap())
+            .unwrap()
+            .to_rgb8();
+        assert!(near(*full.get_pixel(25, 25), [255, 255, 255]));
+        let og = decode(&encode(&rgba, Size::Og).unwrap()).unwrap().to_rgb8();
+        assert!(near(*og.get_pixel(0, 0), [255, 255, 255]), "OG background");
+        assert!(near(*og.get_pixel(600, 315), [255, 255, 255]));
+        assert_eq!(flatten(&rgba).get_pixel(0, 0).0, [255, 255, 255]);
+        let half = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            1,
+            1,
+            image::Rgba([0, 0, 0, 128]),
+        ));
+        assert_eq!(flatten(&half).get_pixel(0, 0).0, [127, 127, 127]);
     }
 
     #[test]
