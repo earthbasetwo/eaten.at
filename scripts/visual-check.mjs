@@ -732,8 +732,8 @@ async function main() {
   await check({
     name: 'edit-change-place',
     path: `/write/${rkey}`,
-    steps: [{ click: 'button[name="action"][value="change_place"]' }],
-    expect: '#place_name.headline[value]',
+    steps: [{ click: 'button[name="action"][value="change_place"]', wait: '#place_name.headline[value]' }],
+    expect: 'form.editor-write[data-back="1"]',
     exercise: async (browser) => {
       const selected = await browser.evaluate(`(() => {
         const name = document.querySelector('#place_name')
@@ -743,6 +743,15 @@ async function main() {
       if (!await browser.evaluate(`document.querySelector('#start-writing').textContent.trim() === 'Keep writing'`)) throw new Error('Reselecting a restaurant should offer Keep writing')
       await browser.session.send('Input.insertText', { text: 'St. John Bread and Wine' })
       if (!await browser.evaluate(`document.querySelector('#place_name').value === 'St. John Bread and Wine'`)) throw new Error('Typing did not replace the restaurant name')
+      // The writing is kept on the device on the way out, so leaving the
+      // chooser loses nothing, and kept again, with its new place, the
+      // moment "Keep writing" brings it back (CB4).
+      const draft = `JSON.parse(localStorage.getItem('ea:draft:' + location.pathname) || 'null')`
+      if (!await browser.evaluate(`(${draft}?.data.body ?? '') !== ''`)) throw new Error('"somewhere else" did not keep the draft')
+      await browser.navigate(null, [], () => browser.evaluate(`document.querySelector('#start-writing').click()`))
+      const back = await browser.evaluate(`({ back: document.querySelector('form.editor-write')?.dataset.back, banner: !!document.querySelector('.notice.restore'), place: ${draft}?.data.place_name })`)
+      if (back.back !== '1' || back.banner || back.place !== 'St. John Bread and Wine') throw new Error('Coming back from the chooser: ' + JSON.stringify(back))
+      await browser.evaluate(`localStorage.removeItem('ea:draft:' + location.pathname)`)
     },
   })
   await check({

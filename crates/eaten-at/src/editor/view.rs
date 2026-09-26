@@ -79,7 +79,9 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
     let form = page.form;
     let errors = page.errors;
     html! {
-        form.editor.editor-write method="post" action=(page.action_path) novalidate {
+        // Back from the chooser: the draft island keeps this page as the
+        // draft at once rather than offer the one saved on the way out.
+        form.editor.editor-write method="post" action=(page.action_path) data-back=[form.changing_place.then_some("1")] novalidate {
             input type="hidden" name="draft_id" value="";
             (alerts(page))
             // Return in a text field presses the form's first button;
@@ -829,6 +831,20 @@ mod tests {
         form.place_address.clear();
         let out = page_for(&form, None);
         assert!(out.contains("<span class=\"place-where\" hidden>"), "{out}");
+    }
+
+    #[test]
+    fn a_page_back_from_the_chooser_says_so_for_the_draft() {
+        let mut form = EditorForm::blank();
+        form.place_mode = PlaceMode::Manual;
+        form.place_name = "Noodle House".into();
+        assert!(!page_for(&form, None).contains("data-back"));
+        form.changing_place = true;
+        let out = page_for(&form, None);
+        assert!(
+            out.contains("<form class=\"editor editor-write\" method=\"post\" action=\"/write/d1\" data-back=\"1\" novalidate>"),
+            "{out}"
+        );
     }
 
     #[test]
