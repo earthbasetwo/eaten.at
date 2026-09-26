@@ -314,7 +314,7 @@ pub fn document_meta(
         canonical: canonical_url(state, did, pub_rkey, doc, publication),
         kind: Kind::Article,
         site_name: publication.name.clone(),
-        image: state.absolute(&paths::cover_og(did, doc.rkey())),
+        image: state.absolute(&paths::cover_og(did, doc.rkey(), &doc.cid)),
         published: Some(doc.value.published_at.as_str().to_owned()),
         modified: doc.value.updated_at.as_ref().map(|d| d.as_str().to_owned()),
         feed: Some(state.absolute(&paths::feed(did, pub_rkey))),

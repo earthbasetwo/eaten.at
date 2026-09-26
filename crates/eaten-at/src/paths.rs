@@ -28,14 +28,18 @@ pub fn handle_lookup(handle: &Handle) -> String {
     format!("/@{handle}")
 }
 
-/// The cover-art proxy for a document, card size.
-pub fn cover(did: &Did, doc_rkey: &str) -> String {
-    format!("/img/{did}/{doc_rkey}")
+/// The cover-art proxy for a document, card size, at the revision
+/// `version` (the record's CID). The cover can change while the path
+/// does not, so the revision is in the URL: a cache holding the old
+/// cover holds it under the old URL (see `routes::image::cover`).
+pub fn cover(did: &Did, doc_rkey: &str, version: &str) -> String {
+    format!("/img/{did}/{doc_rkey}?v={}", urlencoding(version))
 }
 
-/// The cover-art proxy for a document, OpenGraph size.
-pub fn cover_og(did: &Did, doc_rkey: &str) -> String {
-    format!("/img/{did}/{doc_rkey}?size=og")
+/// The cover-art proxy for a document, OpenGraph size, at the revision
+/// `version`, as [`cover`].
+pub fn cover_og(did: &Did, doc_rkey: &str, version: &str) -> String {
+    format!("/img/{did}/{doc_rkey}?size=og&v={}", urlencoding(version))
 }
 
 /// One of a document's photos through the proxy, at `thumb` or `full`.
