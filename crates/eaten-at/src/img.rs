@@ -426,6 +426,9 @@ pub struct PreparedPhoto {
     pub jpeg: Vec<u8>,
     pub width: u32,
     pub height: u32,
+    /// The file was an animated GIF or WebP, of which only the first
+    /// frame is kept: a JPEG holds one picture.
+    pub animated: bool,
 }
 
 impl std::fmt::Debug for PreparedPhoto {
@@ -434,6 +437,7 @@ impl std::fmt::Debug for PreparedPhoto {
             .field("bytes", &self.jpeg.len())
             .field("width", &self.width)
             .field("height", &self.height)
+            .field("animated", &self.animated)
             .finish()
     }
 }
@@ -476,11 +480,65 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
                     jpeg,
                     width,
                     height,
+                    animated: animated(bytes),
                 });
             }
         }
     }
     Err(ImageError::CannotShrink(MAX_IMAGE_BLOB_BYTES))
+}
+
+/// Whether a GIF or WebP holds more than one frame, read from its
+/// structure without decoding any: a WebP says so in its VP8X flags, and
+/// a GIF's image descriptors are counted, stepping over every block.
+fn animated(bytes: &[u8]) -> bool {
+    if bytes.starts_with(b"RIFF") && bytes.get(8..16) == Some(b"WEBPVP8X") {
+        return bytes.get(20).is_some_and(|flags| flags & 0x02 != 0);
+    }
+    if !bytes.starts_with(b"GIF8") {
+        return false;
+    }
+    // A colour table's size from a packed field: 3 × 2^(n + 1) bytes.
+    let table = |packed: u8| {
+        if packed & 0x80 == 0 {
+            0
+        } else {
+            3 << ((packed & 7) + 1)
+        }
+    };
+    // Past a run of data sub-blocks, `None` if the file stops in it.
+    let past_blocks = |mut i: usize| loop {
+        let len = usize::from(*bytes.get(i)?);
+        i += 1;
+        if len == 0 {
+            return Some(i);
+        }
+        i += len;
+    };
+    let Some(&screen) = bytes.get(10) else {
+        return false;
+    };
+    let mut i = 13 + table(screen);
+    let mut frames = 0;
+    loop {
+        let next = match bytes.get(i) {
+            Some(0x21) => past_blocks(i + 2),
+            Some(0x2C) => {
+                frames += 1;
+                if frames > 1 {
+                    return true;
+                }
+                bytes
+                    .get(i + 9)
+                    .and_then(|&packed| past_blocks(i + 11 + table(packed)))
+            }
+            _ => None,
+        };
+        let Some(next) = next else {
+            return false;
+        };
+        i = next;
+    }
 }
 
 /// At most this many photos are prepared at once, whoever sent them: a
@@ -1378,6 +1436,44 @@ mod tests {
             "a 16-bit 42 MP PNG must not be decoded"
         );
         assert!(matches!(photo_upload(&deep), Err(ImageError::TooLarge(..))));
+    }
+
+    #[test]
+    fn an_animation_is_known_by_its_frames() {
+        use image::codecs::gif::GifEncoder;
+        use image::{Delay, Frame, RgbaImage};
+        let gif = |frames: u8| {
+            let mut out = Vec::new();
+            {
+                let mut encoder = GifEncoder::new(&mut out);
+                for f in 0..frames {
+                    let pixels = RgbaImage::from_pixel(8, 6, image::Rgba([f * 90, 20, 30, 255]));
+                    encoder
+                        .encode_frame(Frame::from_parts(
+                            pixels,
+                            0,
+                            0,
+                            Delay::from_numer_denom_ms(100, 1),
+                        ))
+                        .unwrap();
+                }
+            }
+            out
+        };
+        assert!(!animated(&gif(1)));
+        assert!(animated(&gif(2)));
+        let prepared = photo_upload(&gif(3)).unwrap();
+        assert!(
+            prepared.animated,
+            "the first frame is kept, and that is said"
+        );
+        assert!(!photo_upload(&png(8, 6)).unwrap().animated);
+        // A WebP says so in its VP8X flags.
+        let mut webp = b"RIFF\0\0\0\0WEBPVP8X\x0a\0\0\0".to_vec();
+        webp.extend([0x02, 0, 0, 0]);
+        assert!(animated(&webp));
+        webp[20] = 0x10;
+        assert!(!animated(&webp));
     }
 
     #[test]
