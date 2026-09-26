@@ -903,6 +903,8 @@
   .editor .note-button { font-variant-numeric: tabular-nums; }
   /* A tag struck through under the pointer takes itself out. */
   .editor .chip:hover { color: var(--color-vermilion); text-decoration-line: line-through; text-decoration-color: var(--color-vermilion); }
+  /* Not while a chip has just been filed under a resting pointer. */
+  .editor .tag-chips.still .chip:hover { color: inherit; text-decoration-line: none; }
 
   /* Popovers: small paper cards under their word, one at a time. */
   .editor .paper, .photo-detail {

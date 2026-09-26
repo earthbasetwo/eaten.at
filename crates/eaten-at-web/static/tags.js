@@ -47,11 +47,18 @@
     input.placeholder = tags.length ? "another tag" : "a tag";
   }
   function announce() { carrier.dispatchEvent(new Event("input", { bubbles: true })); }
+  /* A tag filed from the keyboard lands where the pointer may be resting,
+     so its strike-through waits for the pointer to move. */
+  function still() {
+    chips.classList.add("still");
+    document.addEventListener("pointermove", function () { chips.classList.remove("still"); }, { once: true });
+  }
   function add(t) {
     t = clean(t);
     if (!t || has(t)) return;
     tags.push(t);
     render();
+    still();
     announce();
   }
   function remove(t) {
