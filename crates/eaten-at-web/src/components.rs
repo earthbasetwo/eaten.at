@@ -253,7 +253,7 @@ impl Default for LookupForm<'_> {
         Self {
             value: "",
             error: None,
-            label: "Read someone's write-ups by handle",
+            label: "Read someone's feed by handle",
             button: "Go",
             primary: true,
             typeahead: None,
@@ -429,7 +429,7 @@ pub fn connect(connect: &Connect<'_>) -> Markup {
 pub fn tag_links(tags: &[Link], scope_note: Option<&str>) -> Markup {
     html! {
         @if !tags.is_empty() {
-            nav.tags aria-label="Tags in this publication" {
+            nav.tags aria-label="Tags in this feed" {
                 ul.tag-list {
                     @for tag in tags {
                         li { a.tag href=(tag.href) { (tag.label) } }
@@ -709,10 +709,7 @@ mod tests {
     fn tags_name_their_scope() {
         assert_eq!(tag_links(&[], Some("note")).into_string(), "");
         let out = tag_links(&[link("mpb", "/t/mpb")], None).into_string();
-        assert!(
-            out.contains("aria-label=\"Tags in this publication\""),
-            "{out}"
-        );
+        assert!(out.contains("aria-label=\"Tags in this feed\""), "{out}");
         assert!(
             out.contains("<a class=\"tag\" href=\"/t/mpb\">mpb</a>"),
             "{out}"

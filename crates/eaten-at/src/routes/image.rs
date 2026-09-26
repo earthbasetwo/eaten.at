@@ -29,7 +29,7 @@ pub async fn cover(
         let publication = state
             .publication(&identity, &rkey)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("publication {rkey} not found")))?;
+            .ok_or_else(|| AppError::NotFound(format!("feed {rkey} not found")))?;
         state.icon_rendition(&identity, &publication).await
     } else {
         let record = state
@@ -37,7 +37,7 @@ pub async fn cover(
             .await?
             .ok_or_else(|| AppError::NotFound(format!("document {rkey} not found")))?;
         let visit_doc = VisitDocument::from_record(record)
-            .ok_or_else(|| AppError::NotFound(format!("document {rkey} is not a visit")))?;
+            .ok_or_else(|| AppError::NotFound(format!("document {rkey} is not a digest")))?;
         let size = Size::from_query(query.size.as_deref());
         state.cover_rendition(&identity, &visit_doc, size).await
     };
@@ -63,7 +63,7 @@ pub async fn photo(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("document {rkey} not found")))?;
     let visit_doc = VisitDocument::from_record(record)
-        .ok_or_else(|| AppError::NotFound(format!("document {rkey} is not a visit")))?;
+        .ok_or_else(|| AppError::NotFound(format!("document {rkey} is not a digest")))?;
     let size = PhotoSize::from_query(query.size.as_deref());
     let rendition = state
         .photo_rendition(&identity, &visit_doc, &cid, size)

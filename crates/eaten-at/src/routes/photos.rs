@@ -78,7 +78,7 @@ async fn load(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("document {rkey} not found")))?;
     let visit_doc = VisitDocument::from_record(record)
-        .ok_or_else(|| AppError::BadRequest("that document is not a visit".to_owned()))?;
+        .ok_or_else(|| AppError::BadRequest("that document is not a digest".to_owned()))?;
     Ok((identity, visit_doc))
 }
 
@@ -491,7 +491,7 @@ async fn add(
     }
     if photos.len() + form.files.len() > MAX_PHOTOS {
         problems.push(format!(
-            "At most {MAX_PHOTOS} photos on a visit; remove some first."
+            "At most {MAX_PHOTOS} photos on a digest; remove some first."
         ));
         return Ok((photos, problems));
     }

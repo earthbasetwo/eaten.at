@@ -1,6 +1,6 @@
 # eaten.at
 
-Write-ups on the AT Protocol, rendered one publication at a time.
+Digests on the AT Protocol, rendered one feed at a time.
 
 Authors write `site.standard.document` records into their own repositories
 whose `content` is an `at.eaten.visit`: a place, a date, an optional
@@ -70,19 +70,19 @@ EATEN_AT_LEXICON_APP_PASSWORD=… just lexicons-publish        # write what diff
 | `/` | Landing page with the handle lookup form. |
 | `/about` | A static page: a blurb on the AT Protocol, and the licences the place data and the IP database ask us to carry. Linked from both states of the landing page. |
 | `/@{handle}` | Resolves the handle now and redirects to the DID form. Never rendered. |
-| `/at/{did}/` | The account's eaten.at publication (the one its preferences name); for a repository without one, a lone publication or a chooser. |
-| `/at/{did}/{pub}/` | A publication's write-ups, newest first. |
-| `/at/{did}/{pub}/{doc}` | One document, with a canonical link to its publication origin. |
-| `/at/{did}/{pub}/tagged/{tag}` | Write-ups in that publication carrying a tag. |
+| `/at/{did}/` | The account's eaten.at feed (the one its preferences name); for a repository without one, a lone feed or a chooser. |
+| `/at/{did}/{pub}/` | A feed's digests, newest first. |
+| `/at/{did}/{pub}/{doc}` | One document, with a canonical link to its feed's origin. |
+| `/at/{did}/{pub}/tagged/{tag}` | Digests in that feed carrying a tag. |
 | `/at/{did}/{pub}/feed.xml` | RSS. |
-| `/img/{did}/{doc}` | The document-image proxy: the first photo, else a `coverImage` another client set, else a generated placeholder. `?size=og` gives a 1200×630 rendition; `?kind=icon` a publication icon. |
+| `/img/{did}/{doc}` | The document-image proxy: the first photo, else a `coverImage` another client set, else a generated placeholder. `?size=og` gives a 1200×630 rendition; `?kind=icon` a feed icon. |
 | `/img/{did}/{doc}/{cid}` | One of the document's photos, `?size=thumb` (a 400px square), `?size=card` (up to 960px wide, cropped to 3:2, for listing cards), or `?size=full`. Only CIDs the document lists. |
-| `/write`, `/write/{doc}` | The editor, for signed-in authors, set as prose. A new write-up starts by choosing the place: its name, with suggestions as you type near where the request is from, and its address, both by hand if need be. Editing manages the write-up's photos in place. |
+| `/write`, `/write/{doc}` | The editor, for signed-in authors, set as prose. A new digest starts by choosing the place: its name, with suggestions as you type near where the request is from, and its address, both by hand if need be. Editing manages the digest's photos in place. |
 | `/write/suggest` | Place suggestions for the editor's place field (JSON, signed-in only, rate-limited). |
 | `/write/upload` | The editor's photo upload (signed-in only): each file is re-encoded and uploaded to the author's repository at once, and answered as the blob reference the form carries until the record is written. |
 | `/write/photo/{cid}` | One of the signed-in author's own blobs, at `?size=thumb` or `full`, for the editor's tiles before a record lists it. |
-| `/write/{doc}/photos` | Add, caption, reorder, and remove a write-up's photos without JavaScript; every action writes the record at once (JSON when asked). |
-| `/settings` | The author's one publication: its name, description, and address (a hosted subdomain or their own domain). Creates it on the first save if a publish has not already. |
+| `/write/{doc}/photos` | Add, caption, reorder, and remove a digest's photos without JavaScript; every action writes the record at once (JSON when asked). |
+| `/settings` | The author's one feed: its name, description, and address (a hosted subdomain or their own domain). Creates it on the first save if a publish has not already. |
 | `/healthz` | Liveness. |
 
 ## Layout

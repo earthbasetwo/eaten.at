@@ -764,11 +764,11 @@ async fn link_card(
     record: &Record<Document>,
 ) -> Result<LinkCard, PublishError> {
     let site = AtUri::parse(&record.value.site)
-        .map_err(|_| AppError::BadRequest("the document names no publication".to_owned()))?;
+        .map_err(|_| AppError::BadRequest("the document names no feed".to_owned()))?;
     let publication = state
         .publication(identity, site.rkey())
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("publication {} not found", site.rkey())))?;
+        .ok_or_else(|| AppError::NotFound(format!("feed {} not found", site.rkey())))?;
     let visit_doc = VisitDocument::from_record(record.clone());
     let title = record.value.title.clone();
     let description = match &visit_doc {

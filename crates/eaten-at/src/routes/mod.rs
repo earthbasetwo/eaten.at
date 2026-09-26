@@ -37,5 +37,5 @@ pub(crate) async fn require_publication(
     state
         .publication(identity, pub_rkey)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("publication {pub_rkey} not found")))
+        .ok_or_else(|| AppError::NotFound(format!("feed {pub_rkey} not found")))
 }

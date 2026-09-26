@@ -100,7 +100,7 @@ async fn editing(state: &AppState, author: &Author, rkey: &str) -> Result<Editin
         .await?
         .ok_or_else(|| AppError::NotFound(format!("document {rkey} not found")))?;
     let visit_doc = VisitDocument::from_record(record)
-        .ok_or_else(|| AppError::BadRequest("that document is not a visit".to_owned()))?;
+        .ok_or_else(|| AppError::BadRequest("that document is not a digest".to_owned()))?;
     Ok(Editing {
         rkey: rkey.to_owned(),
         visit_doc,
@@ -359,7 +359,7 @@ async fn publish_and_continue(
                 form,
                 &Outcome {
                     publish_error: Some(
-                        "Your publication's address could not be set up. Choose one in settings, then publish again.",
+                        "Your feed's address could not be set up. Choose one in settings, then publish again.",
                     ),
                     ..Outcome::default()
                 },
@@ -575,7 +575,7 @@ pub struct CrosspostQuery {
 }
 
 const CROSSPOST_FAILED: &str =
-    "Bluesky didn't accept the post. The write-up is published; try again or skip.";
+    "Bluesky didn't accept the post. The digest is published; try again or skip.";
 
 fn crosspost_response(
     status: StatusCode,
