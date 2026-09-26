@@ -45,17 +45,16 @@
     return fit;
   })();
 
-  /* Restoring a draft or choosing a place updates the head: the name
-     stands in as the title, and the place line names the restaurant
-     only once the title is something else. */
-  /* The address as shown: without a trailing postcode (the record keeps it). */
+  // The head follows the place and the title: the name stands in.
+  /* The address as shown: without a postcode, as view.rs draws it. */
   function shownAddress(address) {
-    var parts = address.split(", ");
-    var last = parts[parts.length - 1] || "";
+    var parts = address.split(", "), n = parts.length - 1, last = parts[n];
     var code = function (s) { return /\d/.test(s) && /^[A-Za-z0-9 -]+$/.test(s) && s.replace(/[^A-Za-z]/g, "").length <= 4; };
-    var m = /^([A-Z]{2}) (.+)$/.exec(last);
-    if (m && code(m[2])) parts[parts.length - 1] = m[1];
-    else if (parts.length > 1 && code(last)) parts.pop();
+    var m = /^([A-Z]{2}) (\S+)$/.exec(last);
+    if (/^(#|(unit|shop|suite|ste|apt|floor|fl|level|room|building|bldg)\b)/i.test(last));
+    else if (m && code(m[2])) parts[n] = m[1];
+    else if (n && code(last)) parts.pop();
+    else if (n) parts[n] = last.replace(/^\d{3,6} (?=\D)/, "").replace(/(.) ([A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}|\d{3,6}(-\d{4})?)$/, "$1");
     return parts.join(", ");
   }
   function showPlace() {
@@ -202,8 +201,8 @@
     pop.setAttribute("role", "listbox");
     pop.setAttribute("aria-label", select.getAttribute("aria-label") || "");
     rule.hidden = true;
-    field.appendChild(trigger);
-    field.appendChild(pop);
+    // Where the select was: a problem the server found stays under it.
+    rule.after(trigger, pop);
     function label() {
       var chosen = select.options[select.selectedIndex];
       trigger.classList.toggle("unset", !select.value);

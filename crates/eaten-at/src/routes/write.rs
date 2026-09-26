@@ -667,7 +667,7 @@ pub async fn crosspost_submit(
             &author,
             &editing,
             text,
-            Some("Keep the post under 300 characters."),
+            Some("Keep the post to 300 characters or fewer."),
         ));
     }
     if !author.posting.create {

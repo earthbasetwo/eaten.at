@@ -1,12 +1,8 @@
-/* Choosing the place (plan 12, the Write Pages handoff). Suggestions
-   open under the place's name as it is typed, from this site's own
-   suggest endpoint through the combobox. Picking one fills the name and
-   the address and remembers which suggestion it was, so Start writing
-   sends the pick and the server reads the place from the same cached
-   search it suggested from; type over either line and it is a place by
-   hand again. Clearing the name clears the address with it, so an
-   address from an earlier pick is never left behind. Without this, the
-   two lines are typed and Start writing takes them as written. */
+/* Choosing the place (plan 12). Suggestions open under the name as it
+   is typed, from this site's suggest endpoint. A pick fills name and
+   address and is sent as the pick, read back from the same cached
+   search; typing over either line makes it a place by hand again, and
+   clearing the name clears the address. Without this, both are typed. */
 (function () {
   "use strict";
   var name = document.querySelector("form.editor-choosing input[name=\"place_name\"]");
@@ -91,9 +87,7 @@
       }
     });
   }
-  /* Return with nothing highlighted keeps what was typed and leaves the
-     field; the combobox has already taken a highlighted row. Start
-     writing is a press away either way. */
+  // Return with nothing highlighted leaves the field as typed.
   name.addEventListener("keydown", function (e) {
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter") { e.preventDefault(); name.blur(); }

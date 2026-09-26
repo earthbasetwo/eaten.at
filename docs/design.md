@@ -677,8 +677,10 @@ results page any more.
   field only re-renders the form (`action=keep`); nothing is sent by
   accident.
 - **Drafts:** with JavaScript on, a draft kept on the device is offered
-  back in a `.notice.restore` banner at the top of the form. It is one
-  line and two link buttons, "Restore it" and "Discard it". The draft
+  back in a `.notice.restore` banner at the top of the form: one
+  sentence dated the site's way ("An unsaved draft from September 26
+  at 1:33 PM is on this device."), then two link buttons on a line of
+  their own, "Restore it" and "Discard it". The draft
   carries the photos as the form does, blob references and captions in
   order, and is saved whenever a photo is added, captioned (as the
   caption is typed, the photo still open), moved, or removed;
