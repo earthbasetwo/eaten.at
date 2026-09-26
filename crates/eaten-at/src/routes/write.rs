@@ -248,7 +248,7 @@ async fn submit(
         Action::Pick(index) => {
             return Ok(pick(state, nonce, author, editing, ip, form, index).await)
         }
-        Action::Publish => {}
+        Action::Publish | Action::PublishPhotos => {}
         Action::Manual if form.place_name.trim().is_empty() => {
             // The one error the choosing page can show: a place by hand
             // needs a name.
@@ -308,7 +308,8 @@ async fn submit(
             ))
         }
     };
-    publish_and_continue(state, nonce, author, editing, &form, &draft).await
+    let then_photos = action == Action::PublishPhotos;
+    publish_and_continue(state, nonce, author, editing, &form, &draft, then_photos).await
 }
 
 /// Write the draft and move on, or come back to the form saying why not.
@@ -319,6 +320,7 @@ async fn publish_and_continue(
     editing: Option<&Editing>,
     form: &EditorForm,
     draft: &editor::DocumentDraft,
+    then_photos: bool,
 ) -> Result<Response, AppError> {
     match publish::publish(
         state,
@@ -335,7 +337,15 @@ async fn publish_and_continue(
                 "published"
             };
             let draft_id = form.draft_id.map_or_else(String::new, |id| format!("&draft={id}"));
-            let document_path = format!("{}?after={outcome}{draft_id}", published.document_path());
+            let mut document_path =
+                format!("{}?after={outcome}{draft_id}", published.document_path());
+            if then_photos {
+                document_path = format!(
+                    "/write/{}/photos?new=1&then={}",
+                    published.doc_rkey,
+                    urlencoding(&document_path)
+                );
+            }
             Ok(after_publish(state, author, &published.doc_rkey, &document_path, draft).await)
         }
         Err(PublishError::SessionExpired) => Ok(render(

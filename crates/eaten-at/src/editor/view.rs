@@ -355,10 +355,14 @@ fn photos(page: &EditorPage<'_>) -> Markup {
                             span.photo-empty-hover aria-hidden="true" { "add a photo" }
                         }
                     }
+                    // No record yet: without script, photos go on the
+                    // photos page once it is published. The island puts
+                    // its own box in this one's place.
                     None => {
-                        span.photo-empty data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) data-max-photos=(eaten_at_atproto::lexicon::MAX_PHOTOS) {
-                            span.photo-empty-idle { "Add photos" }
-                            span.photo-empty-hover aria-hidden="true" { "add a photo" }
+                        button.photo-empty type="submit" name="action" value=(Action::PublishPhotos.value())
+                            data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) data-max-photos=(eaten_at_atproto::lexicon::MAX_PHOTOS) {
+                            span.photo-empty-idle { "Publish, then add photos" }
+                            span.photo-empty-hover aria-hidden="true" { "publish, then add photos" }
                         }
                     }
                 }
@@ -944,11 +948,14 @@ mod tests {
             out.contains("<a class=\"photo-empty\" href=\"/write/d1/photos\""),
             "{out}"
         );
+        // A new digest: without script, publishing is the way to the
+        // photos page (PH20).
         let out = page_for(&form, None);
         assert!(
             out.contains(
-                "<span class=\"photo-empty\" data-upload=\"/write/upload\" \
-                 data-max-bytes=\"20971520\" data-max-photos=\"24\">"
+                "<button class=\"photo-empty\" type=\"submit\" name=\"action\" value=\"publish_photos\" \
+                 data-upload=\"/write/upload\" data-max-bytes=\"20971520\" data-max-photos=\"24\">\
+                 <span class=\"photo-empty-idle\">Publish, then add photos</span>"
             ),
             "{out}"
         );
