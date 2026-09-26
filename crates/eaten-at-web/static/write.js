@@ -45,8 +45,8 @@
     return fit;
   })();
 
-  // The head follows the place and the title: the name stands in.
-  /* The address as shown: without a postcode, as view.rs draws it. */
+  // The head follows the place and the title. The address as shown
+  // is without a postcode, as view.rs draws it.
   function shownAddress(address) {
     var parts = address.split(", "), n = parts.length - 1, last = parts[n];
     var code = function (s) { return /\d/.test(s) && /^[A-Za-z0-9 -]+$/.test(s) && s.replace(/[^A-Za-z]/g, "").length <= 4; };
@@ -60,6 +60,8 @@
   function showPlace() {
     var name = form.elements.place_name.value, address = form.elements.place_address.value;
     var titled = form.elements.title.value.trim() !== "";
+    // Spaces alone are no title: the name stands in again.
+    if (!titled) form.elements.title.value = "";
     form.elements.title.placeholder = name;
     form.querySelector(".change-place").setAttribute("aria-label", "Change restaurant: " + name);
     form.querySelector(".place-name-text").textContent = name;
@@ -433,7 +435,7 @@
     if (refused) openCard(refused, true); else render();
   })();
 
-  /* ---- delete, confirmed in its own slot ---- */
+  /* ---- delete ---- */
   var confirm = form.querySelector("details.delete-confirm");
   if (confirm) {
     confirm.querySelector(".confirm-no").addEventListener("click", function () {
@@ -445,7 +447,7 @@
     });
   }
 
-  /* Escape closes the topmost transient. */
+  // Escape closes the topmost.
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     if (open) { var back = open.trigger; closePopover(); back.focus(); return; }

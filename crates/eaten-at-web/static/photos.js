@@ -233,7 +233,7 @@
     for (var i = 0; i < photos.length; i++) if (photos[i].key === key) return i;
     return -1;
   }
-  /* Alt and an arrow key: one place earlier or later, focus kept. */
+  // Alt+arrow: one place along, focus kept.
   function move(key, by) {
     var i = indexOf(key), j = i + by;
     if (i < 0 || j < 0 || j >= photos.length) return;
@@ -286,7 +286,7 @@
       removeMark.innerHTML = CROSS;
       removeMark.addEventListener("click", function (e) {
         e.stopPropagation();
-        // Focus goes to the photo that took its place, else to adding one.
+        // Focus goes to the photo in its place, else to adding one.
         remove(photo.key);
         var next = grid.querySelectorAll(".photo-tile")[i] || grid.querySelector(".photo-add, .photo-empty");
         if (next) next.focus();
@@ -399,7 +399,7 @@
     detail = { key: key, scrim: scrim, caption: caption };
     caption.focus();
   }
-  /* Closing keeps the caption as typed. */
+  // Closing keeps the caption.
   function closeDetail(discard) {
     if (!detail) return;
     var d = detail;
@@ -411,7 +411,7 @@
       photos[i].alt = d.caption.value.trim();
       changed();
     }
-    // render() replaces the opener, so focus its replacement by key.
+    // The opener was redrawn: focus its new self.
     var opener = grid.querySelector('[data-key="' + d.key + '"]') || grid.querySelector(".photo-add, .photo-empty");
     if (opener) opener.focus();
   }
