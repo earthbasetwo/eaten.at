@@ -397,13 +397,23 @@ impl EditorForm {
                                     Choice::from_value(&value);
                             }
                             "link_label" => row(&mut form.links, index, MAX_LINKS).label = value,
-                            "photo_cid" => row(&mut form.photos, index, MAX_PHOTOS).cid = value,
-                            "photo_mime" => row(&mut form.photos, index, MAX_PHOTOS).mime = value,
-                            "photo_size" => row(&mut form.photos, index, MAX_PHOTOS).size = value,
-                            "photo_alt" => row(&mut form.photos, index, MAX_PHOTOS).alt = value,
-                            "photo_width" => row(&mut form.photos, index, MAX_PHOTOS).width = value,
-                            "photo_height" => {
-                                row(&mut form.photos, index, MAX_PHOTOS).height = value;
+                            // Photos past the digest's limit are kept, up to a
+                            // hard bound, so the page can say how many to
+                            // remove and show every one; past the bound a
+                            // row is dropped rather than written over another.
+                            "photo_cid" | "photo_mime" | "photo_size" | "photo_alt"
+                            | "photo_width" | "photo_height"
+                                if index < MAX_PHOTO_ROWS =>
+                            {
+                                let photo = row(&mut form.photos, index, MAX_PHOTO_ROWS);
+                                match prefix {
+                                    "photo_cid" => photo.cid = value,
+                                    "photo_mime" => photo.mime = value,
+                                    "photo_size" => photo.size = value,
+                                    "photo_alt" => photo.alt = value,
+                                    "photo_width" => photo.width = value,
+                                    _ => photo.height = value,
+                                }
                             }
                             _ => {}
                         }
@@ -500,6 +510,10 @@ fn remove_if_present<T>(rows: &mut Vec<T>, index: usize) {
         rows.remove(index);
     }
 }
+
+/// Most photo rows a posted form is read with: twice what a digest may
+/// hold, so a form over the limit comes back whole with the problem.
+const MAX_PHOTO_ROWS: usize = 2 * MAX_PHOTOS;
 
 /// `prefix_N` → `(prefix, N)`.
 fn indexed(name: &str) -> Option<(&str, usize)> {
@@ -672,6 +686,23 @@ mod tests {
         );
         assert_eq!(form.photos[1].cid, "bafyb");
         assert_eq!(form.photos[1].alt, "The room");
+    }
+
+    #[test]
+    fn photo_rows_past_the_limit_are_kept_not_written_over() {
+        let pairs = (0..30).map(|i| (format!("photo_cid_{i}"), format!("bafy{i}")));
+        let (form, _) = EditorForm::from_pairs(pairs);
+        let cids: Vec<_> = form.photos.iter().map(|p| p.cid.as_str()).collect();
+        assert_eq!(cids.len(), 30, "every photo comes back, to choose from");
+        assert_eq!(cids[24], "bafy24");
+        assert_eq!(cids[29], "bafy29");
+        // Past the hard bound a row is dropped, never merged into another.
+        let (form, _) = EditorForm::from_pairs([
+            ("photo_cid_0".to_owned(), "bafya".to_owned()),
+            ("photo_cid_900".to_owned(), "bafyz".to_owned()),
+        ]);
+        assert_eq!(form.photos.len(), 1);
+        assert_eq!(form.photos[0].cid, "bafya");
     }
 
     #[test]

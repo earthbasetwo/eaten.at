@@ -116,16 +116,25 @@
      and a big batch never meets the request's size cap. A file over
      the upload limit is named at once and never sent. */
   var maxBytes = Number(mount.getAttribute("data-max-bytes")) || 0;
+  var maxPhotos = Number(mount.getAttribute("data-max-photos")) || 24;
   var queue = [];
   var busy = false;
   var batchProblems = [];
   function megabytes(bytes) { return Math.round(bytes / (1024 * 1024)); }
   function upload(files) {
     if (!busy && queue.length === 0) batchProblems = [];
+    // As many as fit on the digest are sent; the rest are named by count.
+    var room = maxPhotos - photos.length - queue.length - (busy ? 1 : 0);
+    var full = room <= 0, left = 0;
     files.forEach(function (f) {
       if (maxBytes && f.size > maxBytes) batchProblems.push(f.name + " is over " + megabytes(maxBytes) + " MB.");
-      else queue.push(f);
+      else if (room <= 0) left++;
+      else { queue.push(f); room--; }
     });
+    if (left) {
+      batchProblems.push("At most " + maxPhotos + " photos on a digest; " +
+        (full ? "remove some first." : "the last " + left + (left === 1 ? " was" : " were") + " not added."));
+    }
     showProblems(batchProblems);
     next();
   }
@@ -146,6 +155,7 @@
   }
   function send(file) {
     var data = new FormData();
+    data.append("existing", String(photos.length));
     data.append("photos", file, file.name);
     var failed = file.name + " could not be uploaded; try again in a moment.";
     return fetch(endpoint, {

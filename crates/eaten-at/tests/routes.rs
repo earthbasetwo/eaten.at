@@ -3154,6 +3154,54 @@ async fn a_request_over_the_size_cap_is_refused_in_words() {
     assert_eq!(uploads, 0);
 }
 
+#[tokio::test]
+async fn an_upload_counts_the_photos_already_in_the_form() {
+    let server = mount(&one_publication()).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let png = png_bytes(4, 6);
+    let upload = |existing: &'static str| {
+        let (content_type, body) = multipart_body(
+            &[("existing", existing)],
+            &[("one.png", &png), ("two.png", &png), ("three.png", &png)],
+        );
+        router(state.clone()).oneshot(
+            Request::post("/write/upload")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, content_type)
+                .header(header::ACCEPT, "application/json")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+    };
+    // 22 on the page: two fit, the third is named.
+    let response = upload("22").await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let json: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(json["photos"].as_array().unwrap().len(), 2, "{json}");
+    assert_eq!(
+        json["problems"][0],
+        "At most 24 photos on a digest; the last 1 was not added."
+    );
+    // Full: nothing is sent to the repository.
+    let before = server.received_requests().await.unwrap().len();
+    let response = upload("24").await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let json: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(
+        json["problems"][0],
+        "At most 24 photos on a digest; remove some first."
+    );
+    let uploads = server.received_requests().await.unwrap()[before..]
+        .iter()
+        .filter(|r| r.url.path() == "/xrpc/com.atproto.repo.uploadBlob")
+        .count();
+    assert_eq!(uploads, 0);
+}
+
 async fn assert_private_upload_previews(state: &AppState, server: &MockServer, cookie: &str) {
     // The author's own blob draws the tile, whether or not a record
     // lists it yet.

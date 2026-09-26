@@ -529,11 +529,20 @@ async fn add(
         problems.push("Choose at least one photo.".to_owned());
         return Ok((photos, problems));
     }
-    if photos.len() + form.files.len() > MAX_PHOTOS {
+    // As many as fit are added; the rest are named by count.
+    let room = MAX_PHOTOS.saturating_sub(photos.len() + form.existing);
+    if room == 0 {
         problems.push(format!(
             "At most {MAX_PHOTOS} photos on a digest; remove some first."
         ));
         return Ok((photos, problems));
+    }
+    if form.files.len() > room {
+        let left = form.files.len() - room;
+        problems.push(format!(
+            "At most {MAX_PHOTOS} photos on a digest; the last {left} {} not added.",
+            if left == 1 { "was" } else { "were" }
+        ));
     }
     let session =
         state.oauth().session(&identity.did).await.map_err(|err| {
@@ -542,7 +551,7 @@ async fn add(
                 _ => Refused::Repo(problems.clone()),
             }
         })?;
-    for upload in &form.files {
+    for upload in form.files.iter().take(room) {
         let name = if upload.file_name.trim().is_empty() {
             "A file".to_owned()
         } else {
