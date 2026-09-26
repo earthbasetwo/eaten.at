@@ -935,7 +935,8 @@
 
   /* ---- Screen 2: edit a write-up ---- */
   .editor-write .place-line { margin-block-start: var(--space-xs); }
-  .editor-write .place-line .change-place { white-space: nowrap; }
+  .editor-write .place-line .change-place, .place-change { white-space: nowrap; }
+  .place-where[hidden] + .place-change .place-dash { display: none; }
   .place-line .mark { margin-inline-start: var(--space-s); vertical-align: -2px; padding: 0; }
   .visit-row {
     margin-block-start: var(--space-xs);

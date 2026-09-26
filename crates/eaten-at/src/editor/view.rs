@@ -141,11 +141,16 @@ fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
                 span.place-name-text hidden[!titled] { (form.place_name) }
                 span.place-comma hidden[!titled || !has_address] { ", " }
                 span.place-address-text { (crate::view::display_address(&form.place_address)) }
-                " " span.soft { "—" } " "
             }
-            button #change_restaurant.hint-action.change-place type="submit" name="action" value=(Action::ChangePlace.value())
-                aria-label=(format!("Change restaurant: {}", form.place_name))
-                aria-describedby=[described(errors, "place_name")] formnovalidate { "somewhere else" }
+            " "
+            // The dash and "somewhere else" never part at a line's end;
+            // the dash goes when there is nothing before it.
+            span.place-change {
+                span.soft.place-dash { "—\u{a0}" }
+                button #change_restaurant.hint-action.change-place type="submit" name="action" value=(Action::ChangePlace.value())
+                    aria-label=(format!("Change restaurant: {}", form.place_name))
+                    aria-describedby=[described(errors, "place_name")] formnovalidate { "somewhere else" }
+            }
         }
         input type="hidden" name="place_name" value=(form.place_name);
         input type="hidden" name="place_address" value=(form.place_address);
