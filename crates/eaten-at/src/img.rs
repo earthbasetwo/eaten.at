@@ -34,8 +34,9 @@ pub const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 /// Largest image blob we write, in bytes: the lexicon caps a photo, and
 /// Standard caps a cover, at the same size.
 pub const MAX_IMAGE_BLOB_BYTES: usize = MAX_PHOTO_BYTES;
-/// Largest photo file accepted for upload, before it is re-encoded.
-pub const MAX_PHOTO_UPLOAD_BYTES: usize = 10 * 1024 * 1024;
+/// Largest photo file accepted for upload, before it is re-encoded:
+/// room for a 48 or 50 MP phone JPEG.
+pub const MAX_PHOTO_UPLOAD_BYTES: usize = 20 * 1024 * 1024;
 /// Long side a photo is shrunk to on upload.
 const PHOTO_FIT_DIMENSION: u32 = 2048;
 /// Side of a square photo thumbnail.
@@ -44,10 +45,15 @@ const THUMB_SIDE: u32 = 400;
 const FULL_FIT_DIMENSION: u32 = 1600;
 /// Widest a listing card's photo is served (plan 13), cropped to 3:2.
 const CARD_WIDTH: u32 = 960;
-/// Largest source dimensions we will decode.
-const MAX_SOURCE_DIMENSION: u32 = 6000;
-/// Decode memory budget handed to the image crate.
-const MAX_DECODE_BYTES: u64 = 96 * 1024 * 1024;
+/// Largest source side we will decode: today's 48 and 50 MP phone
+/// photos are about 8160 pixels on the long side.
+pub const MAX_SOURCE_DIMENSION: u32 = 8192;
+/// Most source pixels we will decode, in megapixels.
+pub const MAX_SOURCE_MEGAPIXELS: u64 = 50;
+/// Decode memory budget handed to the image crate: 50 MP at four bytes
+/// a pixel, with a little over. A 16-bit image that size is refused
+/// by it, as too large.
+const MAX_DECODE_BYTES: u64 = 256 * 1024 * 1024;
 /// JPEG quality of everything we emit.
 const JPEG_QUALITY: u8 = 84;
 
@@ -522,14 +528,17 @@ pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     ) {
         return Err(ImageError::Format);
     }
-    let mut reader = reader;
-    let mut limits = image::Limits::default();
-    limits.max_image_width = Some(MAX_SOURCE_DIMENSION);
-    limits.max_image_height = Some(MAX_SOURCE_DIMENSION);
-    limits.max_alloc = Some(MAX_DECODE_BYTES);
-    reader.limits(limits);
+    // The dimensions are read from the header first, with no limit on
+    // them, so a picture over ours is refused as too large, by name,
+    // rather than as a decoding error.
     let (w, h) = reader.into_dimensions()?;
-    if w > MAX_SOURCE_DIMENSION || h > MAX_SOURCE_DIMENSION || w == 0 || h == 0 {
+    if w == 0 || h == 0 {
+        return Err(ImageError::Format);
+    }
+    if w > MAX_SOURCE_DIMENSION
+        || h > MAX_SOURCE_DIMENSION
+        || u64::from(w) * u64::from(h) > MAX_SOURCE_MEGAPIXELS * 1_000_000
+    {
         return Err(ImageError::TooLarge(w, h));
     }
     let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
@@ -541,7 +550,10 @@ pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     let mut decoder = reader.into_decoder()?;
     let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
     let icc = decoder.icc_profile().ok().flatten();
-    let mut image = DynamicImage::from_decoder(decoder)?;
+    let mut image = DynamicImage::from_decoder(decoder).map_err(|err| match err {
+        image::ImageError::Limits(_) => ImageError::TooLarge(w, h),
+        other => ImageError::Image(other),
+    })?;
     if let Some(icc) = icc {
         image = to_srgb(image, &icc);
     }
@@ -789,6 +801,33 @@ fn hsl_to_rgb(hue: f64, saturation: f64, lightness: f64) -> Rgb<u8> {
 mod tests {
     use super::*;
 
+    /// A PNG whose header claims `w`×`h` over a 1×1 image, its IHDR CRC
+    /// recomputed so the header reads as valid.
+    fn png_claiming(w: u32, h: u32) -> Vec<u8> {
+        fn crc32(bytes: &[u8]) -> u32 {
+            let mut c = !0u32;
+            for &b in bytes {
+                c ^= u32::from(b);
+                for _ in 0..8 {
+                    c = if c & 1 == 0 {
+                        c >> 1
+                    } else {
+                        (c >> 1) ^ 0xEDB8_8320
+                    };
+                }
+            }
+            !c
+        }
+        let mut bytes = png(1, 1);
+        // IHDR: length at 8..12, type at 12..16, width/height at 16..24,
+        // the rest of its data to 29, then its CRC over type and data.
+        bytes[16..20].copy_from_slice(&w.to_be_bytes());
+        bytes[20..24].copy_from_slice(&h.to_be_bytes());
+        let crc = crc32(&bytes[12..29]);
+        bytes[29..33].copy_from_slice(&crc.to_be_bytes());
+        bytes
+    }
+
     fn png(w: u32, h: u32) -> Vec<u8> {
         let img = RgbImage::from_fn(w, h, |x, y| {
             let channel = |v: u32| u8::try_from(v % 256).unwrap_or(0);
@@ -1017,15 +1056,15 @@ mod tests {
 
     #[test]
     fn oversized_dimensions_are_rejected_before_decode() {
-        // A PNG header claiming 7000×7000 with no real pixel data.
-        let mut bytes = png(1, 1);
-        // IHDR width/height live at bytes 16..24 (big-endian u32s).
-        bytes[16..20].copy_from_slice(&7000u32.to_be_bytes());
-        bytes[20..24].copy_from_slice(&7000u32.to_be_bytes());
-        assert!(matches!(
-            decode(&bytes),
-            Err(ImageError::TooLarge(7000, 7000) | ImageError::Image(_))
-        ));
+        // PNG headers claiming more than we take, with no real pixel
+        // data: too long a side, and too many pixels in all.
+        for (w, h) in [(9000, 100), (100, 9000), (8000, 7000)] {
+            let bytes = png_claiming(w, h);
+            assert!(
+                matches!(decode(&bytes), Err(ImageError::TooLarge(a, b)) if (a, b) == (w, h)),
+                "{w}x{h}"
+            );
+        }
     }
 
     #[test]
