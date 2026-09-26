@@ -661,8 +661,9 @@ results page any more.
   back in a `.notice.restore` banner at the top of the form. It is one
   line and two link buttons, "Restore it" and "Discard it". The draft
   carries the photos as the form does, blob references and captions in
-  order, and is saved whenever a photo is added, captioned, moved, or
-  removed; restoring it redraws the tiles from the author's own blobs.
+  order, and is saved whenever a photo is added, captioned (as the
+  caption is typed, the photo still open), moved, or removed;
+  restoring it redraws the tiles from the author's own blobs.
   Restoring replaces the list whole: a photo still on its way when
   "Restore it" is pressed belongs to the list it replaced and is
   dropped when it answers, so a draft of 24 stays 24.

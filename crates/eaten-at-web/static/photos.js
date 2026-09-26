@@ -77,20 +77,7 @@
     if (label) b.setAttribute("aria-label", label);
     return b;
   }
-  function cross(size) {
-    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("width", size);
-    svg.setAttribute("height", size);
-    svg.setAttribute("viewBox", "0 0 10 10");
-    svg.setAttribute("aria-hidden", "true");
-    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "M 1 1 L 9 9 M 9 1 L 1 9");
-    path.setAttribute("stroke", "currentColor");
-    path.setAttribute("stroke-width", "1.4");
-    path.setAttribute("fill", "none");
-    svg.appendChild(path);
-    return svg;
-  }
+  var CROSS = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1 9 9M9 1 1 9" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>';
   function showProblems(list) {
     problems.textContent = list.join(" ");
     problems.hidden = list.length === 0;
@@ -112,13 +99,14 @@
         });
     });
   }
-  /* A change the author made: rewrite the fields, redraw, and tell the
-     form, so the draft on the device is saved with the photos in it. */
+  /* A change: rewrite the fields, redraw, and tell the form, so the
+     draft is saved with the photos in it. */
+  function tell() { form.dispatchEvent(new Event("change", { bubbles: true })); }
   function changed() {
     sync();
     render();
     waiting();
-    form.dispatchEvent(new Event("change", { bubbles: true }));
+    tell();
   }
 
   /* ---- uploading ----
@@ -296,7 +284,7 @@
       tile.appendChild(img);
       var removeMark = button("tile-remove", "Remove this photo");
       removeMark.title = "Remove photo";
-      removeMark.appendChild(cross(10));
+      removeMark.innerHTML = CROSS;
       removeMark.addEventListener("click", function (e) {
         e.stopPropagation();
         // Focus goes to the photo that took its place, else to adding one.
@@ -398,6 +386,15 @@
     });
     caption.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); closeDetail(); }
+    });
+    // The lightbox is outside the form: the caption reaches the fields,
+    // and the draft, as it is typed.
+    caption.addEventListener("input", function () {
+      var i = indexOf(key);
+      if (i < 0) return;
+      photos[i].alt = caption.value.trim();
+      sync();
+      tell();
     });
     document.body.appendChild(scrim);
     document.body.classList.add("has-scrim");
