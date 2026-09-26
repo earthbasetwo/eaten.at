@@ -381,6 +381,7 @@ pub fn publication_meta(
     did: &Did,
     pub_rkey: &str,
     publication: &Publication,
+    version: &str,
 ) -> PageMeta {
     PageMeta {
         title: publication.name.clone(),
@@ -388,7 +389,7 @@ pub fn publication_meta(
         canonical: publication.base_url().to_owned(),
         kind: Kind::Website,
         site_name: publication.name.clone(),
-        image: state.absolute(&paths::icon(did, pub_rkey)),
+        image: state.absolute(&paths::icon(did, pub_rkey, version)),
         published: None,
         modified: None,
         feed: Some(state.absolute(&paths::feed(did, pub_rkey))),

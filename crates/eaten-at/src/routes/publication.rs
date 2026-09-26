@@ -111,7 +111,7 @@ pub async fn publication_page(
         title: &[name],
         theme: view::theme(&publication.value),
         nonce: Some(nonce.0),
-        head: meta::head(&view::publication_meta(&state, &did, &pub_rkey, &publication.value)),
+        head: meta::head(&view::publication_meta(&state, &did, &pub_rkey, &publication.value, &publication.cid)),
         main: html! {
             header.nameplate {
                 h1.nameplate-name { (name) }

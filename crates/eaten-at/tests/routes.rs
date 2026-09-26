@@ -1491,15 +1491,26 @@ async fn publication_head_and_icon() {
     );
     assert!(
         head.contains(&format!(
-            "content=\"https://eaten.at/img/{DID}/pub1?kind=icon\""
+            "content=\"https://eaten.at/img/{DID}/pub1?kind=icon&amp;v=bafycid\""
         )),
         "{head}"
     );
     insta::assert_snapshot!(head);
-    let (status, headers, bytes) = get_image(&state, &format!("/img/{DID}/pub1?kind=icon")).await;
+    let (status, headers, bytes) =
+        get_image(&state, &format!("/img/{DID}/pub1?kind=icon&v=bafycid")).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers[header::CONTENT_TYPE], "image/jpeg");
     assert_eq!(jpeg_dimensions(&bytes), (1200, 630));
+    // At the publication's revision the icon may be cached like a photo;
+    // at none, or an older one, every cache must ask again (PH28).
+    assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
+    for stale in ["", "&v=bafyold"] {
+        let (status, headers, again) =
+            get_image(&state, &format!("/img/{DID}/pub1?kind=icon{stale}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(again, bytes, "the current icon, whatever the revision");
+        assert_eq!(headers[header::CACHE_CONTROL], "public, no-cache");
+    }
 }
 
 #[tokio::test]

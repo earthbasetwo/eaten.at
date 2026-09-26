@@ -56,7 +56,8 @@ pub fn own_photo(cid: &str, size: &str) -> String {
 /// The upload the editor's photos island posts files to.
 pub const UPLOAD: &str = "/write/upload";
 
-/// The publication-icon proxy.
-pub fn icon(did: &Did, pub_rkey: &str) -> String {
-    format!("/img/{did}/{pub_rkey}?kind=icon")
+/// The publication-icon proxy, at the publication record's `version`
+/// (its CID), as [`cover`]: the path stays while the icon changes.
+pub fn icon(did: &Did, pub_rkey: &str, version: &str) -> String {
+    format!("/img/{did}/{pub_rkey}?kind=icon&v={}", urlencoding(version))
 }
