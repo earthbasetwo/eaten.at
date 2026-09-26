@@ -506,7 +506,7 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
             input type="hidden" name="place_query" value=(form.place_query);
             div.place-head {
                 input #place_name.headline name="place_name" type="text" value=(form.place_name)
-                    placeholder="Margot’s Bistro" autocomplete="off" autofocus
+                    placeholder="St. John Bread and Wine" autocomplete="off" autofocus
                     aria-label="Name of the place"
                     data-suggest=[page.suggesting.then_some("/write/suggest")]
                     aria-describedby=[described(errors, "place_name")];
@@ -515,7 +515,7 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                 span.soft { "at" } " "
                 span.inline-field {
                     input #place_address name="place_address" type="text" value=(form.place_address)
-                        placeholder="12 Main Street" autocomplete="off"
+                        placeholder="94–96 Commercial Street" autocomplete="off"
                         aria-label="Address" aria-describedby=[described(errors, "place_address")];
                 }
                 span.soft { "." }

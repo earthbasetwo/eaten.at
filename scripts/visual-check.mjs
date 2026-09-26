@@ -442,8 +442,8 @@ async function main() {
       })()`)
       if (!selected) throw new Error('The current restaurant name was not fully selected')
       if (!await browser.evaluate(`document.querySelector('#start-writing').textContent.trim() === 'Keep writing'`)) throw new Error('Reselecting a restaurant should offer Keep writing')
-      await browser.session.send('Input.insertText', { text: 'Margot’s Bistro' })
-      if (!await browser.evaluate(`document.querySelector('#place_name').value === 'Margot’s Bistro'`)) throw new Error('Typing did not replace the restaurant name')
+      await browser.session.send('Input.insertText', { text: 'St. John Bread and Wine' })
+      if (!await browser.evaluate(`document.querySelector('#place_name').value === 'St. John Bread and Wine'`)) throw new Error('Typing did not replace the restaurant name')
     },
   })
   await check({

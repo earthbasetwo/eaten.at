@@ -494,7 +494,7 @@ and "Older →" right.
 | Signing in | — | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
 | Sign-in failed | — | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
 | Status page | — | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
-| Editor `/write`, choosing | — | nothing: the screen is the input | the place's name as a 32px headline field ("St. John" standing in), suggestions opening under it as it is typed; the line `at [address].`; one primary "Start writing", shown once there is a name |
+| Editor `/write`, choosing | — | nothing: the screen is the input | the place's name as a 32px headline field ("St. John Bread and Wine" standing in), suggestions opening under it as it is typed; the line `at [address].`; one primary "Start writing", shown once there is a name |
 | Editor `/write`, editing | — | nothing: the title is the heading | the title as the headline field (the place's name standing in), the line `at [name], [address].`, the reset and change-place marks revealed under the pointer; `From a visit on [date].` left and `Filed under [tags].` right; the Digest kicker over the digest's text; the teaser, folded; the rating (a clear box, four pluses, the word) left and the meal and price words right; the Photos kicker over the tiles; `Bluesky: …` left and `Elsewhere: …` right; one primary "Save changes" (or "Publish") and, for a record, Delete with its Yes / No in the same slot |
 | Photos `/write/{rkey}/photos` | — | page head: "Photos" kicker, h1 "Photos of {place}", lede | the photos as rows (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "← Back to the digest". The way photos are managed without script; the editor manages them in place otherwise |
 | Delete `/write/{rkey}/delete` | — | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
@@ -516,7 +516,7 @@ islands dress it and fall away.
   idle, ink under the pointer, vermilion with focus. Its placeholder is
   the serif in italic in stone. The **headline** is the same field at
   32px/500 with a transparent underline idle; its placeholder is a real
-  value standing in (the place's name as the title, "St. John" on the
+  value standing in (the place's name as the title, "St. John Bread and Wine" on the
   choosing screen), so it is roman, and it dims to `--color-disabled`
   when the field takes focus.
 - **Prose connectives** (`.soft`) — "at", "From a visit on", "Filed
@@ -727,7 +727,8 @@ which is a decision this project already took and has not reversed.
 
 The `composer-refactor` trial amends the editor description above. The restaurant
 remains the headline, with its address and a compact “change” action. The chooser
-uses Margot’s Bistro as its example. DIGEST and a small italic Formatting disclosure
+uses St. John Bread and Wine, at 94–96 Commercial Street, as its example: a real
+place whose name says food on its own (settled 2026-09-25). DIGEST and a small italic Formatting disclosure
 share a heading row over a faint rule. The disclosure opens a small paper panel;
 with script it closes on outside click or Escape.
 
