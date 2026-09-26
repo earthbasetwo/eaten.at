@@ -1902,10 +1902,13 @@ async fn editor_requires_sign_in_and_starts_by_choosing_a_place() {
     assert!(!body.contains("<h1>"), "{body}");
     assert!(!body.contains("class=\"kicker\""), "{body}");
     assert!(
-        body.contains("<input class=\"headline\" id=\"place_name\" name=\"place_name\" type=\"text\" value=\"\" placeholder=\"Margot’s Bistro\" autocomplete=\"off\" autofocus aria-label=\"Name of the place\" data-suggest=\"/write/suggest\">"),
+        body.contains("<input class=\"headline\" id=\"place_name\" name=\"place_name\" type=\"text\" value=\"\" placeholder=\"St. John Bread and Wine\" autocomplete=\"off\" autofocus aria-label=\"Name of the place\" data-suggest=\"/write/suggest\">"),
         "{body}"
     );
-    assert!(body.contains("placeholder=\"12 Main Street\""), "{body}");
+    assert!(
+        body.contains("placeholder=\"94–96 Commercial Street\""),
+        "{body}"
+    );
     assert!(
         body.contains("name=\"place_mode\" value=\"choosing\""),
         "{body}"
