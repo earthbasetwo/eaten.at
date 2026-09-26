@@ -245,6 +245,10 @@ pub enum Action {
     /// lands here, so nothing typed is ever sent by accident.
     Keep,
     Publish,
+    /// Publish, then go to the photos page: without script, the way a
+    /// new digest gets its photos, since there is no record to add them
+    /// to before.
+    PublishPhotos,
 }
 
 impl Action {
@@ -253,6 +257,7 @@ impl Action {
         match value {
             "keep" => Some(Self::Keep),
             "publish" => Some(Self::Publish),
+            "publish_photos" => Some(Self::PublishPhotos),
             "manual" => Some(Self::Manual),
             "change_place" => Some(Self::ChangePlace),
             other => {
@@ -280,6 +285,7 @@ impl Action {
             Self::ChangePlace => "change_place".to_owned(),
             Self::Keep => "keep".to_owned(),
             Self::Publish => "publish".to_owned(),
+            Self::PublishPhotos => "publish_photos".to_owned(),
         }
     }
 }
@@ -446,7 +452,7 @@ impl EditorForm {
             },
             Action::ChangePlace => self.change_place(),
             Action::Manual => self.manual(),
-            Action::Pick(_) | Action::Keep | Action::Publish => {}
+            Action::Pick(_) | Action::Keep | Action::Publish | Action::PublishPhotos => {}
         }
         self.ensure_rows();
     }
@@ -558,6 +564,7 @@ mod tests {
         assert_eq!(Action::parse("add_thing"), None);
         assert_eq!(Action::parse("remove_thing:1"), None);
         assert_eq!(Action::parse("publish"), Some(Action::Publish));
+        assert_eq!(Action::parse("publish_photos"), Some(Action::PublishPhotos));
         assert_eq!(Action::parse("search"), None, "the plain search is gone");
         assert_eq!(Action::parse("preview"), None);
 

@@ -645,7 +645,9 @@ results page any more.
   the button, with every submit but Delete's, waits until the last
   upload answers, taken or refused; more can be picked meanwhile.
   Without script the tiles link to the photos page once there is a
-  record, which stays the way photos are managed by hand.
+  record, which stays the way photos are managed by hand; before there
+  is one, the empty box reads "Publish, then add photos" and does that,
+  landing on the photos page's "Published. Add photos now, or skip".
 - **Links** on one two-ended row. `Bluesky: see the thread.` once
   there is a post; before one, `Bluesky: [ ] post it too, saying
   [text].` `Elsewhere:` the place's links as words with commas, then "add a
