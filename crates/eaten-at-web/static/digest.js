@@ -192,6 +192,12 @@
      source. Map folded DOM offsets back to markdown for the clipboard
      and replacement; never unfold the other lines just to select them. */
   function endpoint(node, offset) {
+    // An end outside the digest (Chrome moves a select-all's start to
+    // the label before it) is its first or last place.
+    if (!box.contains(node)) {
+      return box.compareDocumentPosition(node) & 2 ? { line: 0, offset: 0 }
+        : { line: lines.length - 1, offset: lines[lines.length - 1].length };
+    }
     if (node === box) {
       return offset >= lines.length ? { line: lines.length - 1, offset: lines[lines.length - 1].length }
         : { line: offset, offset: 0 };
@@ -210,6 +216,7 @@
     var sel = window.getSelection();
     if (!sel || !sel.rangeCount || sel.isCollapsed) return null;
     var r = sel.getRangeAt(0);
+    if (!r.intersectsNode(box)) return null;
     var start = endpoint(r.startContainer, r.startOffset);
     var end = endpoint(r.endContainer, r.endOffset);
     return start && end ? { start: start, end: end } : null;
@@ -234,9 +241,11 @@
     lastLine = null;
     sync();
   }
+  // The clipboard event can land on that label, so it is heard here.
+  function mine() { return active !== null && box.contains(document.activeElement); }
   ["copy", "cut"].forEach(function (type) {
-    box.addEventListener(type, function (e) {
-      var range = selection();
+    document.addEventListener(type, function (e) {
+      var range = mine() && selection();
       if (!range || !e.clipboardData) return;
       e.preventDefault();
       e.clipboardData.setData("text/plain", selectedText(range));
@@ -352,8 +361,8 @@
     sync();
   }
 
-  box.addEventListener("paste", function (e) {
-    if (active === null) return;
+  document.addEventListener("paste", function (e) {
+    if (!mine()) return;
     e.preventDefault();
     var text = (e.clipboardData || window.clipboardData).getData("text/plain");
     if (!text) return;
