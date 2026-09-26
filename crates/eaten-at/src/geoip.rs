@@ -10,6 +10,7 @@
 //! be entered by hand.
 
 use std::fmt;
+use std::future::Future;
 use std::net::IpAddr;
 use std::path::Path;
 use std::sync::Arc;
@@ -184,12 +185,15 @@ impl ClientIp {
 impl<S: Send + Sync> FromRequestParts<S> for ClientIp {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
+    fn from_request_parts(
+        parts: &mut Parts,
+        _: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
         let peer = parts
             .extensions
             .get::<ConnectInfo<std::net::SocketAddr>>()
             .map(|info| info.0.ip());
-        Ok(Self::from_parts(&parts.headers, peer))
+        std::future::ready(Ok(Self::from_parts(&parts.headers, peer)))
     }
 }
 

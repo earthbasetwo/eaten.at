@@ -4,6 +4,8 @@
 //! set its own (the image proxy does). Inline code is limited to the two
 //! islands and the theme block, each carrying the request's nonce.
 
+use std::future::Future;
+
 use axum::extract::{FromRequestParts, Request};
 use axum::http::request::Parts;
 use axum::http::{header, HeaderValue};
@@ -70,15 +72,18 @@ pub fn allow_connect(response: &mut Response, nonce: &Nonce, origin: &str) {
 impl<S: Send + Sync> FromRequestParts<S> for Nonce {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
+    fn from_request_parts(
+        parts: &mut Parts,
+        _: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
         // The middleware always inserts one; a missing nonce means the
         // router was built without it, and a fresh nonce is still correct
         // (it just won't match any header).
-        Ok(parts
+        std::future::ready(Ok(parts
             .extensions
             .get::<Nonce>()
             .cloned()
-            .unwrap_or_else(Nonce::generate))
+            .unwrap_or_else(Nonce::generate)))
     }
 }
 
