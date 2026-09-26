@@ -565,10 +565,10 @@ results page any more.
   recessed paper under the pointer. `Filed under [tags].` is right-set
   (see **Filed under**).
 - **Digest.** No kicker: the digest's text on the page's paper between
-  two hairlines, a step inside each, at least six lines tall. Its lower
-  rule is a field's rule: 2px of ink under the pointer, 2px of
-  vermilion while the writing has focus, the padding giving the pixel
-  back so nothing moves (C7, settled 2026-09-25). The textarea is the carrier; the island draws a
+  two hairlines, a step inside each, at least six lines tall. Both
+  rules take a field's colours together, ink under the pointer and
+  vermilion while the writing has focus, and never thicken (C7,
+  settled 2026-09-25). The textarea is the carrier; the island draws a
   live markdown editor over it (`.digest-editor`): each source line a
   block, formatted (h1 25px/500, h2 20px/500, h3 600; bullets as
   vermilion `•`; quotes on a 2px hairline in italic soft ink; bold,
@@ -581,8 +581,8 @@ results page any more.
   left as written for the server to render.
 - **Teaser.** Folded, one italic stone line: "In listings, the piece
   opens with its first lines — or *write your own teaser*." Open: "In
-  listings it opens:", a two-row transparent textarea on the standard
-  field rule (ink, then vermilion with focus) whose placeholder
+  listings it opens:", a two-row transparent textarea on a hairline (ink
+  under the pointer, vermilion with focus, never thicker) whose placeholder
   is the first lines in quotes, and a note: "Drawn from the first lines
   — type to say it differently, or *leave it be*." while it is empty,
   "*never mind — use the first lines*" once written. The fold is a
@@ -745,8 +745,9 @@ the prompt is enough (Ken, 2026-09-25).
 
 The body is transparent on the page’s paper. Its italic stone placeholder asks
 “What did you eat? Was it good? Describe it with **markdown**.” The rule that
-closes the writing section is a field’s rule: it thickens to ink under the
-pointer and to vermilion with focus, and the teaser sits on the same rule. Inactive lines remain formatted
+closes the writing section, and the one that opens it, go to ink under the
+pointer and to vermilion with focus, staying a hairline; the teaser sits on a
+hairline that does the same. Inactive lines remain formatted
 even when the whole digest is selected.
 
 Filed under sits below photos, full-width and left-aligned. Photos have no
