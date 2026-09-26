@@ -421,6 +421,36 @@ async function main() {
       if (await body() !== 'Typed') throw new Error('Typing over it from the first line gave ' + JSON.stringify(await body()))
     },
   })
+  // A double click on a word in a folded line selects that word, not
+  // the mark the unfolding slides under the pointer (CB9).
+  await check({
+    name: 'edit-digest-double-click',
+    path: `/write/${rkey}`,
+    expect: '.digest-editor .md-active',
+    exercise: async (browser) => {
+      const at = await browser.evaluate(`(() => {
+        const body = document.querySelector('#body')
+        body.value = 'First line.\\nThe **very** *great* noodles here.'
+        body.dispatchEvent(new Event('change', { bubbles: true }))
+        const line = document.querySelectorAll('.digest-editor [data-md]')[1]
+        line.scrollIntoView({ block: 'center' })
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
+        for (let n; (n = walker.nextNode());) {
+          const i = n.data.indexOf('noodles')
+          if (i < 0) continue
+          const r = document.createRange(); r.setStart(n, i + 2); r.setEnd(n, i + 3)
+          const b = r.getBoundingClientRect()
+          return { x: b.x + 1, y: b.y + b.height / 2 }
+        }
+      })()`)
+      for (const [type, clickCount] of [['mouseMoved', 0], ['mousePressed', 1], ['mouseReleased', 1], ['mousePressed', 2], ['mouseReleased', 2]]) {
+        await browser.session.send('Input.dispatchMouseEvent', { type, x: at.x, y: at.y, button: type === 'mouseMoved' ? 'none' : 'left', clickCount })
+      }
+      await sleep(100)
+      const selected = await browser.evaluate('getSelection().toString()')
+      if (selected !== 'noodles') throw new Error('A double click on a folded line selected ' + JSON.stringify(selected))
+    },
+  })
   await check({
     name: 'edit-date',
     path: `/write/${rkey}`,

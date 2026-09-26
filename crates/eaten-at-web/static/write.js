@@ -259,9 +259,7 @@
     if (!fold || !text) return;
     var whenDefault = fold.querySelector(".teaser-default");
     var whenCustom = fold.querySelector(".teaser-custom");
-    // Opened by the author, the fold hands them the field; opened for a
-    // restored draft's teaser, it leaves focus alone. Folded, focus
-    // goes back to its line.
+    // Opened by hand, focus goes in; for a restored teaser, it stays.
     var quiet = false;
     function sync() {
       var custom = text.value.trim() !== "";
@@ -404,8 +402,7 @@
       card.querySelector("[data-link-save]").addEventListener("click", save);
       card.querySelector("[data-link-cancel]").addEventListener("click", cancel);
       if (f.remove) {
-        /* Without script this asks the server to drop the row; here the
-           row is emptied, which the server skips. */
+        // Here the row is emptied, which the server skips.
         f.remove.addEventListener("click", function (e) {
           e.preventDefault();
           f.url.value = "";

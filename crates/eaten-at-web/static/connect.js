@@ -55,8 +55,7 @@
       // No scroll: the block clips while it grows, and the field is in view.
       input.focus({ preventScroll: true });
 
-      /* Commit the starting frame, then set the destination; the
-         stylesheet's transitions carry everything between. */
+      // Commit the start; the transitions carry the rest.
       void moving.offsetWidth;
       root.classList.add("connect-arriving");
       place(moving, origin, to, thickTo);
@@ -70,8 +69,7 @@
         moving.remove();
         idle.hidden = true;
         root.style.height = "";
-        /* The field's own rule must appear in the same frame the moving
-           one leaves, not ease in over the field's usual transition. */
+        // The field's rule appears the frame the moving one leaves.
         input.style.transition = "none";
         root.classList.remove("connect-live", "connect-arriving");
         void input.offsetWidth;

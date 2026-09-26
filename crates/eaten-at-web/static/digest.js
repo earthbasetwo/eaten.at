@@ -137,24 +137,18 @@
     pre.setEnd(r.endContainer, r.endOffset);
     return pre.toString().length;
   }
-  function setCaret(el, offset) {
-    var sel = window.getSelection();
-    if (!sel) return;
-    var r = document.createRange();
-    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    var node, seen = 0, placed = false;
+  // A text offset in a line as a DOM point; past the end, the line's end.
+  function point(el, offset) {
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), node, seen = 0;
     while ((node = walker.nextNode())) {
-      if (seen + node.length >= offset) {
-        r.setStart(node, Math.max(0, offset - seen));
-        placed = true;
-        break;
-      }
+      if (seen + node.length >= offset) return [node, Math.max(0, offset - seen)];
       seen += node.length;
     }
-    if (placed) r.collapse(true);
-    else { r.selectNodeContents(el); r.collapse(false); }
-    sel.removeAllRanges();
-    sel.addRange(r);
+    return [el, el.childNodes.length];
+  }
+  function setCaret(el, offset, end) {
+    var sel = window.getSelection(), a = point(el, offset), b = point(el, end == null ? offset : end);
+    if (sel) sel.setBaseAndExtent(a[0], a[1], b[0], b[1]);
   }
   function offsetAtPoint(el, x, y) {
     var node = null, off = 0;
@@ -313,7 +307,18 @@
       i = lines.length - 1;
       offset = lines[i].length;
     }
+    opened = e.timeStamp;
     activate(i, offset);
+  });
+  /* A double click on a folded line unfolds it under the pointer, which
+     would select a mark: it selects the word that was clicked (CB9). */
+  var opened = 0;
+  box.addEventListener("dblclick", function (e) {
+    if (active === null || e.timeStamp - opened > 800) return;
+    var t = lines[active], a = caret, b = caret, w = /[\p{L}\p{N}_'’-]/u;
+    while (a > 0 && w.test(t[a - 1])) a--;
+    while (b < t.length && w.test(t[b])) b++;
+    if (a < b) setCaret(box.children[active], a, b);
   });
   // A click no mousedown announced opens the line at its end.
   box.addEventListener("click", function (e) {

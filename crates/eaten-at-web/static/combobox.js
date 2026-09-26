@@ -89,8 +89,7 @@ window.eaCombobox = function (input, opts) {
     timer = setTimeout(search, opts.delay);
   });
   input.addEventListener("keydown", function (e) {
-    /* An input method is mid-word: Enter and the arrows belong to it,
-       not to the menu. */
+    // Mid-word in an input method, the keys are its own.
     if (e.isComposing || e.keyCode === 229) return;
     if (list.hidden) return;
     if (e.key === "ArrowDown") { e.preventDefault(); highlight((active + 1) % items.length); }
