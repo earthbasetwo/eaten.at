@@ -434,6 +434,36 @@ async function main() {
       if (!ok) throw new Error('Removing photos lost focus or retained removed photo fields')
     },
   })
+  // The keyboard's way to reorder: Alt and an arrow key move a photo,
+  // focus stays on it, and where it landed is announced; × hands focus
+  // to the photo that took its place.
+  await check({
+    name: 'edit-photo-keys', path: `/write/${rkey}`,
+    expect: '.photo-tile',
+    exercise: async (browser) => {
+      const result = await browser.evaluate(`(() => {
+        const tiles = () => [...document.querySelectorAll('.photo-tile')]
+        const cids = () => tiles().map((t) => t.dataset.cid)
+        const said = () => document.querySelector('.photos-block [role=status].visually-hidden').textContent
+        const press = (key) => document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key, altKey: true, bubbles: true, cancelable: true }))
+        const before = cids()
+        if (before.length < 2) return 'the digest needs two photos'
+        tiles()[0].focus()
+        press('ArrowRight')
+        if (cids()[0] !== before[1] || cids()[1] !== before[0]) return 'Alt+ArrowRight did not move the photo'
+        if (document.activeElement !== tiles()[1]) return 'Moving a photo lost focus'
+        if (said() !== 'Photo 2 of ' + before.length + '.') return 'The move was not announced: ' + said()
+        if (document.querySelector('[name=photo_cid_0]').value !== before[1]) return 'The form did not follow the move'
+        press('ArrowUp')
+        if (JSON.stringify(cids()) !== JSON.stringify(before)) return 'Alt+ArrowUp did not move it back'
+        if (said() !== 'Photo 1 of ' + before.length + ', the cover.') return 'The cover was not announced: ' + said()
+        tiles()[0].querySelector('.tile-remove').click()
+        if (document.activeElement !== tiles()[0] || cids()[0] !== before[1]) return 'Removing with × lost focus'
+        return 'ok'
+      })()`)
+      if (result !== 'ok') throw new Error(result)
+    },
+  })
   // While photos upload, Publish waits and says how many are on their
   // way; it lets go when the last one answers. The upload is stubbed, so
   // nothing is written.

@@ -273,9 +273,10 @@ pub async fn photos_submit(
             ));
         }
         Err(FormError::Unreadable(e)) => {
+            tracing::info!(error = %e, "photos refused: the form could not be read");
             return Err(AppError::BadRequest(format!(
                 "could not read the form: {e}"
-            )))
+            )));
         }
     };
     let current = visit_doc.visit.photos.clone();
@@ -302,7 +303,7 @@ pub async fn photos_submit(
     };
 
     let (photos, outcome) = match action {
-        PhotosAction::Add => match add(&state, &identity, photos, &form).await {
+        PhotosAction::Add => match add(&state, &identity, photos, form).await {
             Ok((photos, problems)) => (
                 photos,
                 Outcome {
@@ -411,12 +412,13 @@ pub async fn upload(
             ));
         }
         Err(FormError::Unreadable(e)) => {
+            tracing::info!(error = %e, "photos refused: the form could not be read");
             return Err(AppError::BadRequest(format!(
                 "could not read the form: {e}"
-            )))
+            )));
         }
     };
-    let (photos, problems, status) = match add(&state, &identity, Vec::new(), &form).await {
+    let (photos, problems, status) = match add(&state, &identity, Vec::new(), form).await {
         Ok((photos, problems)) if photos.is_empty() => {
             (photos, problems, StatusCode::UNPROCESSABLE_ENTITY)
         }
@@ -538,20 +540,29 @@ enum Refused {
 
 /// Prepare and upload the chosen files, appending each good one. Files
 /// that cannot be used are reported by name; the good ones still go in.
+/// Each file's bytes are let go once it is prepared, so a request holds
+/// one decode and the files still to come, not a copy of every one.
+/// Every refusal is logged at INFO with its reason, never the file's
+/// name.
 #[allow(clippy::too_many_lines)]
 async fn add(
     state: &AppState,
     identity: &Identity,
     mut photos: Vec<Photo>,
-    form: &PhotosForm,
+    form: PhotosForm,
 ) -> Result<(Vec<Photo>, Vec<String>), Refused> {
     let mut problems = Vec::new();
     if form.too_many {
+        tracing::info!(
+            max = MAX_FILES_PER_REQUEST,
+            "photos refused: more files than one request takes"
+        );
         problems.push(format!(
             "At most {MAX_FILES_PER_REQUEST} photos at a time; the rest were not added."
         ));
     }
     for name in &form.empty {
+        tracing::info!("photo refused: the file is empty");
         problems.push(format!("{name} is empty."));
     }
     if form.files.is_empty() {
@@ -563,6 +574,10 @@ async fn add(
     // As many as fit are added; the rest are named by count.
     let room = MAX_PHOTOS.saturating_sub(photos.len() + form.existing);
     if room == 0 {
+        tracing::info!(
+            files = form.files.len(),
+            "photos refused: the digest has its {MAX_PHOTOS}"
+        );
         problems.push(format!(
             "At most {MAX_PHOTOS} photos on a digest; remove some first."
         ));
@@ -570,6 +585,7 @@ async fn add(
     }
     if form.files.len() > room {
         let left = form.files.len() - room;
+        tracing::info!(left, "photos refused: past the digest's {MAX_PHOTOS}");
         problems.push(format!(
             "At most {MAX_PHOTOS} photos on a digest; the last {left} {} not added.",
             if left == 1 { "was" } else { "were" }
@@ -582,18 +598,19 @@ async fn add(
                 _ => Refused::Repo(problems.clone()),
             }
         })?;
-    for upload in form.files.iter().take(room) {
+    for upload in form.files.into_iter().take(room) {
         let name = if upload.file_name.trim().is_empty() {
             "A file".to_owned()
         } else {
-            upload.file_name.clone()
+            upload.file_name
         };
-        let bytes = upload.bytes.clone();
+        let bytes = upload.bytes;
+        let size = bytes.len();
         let prepared = tokio::task::spawn_blocking(move || img::photo_upload(&bytes)).await;
         let prepared = match prepared {
             Ok(Ok(prepared)) => prepared,
             Ok(Err(err)) => {
-                tracing::debug!(%err, file = %name, "photo rejected");
+                tracing::info!(reason = %err, bytes = size, "photo refused");
                 problems.push(match err {
                     ImageError::TooBig(..) => format!(
                         "{name} is over {} MB.",

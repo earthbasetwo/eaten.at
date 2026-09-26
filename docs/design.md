@@ -610,7 +610,10 @@ results page any more.
   a remove mark revealed on the tile, and an add tile (a dashed box
   with a `+`) last; or, with none, one dashed box: "Nothing to look at
   yet." that reads "add a photo" in vermilion under the pointer. Under
-  the grid: "Drag to reorder — the first photo is the cover." A tile
+  the grid: "Drag to reorder — the first photo is the cover." From the
+  keyboard, Alt and an arrow key move a focused tile a place, and where
+  it landed is announced ("Photo 1 of 5, the cover."); removing one with
+  its × hands focus to the tile that took its place. A tile
   opens its detail over a scrim (the ink at 35%): the photo letterboxed
   on recessed paper, a centred caption field, "done" and "remove this
   photo". The same before and after the digest exists: a picked file

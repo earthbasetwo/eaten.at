@@ -59,6 +59,15 @@
   problems.hidden = true;
   problems.setAttribute("role", "alert");
   grid.insertAdjacentElement("afterend", problems);
+  /* For the keyboard: what a tile's keys do, and where a moved photo
+     landed, both unseen and read aloud. */
+  var keyHelp = el("span", "visually-hidden");
+  keyHelp.id = "photo-keys";
+  keyHelp.textContent = "Enter opens it; Alt and an arrow key move it.";
+  var moved = el("span", "visually-hidden");
+  moved.setAttribute("role", "status");
+  block.appendChild(keyHelp);
+  block.appendChild(moved);
   if (!hint) {
     hint = document.createElement("p");
     hint.className = "hint photo-hint";
@@ -239,6 +248,15 @@
     for (var i = 0; i < photos.length; i++) if (photos[i].key === key) return i;
     return -1;
   }
+  /* Alt and an arrow key: one place earlier or later, focus kept. */
+  function move(key, by) {
+    var i = indexOf(key), j = i + by;
+    if (i < 0 || j < 0 || j >= photos.length) return;
+    photos.splice(j, 0, photos.splice(i, 1)[0]);
+    changed();
+    grid.querySelector("[data-key=\"" + key + "\"]").focus();
+    moved.textContent = "Photo " + (j + 1) + " of " + photos.length + (j === 0 ? ", the cover." : ".");
+  }
   function remove(key) {
     var i = indexOf(key);
     if (i < 0) return;
@@ -283,15 +301,24 @@
       removeMark.appendChild(cross(10));
       removeMark.addEventListener("click", function (e) {
         e.stopPropagation();
+        // Focus goes to the photo that took its place, else to adding one.
         remove(photo.key);
+        var next = grid.querySelectorAll(".photo-tile")[i] || grid.querySelector(".photo-add, .photo-empty");
+        if (next) next.focus();
       });
       tile.appendChild(removeMark);
       tile.addEventListener("click", function () {
         if (dragging !== null) return;
         openDetail(photo.key);
       });
+      tile.setAttribute("aria-describedby", keyHelp.id);
       tile.addEventListener("keydown", function (e) {
+        if (e.target !== tile) return;
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(photo.key); }
+        else if (e.altKey && /^Arrow(Left|Right|Up|Down)$/.test(e.key)) {
+          e.preventDefault();
+          move(photo.key, e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1);
+        }
       });
       tile.addEventListener("dragstart", function (e) {
         e.dataTransfer.effectAllowed = "move";

@@ -4,6 +4,7 @@
 
 use std::fmt;
 
+use axum::body::Bytes;
 use axum::extract::Multipart;
 use eaten_at_atproto::lexicon::{Photo, MAX_PHOTOS};
 use maud::{html, Markup};
@@ -25,11 +26,12 @@ pub const MAX_ALT_GRAPHEMES: usize = 1000;
 /// Longest alt text, in bytes (lexicon `maxLength`).
 pub const MAX_ALT_BYTES: usize = 2000;
 
-/// A file from the form.
+/// A file from the form, its bytes as the parser gathered them (never
+/// copied: a phone photo is megabytes).
 #[derive(Clone, PartialEq, Eq)]
 pub struct Upload {
     pub file_name: String,
-    pub bytes: Vec<u8>,
+    pub bytes: Bytes,
 }
 
 impl fmt::Debug for Upload {
@@ -177,7 +179,7 @@ impl PhotosForm {
                 }
                 form.files.push(Upload {
                     file_name,
-                    bytes: bytes.to_vec(),
+                    bytes,
                 });
                 continue;
             }
