@@ -952,6 +952,7 @@
   .date-head { display: flex; align-items: baseline; justify-content: space-between; margin-block-end: 10px; }
   .editor .date-nav { padding: 2px 6px; font-size: 0.9375rem; color: var(--color-ink-soft); }
   .editor .date-nav:hover { color: var(--color-vermilion); }
+  .editor .date-nav:disabled, .editor .date-nav:disabled:hover { color: var(--color-disabled); cursor: default; }
   .date-month { font-style: italic; font-size: 0.9375rem; color: var(--color-ink); }
   .date-grid { display: grid; grid-template-columns: repeat(7, 34px); gap: 1px; justify-content: center; }
   .date-dow { display: block; text-align: center; font-style: italic; font-size: 0.75rem; color: var(--color-stone); padding-block-end: 4px; }
@@ -961,6 +962,7 @@
     transition: background-color var(--ease);
   }
   .editor .date-day:hover { background: var(--color-recessed); }
+  .editor .date-day:disabled, .editor .date-day:disabled:hover { color: var(--color-disabled); background: none; cursor: default; }
   .editor .date-day.today { text-decoration: underline; text-underline-offset: 0.14em; text-decoration-color: var(--color-vermilion); }
   .editor .date-day.selected, .editor .date-day.selected:hover { background: var(--color-ink); color: var(--color-ink-fg); }
   /* Filed under: full-width below photos, the tags as words with commas, the

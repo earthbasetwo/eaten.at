@@ -141,6 +141,9 @@
       var next = button("date-nav", "→");
       next.setAttribute("aria-label", "Later month");
       next.addEventListener("click", function () { shift(1); });
+      // No visits ahead: days past today, and the months after this one, are out of reach.
+      var today = new Date();
+      next.disabled = y > today.getFullYear() || (y === today.getFullYear() && m > today.getMonth());
       head.appendChild(prev);
       head.appendChild(month);
       head.appendChild(next);
@@ -153,11 +156,12 @@
       var first = new Date(y, m - 1, 1).getDay();
       var days = new Date(y, m, 0).getDate();
       for (var i = 0; i < first; i++) grid.appendChild(el("span", "date-blank"));
-      var today = new Date();
+      var tonight = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
       for (var d = 1; d <= days; d++) {
         var iso = y + "-" + pad(m) + "-" + pad(d);
         var day = button("date-day", String(d));
         day.setAttribute("aria-label", MONTHS[m - 1] + " " + d + ", " + y);
+        day.disabled = new Date(y, m - 1, d) > tonight;
         if (iso === input.value) {
           day.classList.add("selected");
           day.setAttribute("aria-pressed", "true");

@@ -569,7 +569,11 @@ results page any more.
   the year appended when it is not this year) over a 266px calendar:
   arrows and the month in italic, day initials in italic stone, 34×32
   cells, the chosen day ink on paper, today underlined in vermilion,
-  recessed paper under the pointer. `Filed under [tags].` is right-set
+  recessed paper under the pointer. A visit is never dated ahead (Ken,
+  2026-09-26): days past today and the months after this one are
+  greyed and inert, the plain date input carries `max`, and the server
+  refuses a date past tomorrow in its own zone, the day's grace being
+  for writers whose day began before the server's. `Filed under [tags].` is right-set
   (see **Filed under**).
 - **Digest.** No kicker: the digest's text on the page's paper between
   two hairlines, a step inside each, at least six lines tall. Both
