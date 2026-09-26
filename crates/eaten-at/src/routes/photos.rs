@@ -22,7 +22,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::RequireUser;
 use crate::editor::photos::{
-    self, AltError, PhotoRow, PhotosAction, PhotosForm, PhotosPage, MAX_FILES_PER_REQUEST,
+    self, AltError, FormError, PhotoRow, PhotosAction, PhotosForm, PhotosPage,
+    MAX_FILES_PER_REQUEST,
 };
 use crate::error::AppError;
 use crate::img::{self, ImageError, PhotoSize, MAX_PHOTO_UPLOAD_BYTES};
@@ -250,9 +251,29 @@ pub async fn photos_submit(
 ) -> Result<Response, AppError> {
     let wants = Wants::from_headers(&headers);
     let (identity, visit_doc) = load(&state, &did, &rkey).await?;
-    let form = PhotosForm::from_multipart(multipart)
-        .await
-        .map_err(|e| AppError::BadRequest(format!("could not read the form: {e}")))?;
+    let form = match PhotosForm::from_multipart(multipart).await {
+        Ok(form) => form,
+        Err(FormError::TooLarge) => {
+            tracing::info!("photos refused: the request is over the size limit");
+            return Ok(render(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                wants,
+                &did,
+                &visit_doc,
+                &visit_doc.visit.photos,
+                &query,
+                &Outcome {
+                    problems: vec![FormError::too_large_message()],
+                    ..Outcome::default()
+                },
+            ));
+        }
+        Err(FormError::Unreadable(e)) => {
+            return Err(AppError::BadRequest(format!(
+                "could not read the form: {e}"
+            )))
+        }
+    };
     let current = visit_doc.visit.photos.clone();
     let action = form.action.clone().unwrap_or(PhotosAction::Add);
 
@@ -365,9 +386,22 @@ pub async fn upload(
     multipart: Multipart,
 ) -> Result<Response, AppError> {
     let identity = state.require_identity(&did).await?;
-    let form = PhotosForm::from_multipart(multipart)
-        .await
-        .map_err(|e| AppError::BadRequest(format!("could not read the form: {e}")))?;
+    let form = match PhotosForm::from_multipart(multipart).await {
+        Ok(form) => form,
+        Err(FormError::TooLarge) => {
+            tracing::info!("upload refused: the request is over the size limit");
+            return Ok(upload_json(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                Vec::new(),
+                vec![FormError::too_large_message()],
+            ));
+        }
+        Err(FormError::Unreadable(e)) => {
+            return Err(AppError::BadRequest(format!(
+                "could not read the form: {e}"
+            )))
+        }
+    };
     let (photos, problems, status) = match add(&state, &identity, Vec::new(), &form).await {
         Ok((photos, problems)) if photos.is_empty() => {
             (photos, problems, StatusCode::UNPROCESSABLE_ENTITY)
@@ -379,6 +413,12 @@ pub async fn upload(
             (Vec::new(), problems, StatusCode::BAD_GATEWAY)
         }
     };
+    Ok(upload_json(status, photos, problems))
+}
+
+/// The upload's answer: the photos taken, and the problems in the
+/// author's words.
+fn upload_json(status: StatusCode, photos: Vec<Photo>, problems: Vec<String>) -> Response {
     let body = PhotosJson {
         photos: photos.iter().map(PhotoJson::own).collect(),
         problems,
@@ -389,7 +429,7 @@ pub async fn upload(
         header::CACHE_CONTROL,
         HeaderValue::from_static("private, no-store"),
     );
-    Ok(response)
+    response
 }
 
 impl PhotoJson {

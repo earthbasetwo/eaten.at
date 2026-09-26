@@ -614,8 +614,9 @@ results page any more.
   opens its detail over a scrim (the ink at 35%): the photo letterboxed
   on recessed paper, a centred caption field, "done" and "remove this
   photo". The same before and after the digest exists: a picked file
-  is uploaded to the author's repository at once (`/write/upload`) and
-  comes back as a blob reference, the list rides in the form as hidden
+  is uploaded to the author's repository at once (`/write/upload`), one
+  file a request in the order picked, a file over the upload limit named
+  and never sent, and comes back as a blob reference, the list rides in the form as hidden
   fields like every other value, and Publish or Save writes it with
   the record (D37 amended). A tile is drawn from the author's own blob
   (`/write/photo/{cid}`), so it shows before any record lists it.
