@@ -434,6 +434,47 @@ async function main() {
       if (!ok) throw new Error('Removing photos lost focus or retained removed photo fields')
     },
   })
+  // While photos upload, Publish waits and says how many are on their
+  // way; it lets go when the last one answers. The upload is stubbed, so
+  // nothing is written.
+  await check({
+    name: 'edit-photo-uploading', path: `/write/${rkey}`,
+    expect: '.photo-tile',
+    exercise: async (browser) => {
+      const result = await browser.evaluate(`(async () => {
+        const tick = () => new Promise((r) => setTimeout(r, 60))
+        const releases = []
+        window.fetch = () => new Promise((resolve) => releases.push(() => {
+          const first = document.querySelector('.photo-tile')
+          const photo = { cid: first.dataset.cid, thumb: first.querySelector('img').getAttribute('src'), full: first.dataset.full, mime: 'image/jpeg', size: 5, width: 1, height: 1 }
+          resolve(new Response(JSON.stringify({ photos: [photo], problems: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+        }))
+        const tiles = document.querySelectorAll('.photo-tile').length
+        const input = document.querySelector('.photos-block input[type=file]')
+        const files = new DataTransfer()
+        files.items.add(new File(['x'], 'one.jpg', { type: 'image/jpeg' }))
+        files.items.add(new File(['y'], 'two.jpg', { type: 'image/jpeg' }))
+        input.files = files.files
+        input.dispatchEvent(new Event('change'))
+        await tick()
+        const publish = document.querySelector('.editor-actions button[value=publish]')
+        const wait = () => document.querySelector('.upload-wait').textContent
+        if (!publish.disabled || wait() !== 'Uploading 2 photos…') return 'Publish was not held while two photos uploaded: ' + wait()
+        if (document.querySelector('.photo-hint').textContent !== 'Uploading 2 photos…') return 'The photos did not say they were uploading'
+        document.querySelector('form.editor-write').requestSubmit()
+        await tick()
+        releases.shift()()
+        await tick()
+        if (!publish.disabled || wait() !== 'Uploading a photo…') return 'Publish let go with a photo still uploading: ' + wait()
+        releases.shift()()
+        await tick()
+        if (publish.disabled || wait() !== '') return 'Publish stayed held after the uploads answered'
+        if (document.querySelectorAll('.photo-tile').length !== tiles + 2) return 'The uploaded photos were not added'
+        return 'ok'
+      })()`)
+      if (result !== 'ok') throw new Error(result)
+    },
+  })
   await check({
     name: 'edit-photo-detail-roomy',
     exercise: checkPhotoDialog,

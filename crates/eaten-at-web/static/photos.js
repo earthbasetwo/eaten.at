@@ -116,6 +116,7 @@
   function changed() {
     sync();
     render();
+    waiting();
     form.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
@@ -147,20 +148,46 @@
     next();
   }
   function next() {
-    if (busy) return;
-    var file = queue.shift();
-    if (!file) return;
-    busy = true;
-    grid.classList.add("busy");
-    send(file).then(function (messages) {
-      busy = false;
-      batchProblems = batchProblems.concat(messages);
-      showProblems(batchProblems);
-      if (queue.length === 0) grid.classList.remove("busy");
-      changed();
-      next();
-    });
+    if (!busy && queue.length) {
+      busy = true;
+      send(queue.shift()).then(function (messages) {
+        busy = false;
+        batchProblems = batchProblems.concat(messages);
+        showProblems(batchProblems);
+        changed();
+        next();
+      });
+    }
+    waiting();
   }
+
+  /* Until the last upload answers, the list the form carries is not
+     whole, so Publish (or Save changes) waits: the button is held, the
+     line beside it and the one under the tiles say how many are on
+     their way, and every submit but Delete's is held back. It lets go
+     when the last one answers, taken or refused. More can be picked
+     meanwhile; they join the queue. */
+  var submit = form.querySelector(".editor-actions button[value=publish]");
+  var wait = el("span", "hint upload-wait");
+  wait.setAttribute("role", "status");
+  if (submit) submit.insertAdjacentElement("afterend", wait);
+  function pending() { return queue.length + (busy ? 1 : 0); }
+  function waiting() {
+    var n = pending();
+    var text = n === 0 ? "" : n === 1 ? "Uploading a photo…" : "Uploading " + n + " photos…";
+    wait.textContent = text;
+    if (submit) submit.disabled = n > 0;
+    grid.classList.toggle("busy", n > 0);
+    if (n) {
+      hint.hidden = false;
+      hint.textContent = text;
+    }
+  }
+  form.addEventListener("submit", function (e) {
+    if (!pending() || (e.submitter && e.submitter.name === "delete_post")) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
   function send(file) {
     var data = new FormData();
     data.append("existing", String(photos.length));
