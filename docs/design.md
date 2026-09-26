@@ -574,12 +574,20 @@ results page any more.
   vermilion while the writing has focus, and never thicken (C7,
   settled 2026-09-25). The textarea is the carrier; the island draws a
   live markdown editor over it (`.digest-editor`): each source line a
-  block, formatted (h1 25px/500, h2 20px/500, h3 600; bullets as
-  vermilion `•`; quotes on a 2px hairline in italic soft ink; bold,
-  italic, `code` in the mono on recessed paper, links in vermilion),
-  and the caret's line showing its raw markdown with the syntax marks
-  in `--color-disabled`. Return splits a line (a list or quote prefix
-  continues; Return on an empty one ends it), Backspace at the start
+  block, formatted (headings at the sizes the page sets them at, which
+  shifts them down a level: `#` at the prose h2's size, `##` at h3's,
+  `###` at h4's, all 500; bullets as vermilion `•`; quotes on a 2px
+  hairline in italic soft ink; bold, italic, `code` in the mono on
+  recessed paper, links in vermilion), and the caret's line showing
+  its raw markdown with the syntax marks in `--color-disabled`. What
+  the editor shows is what publishes (CB2, 2026-09-26): Return in a
+  line of prose starts a new paragraph, writing the blank line
+  CommonMark needs, so one Return never joins two lines on the page;
+  in a list or a quote the prefix continues, and Return on an empty
+  item or quote line ends it with a blank line, so the next paragraph
+  is not published inside it. Prose that is already right under an
+  item or a quote (pasted, or from a draft) is drawn inside it, as it
+  will publish. Backspace at the start
   merges up, ↑/↓ cross lines at their edges, Escape leaves, paste is
   plain text, Cmd/Ctrl-Z undoes. Anything the island does not draw is
   left as written for the server to render.

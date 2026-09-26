@@ -316,6 +316,22 @@ fn collapse_blank_lines(s: &str) -> String {
 mod tests {
     use super::*;
 
+    /// What the editor writes (CB2): Return on an empty item or quote
+    /// line leaves a blank line, and Return in prose starts a paragraph,
+    /// so each typed block publishes as its own; without the blank line
+    /// the next paragraph would be a lazy continuation inside the item.
+    #[test]
+    fn the_editors_blank_lines_keep_its_blocks_apart() {
+        let typed = render("One.\n\nTwo.\n\n- a\n- b\n\nAfter.\n\n> q\n\nAfter.");
+        assert_eq!(
+            typed,
+            "<p>One.</p>\n<p>Two.</p>\n<ul>\n<li>a</li>\n<li>b</li>\n</ul>\n<p>After.</p>\n\
+             <blockquote>\n<p>q</p>\n</blockquote>\n<p>After.</p>\n"
+        );
+        // The shape the editor used to write, and still draws inside.
+        assert!(render("- b\nAfter.").contains("<li>b\nAfter.</li>"));
+    }
+
     #[test]
     fn renders_basic_markdown_with_demoted_headings() {
         let out = render("# Title\n\nSome *em* and **strong** and `code`.\n\n## Sub\n\n- a\n- b");
