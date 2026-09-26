@@ -17,7 +17,18 @@ pub struct ImageQuery {
     size: Option<String>,
     /// `icon` selects a publication icon (the rkey is then a publication).
     kind: Option<String>,
+    /// The document revision (its record's CID) the URL was built for.
+    v: Option<String>,
 }
+
+/// A photo is addressed by its CID and never changes: an hour of any
+/// cache is fine. A cover's path stays while its image changes (a photo
+/// moved to the front, removed, the place renamed), so pages ask for it
+/// at the document's revision; that URL may be cached as a photo is.
+/// Asked for at no revision, or an older one, the answer is the current
+/// cover, and every cache must ask again before reusing it.
+const SETTLED: &str = "public, max-age=3600";
+const MUTABLE: &str = "public, no-cache";
 
 pub async fn cover(
     State(state): State<AppState>,
@@ -25,24 +36,32 @@ pub async fn cover(
     Query(query): Query<ImageQuery>,
 ) -> Result<Response<Body>, AppError> {
     let (_, identity) = resolve_repo(&state, &did).await?;
-    let rendition = if query.kind.as_deref() == Some("icon") {
+    let (rendition, caching) = if query.kind.as_deref() == Some("icon") {
         let publication = state
             .publication(&identity, &rkey)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("feed {rkey} not found")))?;
-        state.icon_rendition(&identity, &publication).await
+        (state.icon_rendition(&identity, &publication).await, SETTLED)
     } else {
         let record = state
             .document(&identity, &rkey)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("document {rkey} not found")))?;
+        let caching = if query.v.as_deref() == Some(record.cid.as_str()) {
+            SETTLED
+        } else {
+            MUTABLE
+        };
         let visit_doc = VisitDocument::from_record(record)
             .ok_or_else(|| AppError::NotFound(format!("document {rkey} is not a digest")))?;
         let size = Size::from_query(query.size.as_deref());
-        state.cover_rendition(&identity, &visit_doc, size).await
+        (
+            state.cover_rendition(&identity, &visit_doc, size).await,
+            caching,
+        )
     };
 
-    jpeg_response(rendition, "cover.jpg")
+    jpeg_response(rendition, "cover.jpg", caching)
 }
 
 #[derive(Debug, Deserialize)]
@@ -69,10 +88,14 @@ pub async fn photo(
         .photo_rendition(&identity, &visit_doc, &cid, size)
         .await
         .ok_or_else(|| AppError::NotFound(format!("photo {cid} not found")))?;
-    jpeg_response(rendition, "photo.jpg")
+    jpeg_response(rendition, "photo.jpg", SETTLED)
 }
 
-fn jpeg_response(rendition: Rendition, filename: &'static str) -> Result<Response<Body>, AppError> {
+fn jpeg_response(
+    rendition: Rendition,
+    filename: &'static str,
+    caching: &'static str,
+) -> Result<Response<Body>, AppError> {
     let response = Response::builder()
         .header(header::CONTENT_TYPE, HeaderValue::from_static("image/jpeg"))
         .header(
@@ -89,10 +112,7 @@ fn jpeg_response(rendition: Rendition, filename: &'static str) -> Result<Respons
             header::CONTENT_SECURITY_POLICY,
             HeaderValue::from_static("default-src 'none'; sandbox"),
         )
-        .header(
-            header::CACHE_CONTROL,
-            HeaderValue::from_static("public, max-age=3600"),
-        )
+        .header(header::CACHE_CONTROL, HeaderValue::from_static(caching))
         .header(header::CONTENT_LENGTH, rendition.jpeg.len())
         .body(Body::from(rendition.jpeg))
         .map_err(|e| AppError::Upstream(e.to_string()))?;
