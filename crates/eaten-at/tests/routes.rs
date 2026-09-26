@@ -3096,6 +3096,64 @@ async fn adding_photos_uploads_each_good_file_and_names_the_bad_ones() {
     assert!(location.unwrap().starts_with("/login"));
 }
 
+#[tokio::test]
+async fn a_request_over_the_size_cap_is_refused_in_words() {
+    let mut repo = one_publication();
+    repo.documents
+        .insert(0, ("ph0".into(), visit_doc_with_photos("pub1", &[])));
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+
+    let big = vec![0u8; eaten_at::editor::photos::MAX_REQUEST_BYTES + 1];
+    let (status, _, body) = post_photos(
+        &state,
+        "/write/ph0/photos",
+        &cookie,
+        &[("action", "add")],
+        &[("big.jpg", &big)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "{body}");
+    assert!(
+        body.contains("These photos add up to more than 64 MB. Choose fewer at a time."),
+        "the photos page again, with the reason: {body}"
+    );
+    assert!(
+        body.contains("64 MB together"),
+        "the hint names the total: {body}"
+    );
+
+    let (content_type, multipart) = multipart_body(&[], &[("big.jpg", &big)]);
+    let response = router(state.clone())
+        .oneshot(
+            Request::post("/write/upload")
+                .header(header::COOKIE, &cookie)
+                .header(header::ACCEPT, "application/json")
+                .header(header::CONTENT_TYPE, content_type)
+                .body(Body::from(multipart))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    let body: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(
+        body["problems"][0],
+        "These photos add up to more than 64 MB. Choose fewer at a time."
+    );
+    let uploads = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/xrpc/com.atproto.repo.uploadBlob")
+        .count();
+    assert_eq!(uploads, 0);
+}
+
 async fn assert_private_upload_previews(state: &AppState, server: &MockServer, cookie: &str) {
     // The author's own blob draws the tile, whether or not a record
     // lists it yet.

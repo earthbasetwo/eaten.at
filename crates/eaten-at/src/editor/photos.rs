@@ -13,7 +13,10 @@ use crate::img::MAX_PHOTO_UPLOAD_BYTES;
 
 /// Most files one request may add.
 pub const MAX_FILES_PER_REQUEST: usize = 12;
-/// Request body cap for the photos route: the files plus the fields.
+/// Request body cap for the photos route: the files plus the fields. It
+/// is less than [`MAX_FILES_PER_REQUEST`] files at the upload limit, so
+/// the page says so, and a request over it is answered in words; the
+/// editor's island sends one file a request and never meets it.
 pub const MAX_REQUEST_BYTES: usize = 64 * 1024 * 1024;
 /// Longest alt text, in graphemes (lexicon `maxGraphemes`).
 pub const MAX_ALT_GRAPHEMES: usize = 1000;
@@ -96,6 +99,33 @@ impl PhotosAction {
     }
 }
 
+/// Why a posted form could not be read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FormError {
+    /// The request is over [`MAX_REQUEST_BYTES`].
+    TooLarge,
+    /// Anything else, in the multipart parser's words.
+    Unreadable(String),
+}
+
+impl FormError {
+    fn from_multipart(err: &axum::extract::multipart::MultipartError) -> Self {
+        if err.status() == axum::http::StatusCode::PAYLOAD_TOO_LARGE {
+            Self::TooLarge
+        } else {
+            Self::Unreadable(err.body_text())
+        }
+    }
+
+    /// What the author is told when the request was too large.
+    pub fn too_large_message() -> String {
+        format!(
+            "These photos add up to more than {} MB. Choose fewer at a time.",
+            MAX_REQUEST_BYTES / (1024 * 1024)
+        )
+    }
+}
+
 /// The posted form: the alt texts by index, the files, and the action.
 #[derive(Debug, Default)]
 pub struct PhotosForm {
@@ -110,15 +140,22 @@ pub struct PhotosForm {
 impl PhotosForm {
     /// Read a multipart body. A file over the upload limit is kept as a
     /// marker (its bytes dropped) so the page can name it.
-    pub async fn from_multipart(mut multipart: Multipart) -> Result<Self, String> {
+    pub async fn from_multipart(mut multipart: Multipart) -> Result<Self, FormError> {
         let mut form = Self::default();
-        while let Some(field) = multipart.next_field().await.map_err(|e| e.body_text())? {
+        while let Some(field) = multipart
+            .next_field()
+            .await
+            .map_err(|e| FormError::from_multipart(&e))?
+        {
             let Some(name) = field.name().map(str::to_owned) else {
                 continue;
             };
             if name == "photos" {
                 let file_name = field.file_name().unwrap_or_default().to_owned();
-                let bytes = field.bytes().await.map_err(|e| e.body_text())?;
+                let bytes = field
+                    .bytes()
+                    .await
+                    .map_err(|e| FormError::from_multipart(&e))?;
                 if bytes.is_empty() {
                     continue;
                 }
@@ -132,7 +169,10 @@ impl PhotosForm {
                 });
                 continue;
             }
-            let value = field.text().await.map_err(|e| e.body_text())?;
+            let value = field
+                .text()
+                .await
+                .map_err(|e| FormError::from_multipart(&e))?;
             match name.as_str() {
                 "action" => form.action = PhotosAction::parse(&value),
                 other => {
@@ -298,8 +338,9 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
                 input #photos name="photos" type="file" accept="image/*" multiple;
             }
             p.meta.field-hint {
-                "Up to " (MAX_FILES_PER_REQUEST) " at a time, " (mb) " MB each, "
-                (MAX_PHOTOS) " on a digest. Photos are re-encoded and stripped of "
+                "Up to " (MAX_FILES_PER_REQUEST) " at a time, " (mb) " MB each and "
+                (MAX_REQUEST_BYTES / (1024 * 1024)) " MB together, " (MAX_PHOTOS)
+                " on a digest. Photos are re-encoded and stripped of "
                 "their metadata, location included, before they are uploaded."
             }
             @for problem in page.problems {

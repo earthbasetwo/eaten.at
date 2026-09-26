@@ -111,15 +111,44 @@
     form.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  /* ---- uploading ---- */
+  /* ---- uploading ----
+     One file a request, in the order picked: each is judged on its own
+     and a big batch never meets the request's size cap. A file over
+     the upload limit is named at once and never sent. */
+  var maxBytes = Number(mount.getAttribute("data-max-bytes")) || 0;
+  var queue = [];
   var busy = false;
+  var batchProblems = [];
+  function megabytes(bytes) { return Math.round(bytes / (1024 * 1024)); }
   function upload(files) {
+    if (!busy && queue.length === 0) batchProblems = [];
+    files.forEach(function (f) {
+      if (maxBytes && f.size > maxBytes) batchProblems.push(f.name + " is over " + megabytes(maxBytes) + " MB.");
+      else queue.push(f);
+    });
+    showProblems(batchProblems);
+    next();
+  }
+  function next() {
     if (busy) return;
+    var file = queue.shift();
+    if (!file) return;
     busy = true;
     grid.classList.add("busy");
+    send(file).then(function (messages) {
+      busy = false;
+      batchProblems = batchProblems.concat(messages);
+      showProblems(batchProblems);
+      if (queue.length === 0) grid.classList.remove("busy");
+      changed();
+      next();
+    });
+  }
+  function send(file) {
     var data = new FormData();
-    files.forEach(function (f) { data.append("photos", f, f.name); });
-    fetch(endpoint, {
+    data.append("photos", file, file.name);
+    var failed = file.name + " could not be uploaded; try again in a moment.";
+    return fetch(endpoint, {
       method: "POST",
       body: data,
       credentials: "same-origin",
@@ -139,15 +168,10 @@
         });
         var messages = (body.problems || []).slice();
         if (body.error) messages.push(body.error);
-        if (!res.ok && messages.length === 0) messages.push("The photos could not be uploaded; try again in a moment.");
-        showProblems(messages);
+        if (!res.ok && messages.length === 0) messages.push(failed);
+        return messages;
       }, function () {
-        showProblems(["The photos could not be uploaded; try again in a moment."]);
-      })
-      .then(function () {
-        busy = false;
-        grid.classList.remove("busy");
-        changed();
+        return [failed];
       });
   }
   function pick() {

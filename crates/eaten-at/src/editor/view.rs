@@ -217,7 +217,8 @@ fn digest(form: &EditorForm, errors: &FieldErrors) -> Markup {
 /// in the place they are typed. The prompt is italic, so the island sets
 /// the word upright, as emphasis inside italic is set; without script the
 /// textarea shows it as written.
-pub const BODY_PROMPT: &str = "What did you eat? Was it good? Describe it. Use *markdown* if you want.";
+pub const BODY_PROMPT: &str =
+    "What did you eat? Was it good? Describe it. Use *markdown* if you want.";
 
 /// The teaser (the record's `description`, D19): folded to one line
 /// while the first lines stand in, open once the author writes their
@@ -347,20 +348,20 @@ fn photos(page: &EditorPage<'_>) -> Markup {
             @if form.photos.is_empty() {
                 @match page.photos_page {
                     Some(path) => {
-                        a.photo-empty href=(path) data-upload=(crate::paths::UPLOAD) {
+                        a.photo-empty href=(path) data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) {
                             span.photo-empty-idle { "Add photos" }
                             span.photo-empty-hover aria-hidden="true" { "add a photo" }
                         }
                     }
                     None => {
-                        span.photo-empty data-upload=(crate::paths::UPLOAD) {
+                        span.photo-empty data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) {
                             span.photo-empty-idle { "Add photos" }
                             span.photo-empty-hover aria-hidden="true" { "add a photo" }
                         }
                     }
                 }
             } @else {
-                div.photo-tiles data-upload=(crate::paths::UPLOAD) role="list" {
+                div.photo-tiles data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) role="list" {
                     @for photo in &form.photos {
                         figure.photo-tile role="listitem" data-cid=(photo.cid) data-mime=(photo.mime) data-size=(photo.size)
                             data-width=(photo.width) data-height=(photo.height) data-alt=(photo.alt)
