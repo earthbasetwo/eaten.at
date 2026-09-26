@@ -20,7 +20,7 @@ use eaten_at_atproto::lexicon::{AspectRatio, Photo, MAX_PHOTOS};
 use eaten_at_web::layout::{self, urlencoding, Page};
 use serde::{Deserialize, Serialize};
 
-use crate::auth::RequireUser;
+use crate::auth::{CurrentUser, RequireUser};
 use crate::editor::photos::{
     self, AltError, FormError, PhotoRow, PhotosAction, PhotosForm, PhotosPage,
     MAX_FILES_PER_REQUEST,
@@ -311,7 +311,7 @@ pub async fn photos_submit(
                 },
             ),
             Err(Refused::Session) => {
-                return Ok(login_redirect(&query.action_path(&rkey)));
+                return Ok(signed_out(wants, &query.action_path(&rkey)));
             }
             Err(Refused::Repo(problems)) => {
                 return Ok(render(
@@ -355,7 +355,7 @@ pub async fn photos_submit(
             &query,
             &outcome,
         )),
-        Err(PublishError::SessionExpired) => Ok(login_redirect(&query.action_path(&rkey))),
+        Err(PublishError::SessionExpired) => Ok(signed_out(wants, &query.action_path(&rkey))),
         Err(PublishError::App(err)) => Err(err),
         Err(PublishError::Home(message)) => Err(AppError::Upstream(message)),
         Err(PublishError::Repo(err)) => {
@@ -379,6 +379,11 @@ pub async fn photos_submit(
 const WRITE_REFUSED: &str =
     "Your server did not accept the change. Nothing was changed; try again in a moment.";
 
+/// What the island says when the sign-in has run out mid-upload. The
+/// editor's page, and its draft, stay where they are.
+const SIGNED_OUT: &str =
+    "Your sign-in has expired. Sign in again in another tab, then add the missing photos.";
+
 /// `POST /write/upload` — the editor's photos island sends the files it
 /// was given; each good one is prepared, uploaded to the author's
 /// repository, and answered as the reference the form will carry. The
@@ -386,9 +391,14 @@ const WRITE_REFUSED: &str =
 /// A blob nothing ever references is the repository's to forget.
 pub async fn upload(
     State(state): State<AppState>,
-    RequireUser(did): RequireUser,
+    CurrentUser(user): CurrentUser,
+    headers: HeaderMap,
     multipart: Multipart,
 ) -> Result<Response, AppError> {
+    let wants = Wants::from_headers(&headers);
+    let Some(did) = user else {
+        return Ok(signed_out(wants, "/write"));
+    };
     let identity = state.require_identity(&did).await?;
     let form = match PhotosForm::from_multipart(multipart).await {
         Ok(form) => form,
@@ -411,7 +421,7 @@ pub async fn upload(
             (photos, problems, StatusCode::UNPROCESSABLE_ENTITY)
         }
         Ok((photos, problems)) => (photos, problems, StatusCode::OK),
-        Err(Refused::Session) => return Ok(login_redirect("/write")),
+        Err(Refused::Session) => return Ok(signed_out(wants, "/write")),
         Err(Refused::Repo(mut problems)) => {
             problems.push(WRITE_REFUSED.to_owned());
             (Vec::new(), problems, StatusCode::BAD_GATEWAY)
@@ -507,6 +517,17 @@ fn login_redirect(return_to: &str) -> Response {
     Redirect::to(&format!("/login?return_to={}", urlencoding(return_to))).into_response()
 }
 
+/// The sign-in has run out: the island is told so in words (401), since
+/// a redirect it followed would only read as a failed upload; a page
+/// goes to the sign-in page and comes back to `return_to`.
+fn signed_out(wants: Wants, return_to: &str) -> Response {
+    tracing::info!("photos refused: the sign-in has expired");
+    match wants {
+        Wants::Json => upload_json(StatusCode::UNAUTHORIZED, &[], vec![SIGNED_OUT.to_owned()]),
+        Wants::Page => login_redirect(return_to),
+    }
+}
+
 /// Why an add could not finish.
 enum Refused {
     Session,
@@ -530,8 +551,13 @@ async fn add(
             "At most {MAX_FILES_PER_REQUEST} photos at a time; the rest were not added."
         ));
     }
+    for name in &form.empty {
+        problems.push(format!("{name} is empty."));
+    }
     if form.files.is_empty() {
-        problems.push("Choose at least one photo.".to_owned());
+        if form.empty.is_empty() {
+            problems.push("Choose at least one photo.".to_owned());
+        }
         return Ok((photos, problems));
     }
     // As many as fit are added; the rest are named by count.
@@ -577,6 +603,9 @@ async fn add(
                         "{name} is {w} × {h} pixels; photos can be at most \
                          {MAX_SOURCE_DIMENSION} on a side and {MAX_SOURCE_MEGAPIXELS} megapixels."
                     ),
+                    ImageError::Truncated => {
+                        format!("{name} is incomplete; the file ends partway through the photo.")
+                    }
                     ImageError::CannotShrink(_) => format!(
                         "{name} could not be made small enough to store, even at a smaller size."
                     ),

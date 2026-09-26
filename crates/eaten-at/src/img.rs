@@ -412,6 +412,8 @@ pub enum ImageError {
     CannotShrink(usize),
     #[error("image dimensions {0}×{1} exceed the limit")]
     TooLarge(u32, u32),
+    #[error("the file ends partway through the image")]
+    Truncated,
     #[error("image error: {0}")]
     Image(#[from] image::ImageError),
     #[error("read error: {0}")]
@@ -444,6 +446,9 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
     if bytes.len() > MAX_PHOTO_UPLOAD_BYTES {
         return Err(ImageError::TooBig(bytes.len(), MAX_PHOTO_UPLOAD_BYTES));
     }
+    if is_truncated_jpeg(bytes) {
+        return Err(ImageError::Truncated);
+    }
     let decoded = decode(bytes)?;
     let image = &*opaque(&decoded);
     // Smaller and coarser until it fits. A photograph fits on the first
@@ -472,6 +477,54 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
         }
     }
     Err(ImageError::CannotShrink(MAX_IMAGE_BLOB_BYTES))
+}
+
+/// Whether a JPEG stops before its image does. Its decoder fills what
+/// is missing with grey and says nothing, so a file cut short in
+/// copying would be published with a grey half. The scan's data never
+/// holds an end-of-image marker (a 0xFF byte in it is always escaped),
+/// so a JPEG with none after its first scan is cut short. The marker
+/// segments before the scan are stepped over by their lengths, so an
+/// embedded thumbnail's own markers are never seen. Anything that does
+/// not read as a JPEG is left to the decoder. The other formats'
+/// decoders refuse a short file themselves.
+fn is_truncated_jpeg(bytes: &[u8]) -> bool {
+    if !bytes.starts_with(&[0xFF, 0xD8]) {
+        return false;
+    }
+    let mut i = 2;
+    loop {
+        // Fill bytes may pad a marker.
+        while bytes.get(i) == Some(&0xFF) && bytes.get(i + 1) == Some(&0xFF) {
+            i += 1;
+        }
+        match (bytes.get(i), bytes.get(i + 1)) {
+            (Some(0xFF), Some(&marker)) => {
+                i += 2;
+                match marker {
+                    // Markers without a segment.
+                    0x01 | 0xD0..=0xD8 => continue,
+                    // An end before any scan: no image to cut short.
+                    0xD9 => return false,
+                    _ => {}
+                }
+                let Some(len) = bytes
+                    .get(i..i + 2)
+                    .map(|b| usize::from(u16::from_be_bytes([b[0], b[1]])))
+                else {
+                    return true;
+                };
+                i += len;
+                if marker == 0xDA {
+                    return !bytes
+                        .get(i..)
+                        .is_some_and(|scan| scan.windows(2).any(|w| w == [0xFF, 0xD9]));
+                }
+            }
+            (Some(0xFF), None) | (None, _) => return true,
+            (Some(_), _) => return false,
+        }
+    }
 }
 
 /// A photo at `size`: a centre-cropped square thumbnail, the full
@@ -1041,6 +1094,43 @@ mod tests {
             decode(&encode_photo(&decode(&png(480, 640)).unwrap(), PhotoSize::Card).unwrap())
                 .unwrap();
         assert_eq!(portrait.dimensions(), (480, 320));
+    }
+
+    #[test]
+    fn a_photo_cut_short_is_refused_in_every_format() {
+        let image = decode(&png(320, 240)).unwrap();
+        let jpeg = encode_photo(&image, PhotoSize::Full).unwrap();
+        assert!(!is_truncated_jpeg(&jpeg));
+        assert!(photo_upload(&jpeg).is_ok());
+        // With an EXIF thumbnail ahead of the scan, whose own end marker
+        // must not count, and with bytes after the end.
+        let wrapped = jpeg_with_orientation_6(&image.to_rgb8());
+        assert!(!is_truncated_jpeg(&wrapped));
+        let mut thumb_app1 = vec![0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x06, 0xFF, 0xD8, 0xFF, 0xD9];
+        thumb_app1.extend(&jpeg[2..jpeg.len() - 2]);
+        assert!(is_truncated_jpeg(&thumb_app1), "the thumbnail's end is not the photo's");
+        let mut trailing = jpeg.clone();
+        trailing.extend([0, 0, 0]);
+        assert!(!is_truncated_jpeg(&trailing));
+
+        for cut in [jpeg.len() / 2, jpeg.len() - 2, 3, 40] {
+            assert!(
+                matches!(photo_upload(&jpeg[..cut]), Err(ImageError::Truncated)),
+                "JPEG cut at {cut}"
+            );
+        }
+        for format in [ImageFormat::Png, ImageFormat::Gif, ImageFormat::WebP] {
+            let mut out = Cursor::new(Vec::new());
+            DynamicImage::ImageRgb8(image.to_rgb8())
+                .write_to(&mut out, format)
+                .unwrap();
+            let bytes = out.into_inner();
+            assert!(photo_upload(&bytes).is_ok(), "{format:?}");
+            assert!(
+                photo_upload(&bytes[..bytes.len() / 2]).is_err(),
+                "{format:?} cut in half"
+            );
+        }
     }
 
     #[test]
