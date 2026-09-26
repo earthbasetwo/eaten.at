@@ -663,6 +663,9 @@ results page any more.
   carries the photos as the form does, blob references and captions in
   order, and is saved whenever a photo is added, captioned, moved, or
   removed; restoring it redraws the tiles from the author's own blobs.
+  Restoring replaces the list whole: a photo still on its way when
+  "Restore it" is pressed belongs to the list it replaced and is
+  dropped when it answers, so a draft of 24 stays 24.
 
 Under 36rem the two-ended rows stack, both ends at the left, and the
 tiles go three to a row.

@@ -529,6 +529,49 @@ async function main() {
       if (result !== 'ok') throw new Error(result)
     },
   })
+  // Restoring a draft while a photo is on its way: the draft's list
+  // replaces the page's, the answer that comes back afterwards belongs to
+  // the list that was replaced and is dropped, so 24 stays 24 (PH26).
+  await check({
+    name: 'edit-photo-restore-uploading', path: `/write/${rkey}`,
+    expect: '.photo-tile',
+    exercise: async (browser) => {
+      const url = await browser.evaluate('location.href')
+      await browser.evaluate(`(() => {
+        const first = document.querySelector('.photo-tile')
+        const data = { body: 'A draft with every photo it can have' }
+        for (let i = 0; i < 24; i++) Object.assign(data, { ['photo_cid_' + i]: first.dataset.cid, ['photo_mime_' + i]: 'image/jpeg', ['photo_size_' + i]: '5', ['photo_alt_' + i]: '', ['photo_width_' + i]: '1', ['photo_height_' + i]: '1' })
+        localStorage.setItem('ea:draft:' + location.pathname, JSON.stringify({ at: Date.now(), photos: true, v: 2, data }))
+      })()`)
+      await browser.navigate(url, [])
+      const result = await browser.evaluate(`(async () => {
+        const tick = () => new Promise((r) => setTimeout(r, 60))
+        let release
+        window.fetch = () => new Promise((resolve) => { release = () => {
+          const first = document.querySelector('.photo-tile')
+          resolve(new Response(JSON.stringify({ photos: [{ cid: first.dataset.cid, thumb: '', full: '', mime: 'image/jpeg', size: 5, width: 1, height: 1 }], problems: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+        } })
+        const input = document.querySelector('.photos-block input[type=file]')
+        const files = new DataTransfer()
+        files.items.add(new File(['x'], 'late.jpg', { type: 'image/jpeg' }))
+        input.files = files.files
+        input.dispatchEvent(new Event('change'))
+        await tick()
+        const publish = document.querySelector('.editor-actions button[value=publish]')
+        if (!publish.disabled) return 'Publish was not held during the upload'
+        document.querySelector('.restore button').click()
+        if (publish.disabled) return 'Publish stayed held after the draft replaced the upload'
+        release()
+        await tick()
+        const n = document.querySelectorAll('.photo-tile').length
+        if (n !== 24) return 'Restoring during an upload left ' + n + ' photos'
+        if (document.querySelectorAll('[name^=photo_cid_]').length !== 24) return 'The form carries other than 24 photos'
+        localStorage.removeItem('ea:draft:' + location.pathname)
+        return 'ok'
+      })()`)
+      if (result !== 'ok') throw new Error(result)
+    },
+  })
   // Files the island cannot use are named, not dropped: an empty one, a
   // text file, and then the upload itself, which meets a sign-in that has
   // run out (the cookie is dropped for it), said in words, and the file

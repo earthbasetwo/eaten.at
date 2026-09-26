@@ -1,15 +1,8 @@
-/* Photos in the editor (plan 07, D37 amended). The tiles the page came
-   with become live: the empty box and the add tile open the file
-   picker, a tile opens its detail with a caption, hovering one reveals
-   its remove mark, and dragging one reorders them. A file is uploaded
-   to the author's repository the moment it is picked and comes back as
-   a blob reference; the list rides in the form as hidden fields, so the
-   photos are written with the record on Publish or Save, before or
-   after the write-up exists, and nothing else here touches the record.
-   Every change is announced to the form, so the draft kept on the
-   device follows the photos, and restoring that draft hands the list
-   back here. Without this the tiles link to the photos page, once
-   there is one. */
+/* Photos in the editor (plan 07, D37 amended). A picked file is
+   uploaded at once and comes back as a blob reference; the list rides
+   in the form as hidden fields, written with the record on Publish or
+   Save. Every change is told to the form, so the draft follows it.
+   Without this the tiles link to the photos page. */
 (function () {
   "use strict";
   var form = document.querySelector("form.editor-write");
@@ -20,9 +13,8 @@
   var endpoint = mount.getAttribute("data-upload");
   var hint = block.querySelector(".photo-hint");
 
-  /* Each photo on the page has a key of its own, so two tiles of the
-     same blob (the same file picked twice, or two files that encode
-     alike) are two photos: captioned, moved, and removed apart. */
+  /* Each photo has a key of its own, so two tiles of one blob are two
+     photos: captioned, moved, and removed apart. */
   var photos = [];
   var keys = 0;
   function keyed(photo) {
@@ -158,12 +150,22 @@
     showProblems(batchProblems);
     next();
   }
+  /* A restored draft replaces the list, and with it what was on its
+     way: `round` counts the lists, and an answer for an earlier one is
+     dropped. Room is counted again as each answer lands. */
+  var round = 0;
   function next() {
     if (!busy && queue.length) {
       busy = true;
-      send(queue.shift()).then(function (messages) {
+      var mine = round, file = queue.shift();
+      send(file).then(function (got) {
+        if (mine !== round) return;
         busy = false;
-        batchProblems = batchProblems.concat(messages);
+        got[0].forEach(function (p) {
+          if (photos.length < maxPhotos) photos.push(keyed(p));
+          else got[1].push("At most " + maxPhotos + " photos on a digest; " + file.name + " was not added.");
+        });
+        batchProblems = batchProblems.concat(got[1]);
         showProblems(batchProblems);
         changed();
         next();
@@ -172,12 +174,9 @@
     waiting();
   }
 
-  /* Until the last upload answers, the list the form carries is not
-     whole, so Publish (or Save changes) waits: the button is held, the
-     line beside it and the one under the tiles say how many are on
-     their way, and every submit but Delete's is held back. It lets go
-     when the last one answers, taken or refused. More can be picked
-     meanwhile; they join the queue. */
+  /* Until the last upload answers, Publish (or Save) is held, with
+     every submit but Delete's, and two lines say how many are on their
+     way. More can be picked meanwhile. */
   var submit = form.querySelector(".editor-actions button[value=publish]");
   var wait = el("span", "hint upload-wait");
   wait.setAttribute("role", "status");
@@ -218,19 +217,18 @@
         // Signed out: the rest would fare no better, and the message
         // says to add the missing ones once signed in again.
         if (res.status === 401) queue = [];
-        (body.photos || []).forEach(function (p) {
-          photos.push(keyed({
-            cid: p.cid, mime: p.mime || "", size: p.size == null ? "" : p.size,
-            width: p.width == null ? "" : p.width, height: p.height == null ? "" : p.height,
-            alt: p.alt || "", thumb: p.thumb, full: p.full
-          }));
-        });
         var messages = (body.problems || []).slice();
         if (body.error) messages.push(body.error);
         if (!res.ok && messages.length === 0) messages.push(failed);
-        return messages;
+        return [(body.photos || []).map(function (p) {
+          return {
+            cid: p.cid, mime: p.mime || "", size: p.size == null ? "" : p.size,
+            width: p.width == null ? "" : p.width, height: p.height == null ? "" : p.height,
+            alt: p.alt || "", thumb: p.thumb, full: p.full
+          };
+        }), messages];
       }, function () {
-        return [failed];
+        return [[], [failed]];
       });
   }
   function pick() {
@@ -452,6 +450,9 @@
     }
     closeDetail(true);
     photos = list;
+    round++;
+    queue = [];
+    busy = false;
     showProblems([]);
     changed();
   });
