@@ -806,7 +806,6 @@
   /* The prose connectives ("at", "From a visit on") and the stone of an
      absence or a hint. */
   .editor .soft { font-style: italic; color: var(--color-ink-soft); }
-  .editor .soft-stone { font-style: italic; color: var(--color-stone); }
   .prose-line { margin: 0; font-size: 1.0625rem; line-height: 1.55; color: var(--color-ink); }
   .editor .form-error { margin-block-end: var(--space-l); }
   .editor .field-error { margin-block-start: var(--space-xs); }
