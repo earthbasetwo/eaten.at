@@ -217,7 +217,7 @@ fn digest(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.digest.field-invalid[errors.get("body").is_some()] {
             p.visually-hidden #body-label { "Digest" }
-            textarea #body.editor-body name="body" rows="6" required placeholder=(BODY_PROMPT)
+            textarea #body.editor-body name="body" rows="8" required placeholder=(BODY_PROMPT)
                 aria-labelledby="body-label" aria-describedby=[described(errors, "body")] { (form.body) }
             (field_error(errors, "body"))
         }

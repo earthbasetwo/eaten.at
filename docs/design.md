@@ -576,7 +576,7 @@ results page any more.
   for writers whose day began before the server's. `Filed under [tags].` is right-set
   (see **Filed under**).
 - **Digest.** No kicker: the digest's text on the page's paper between
-  two hairlines, a step inside each, at least six lines tall. Both
+  two hairlines, a step inside each, at least eight lines tall. Both
   rules take a field's colours together, ink under the pointer and
   vermilion while the writing has focus, and never thicken (C7,
   settled 2026-09-25). The textarea is the carrier; the island draws a
@@ -835,8 +835,9 @@ The composer’s date sentence reads “for [food] on [date].” The meal
 selector sits inline before the date, with lowercase names and “a snack”;
 clearing it restores “food.” Price remains beside the rating below the digest.
 
-The digest body starts at six lines (9.6em at its 1.6 line height, six rows for
-the plain textarea), growing with the writing. This prioritizes writing room
+The digest body starts at eight lines (12.8em at its 1.6 line height, eight
+rows for the plain textarea; six until 2026-09-26, when Ken asked for two more
+so the composer breathes), growing with the writing. This prioritizes writing room
 over fitting the entire composer with photos above the fold on smaller laptops.
 
 The restaurant headline is an underlined submit control opening the chooser;
