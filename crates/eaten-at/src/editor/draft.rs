@@ -314,9 +314,13 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         });
     }
     if photos.len() > MAX_PHOTOS {
+        let over = photos.len() - MAX_PHOTOS;
         errors.add(
             "photos",
-            format!("At most {MAX_PHOTOS} photos on a digest."),
+            format!(
+                "At most {MAX_PHOTOS} photos on a digest; remove {over} {}.",
+                if over == 1 { "photo" } else { "photos" }
+            ),
         );
     }
 
@@ -672,6 +676,24 @@ mod tests {
         assert!(errors.get("photo_alt_0").unwrap().contains("1000"));
         assert!(errors.get("photo_cid_1").is_some(), "{errors:?}");
         assert!(errors.get("photo_cid_2").is_some(), "{errors:?}");
+    }
+
+    #[test]
+    fn more_photos_than_a_digest_holds_says_how_many_to_remove() {
+        let mut form = good_form();
+        use crate::editor::form::PhotoField;
+        form.photos = (0..27)
+            .map(|i| PhotoField {
+                cid: format!("bafy{i}"),
+                size: "10".into(),
+                ..PhotoField::default()
+            })
+            .collect();
+        let errors = validate(&form, &ctx()).unwrap_err();
+        assert_eq!(
+            errors.get("photos"),
+            Some("At most 24 photos on a digest; remove 3 photos.")
+        );
     }
 
     #[test]

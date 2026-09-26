@@ -348,20 +348,20 @@ fn photos(page: &EditorPage<'_>) -> Markup {
             @if form.photos.is_empty() {
                 @match page.photos_page {
                     Some(path) => {
-                        a.photo-empty href=(path) data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) {
+                        a.photo-empty href=(path) data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) data-max-photos=(eaten_at_atproto::lexicon::MAX_PHOTOS) {
                             span.photo-empty-idle { "Add photos" }
                             span.photo-empty-hover aria-hidden="true" { "add a photo" }
                         }
                     }
                     None => {
-                        span.photo-empty data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) {
+                        span.photo-empty data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) data-max-photos=(eaten_at_atproto::lexicon::MAX_PHOTOS) {
                             span.photo-empty-idle { "Add photos" }
                             span.photo-empty-hover aria-hidden="true" { "add a photo" }
                         }
                     }
                 }
             } @else {
-                div.photo-tiles data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) role="list" {
+                div.photo-tiles data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) data-max-photos=(eaten_at_atproto::lexicon::MAX_PHOTOS) role="list" {
                     @for photo in &form.photos {
                         figure.photo-tile role="listitem" data-cid=(photo.cid) data-mime=(photo.mime) data-size=(photo.size)
                             data-width=(photo.width) data-height=(photo.height) data-alt=(photo.alt)
@@ -914,7 +914,10 @@ mod tests {
         );
         let out = page_for(&form, None);
         assert!(
-            out.contains("<span class=\"photo-empty\" data-upload=\"/write/upload\">"),
+            out.contains(
+                "<span class=\"photo-empty\" data-upload=\"/write/upload\" \
+                 data-max-bytes=\"10485760\" data-max-photos=\"24\">"
+            ),
             "{out}"
         );
     }

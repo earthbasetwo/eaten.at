@@ -134,6 +134,9 @@ pub struct PhotosForm {
     /// More files were chosen than one request may add; the extra ones
     /// were not read.
     pub too_many: bool,
+    /// Photos already in the editor's form, which the upload cannot
+    /// see: the island says how many, so the digest's limit holds.
+    pub existing: usize,
     pub action: Option<PhotosAction>,
 }
 
@@ -175,6 +178,7 @@ impl PhotosForm {
                 .map_err(|e| FormError::from_multipart(&e))?;
             match name.as_str() {
                 "action" => form.action = PhotosAction::parse(&value),
+                "existing" => form.existing = value.trim().parse().unwrap_or(0),
                 other => {
                     if let Some(index) = other
                         .strip_prefix("alt_")
