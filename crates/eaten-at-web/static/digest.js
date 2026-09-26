@@ -91,6 +91,7 @@
     lines.forEach(function (text, i) {
       var d = document.createElement("div");
       d.dataset.md = i;
+      d.dir = "auto";
       d.className = lineClass(text, i, was);
       was = context(text, was);
       d.innerHTML = lineHtml(text, i === active);

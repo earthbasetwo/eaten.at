@@ -68,9 +68,11 @@
     box.className = "notice restore";
     box.setAttribute("role", "status");
     var completePlace = placeFields.every(function (name) { return typeof saved.data[name] === "string"; });
-    var when = new Date(saved.at);
+    // "September 26 at 1:33 PM", the year only when it is not this one.
+    var when = new Date(saved.at), o = { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" };
+    if (when.getFullYear() !== new Date().getFullYear()) o.year = "numeric";
     var text = document.createElement("span");
-    text.textContent = "An unsaved draft from " + when.toLocaleString() + " is on this device. ";
+    text.textContent = "An unsaved draft from " + when.toLocaleString("en-US", o) + " is on this device. ";
     if (!completePlace) text.textContent += "Check the restaurant after restoring this older draft. ";
     var restore = document.createElement("button");
     restore.type = "button";

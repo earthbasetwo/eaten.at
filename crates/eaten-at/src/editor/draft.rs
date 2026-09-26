@@ -94,7 +94,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     if graphemes(title) > MAX_TITLE_GRAPHEMES {
         errors.add(
             "title",
-            format!("Keep the title under {MAX_TITLE_GRAPHEMES} characters."),
+            format!("Keep the title to {MAX_TITLE_GRAPHEMES} characters or fewer."),
         );
     }
 
@@ -109,7 +109,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     if graphemes(description) > MAX_DESCRIPTION_GRAPHEMES {
         errors.add(
             "description",
-            format!("Keep the excerpt under {MAX_DESCRIPTION_GRAPHEMES} characters."),
+            format!("Keep the teaser to {MAX_DESCRIPTION_GRAPHEMES} characters or fewer."),
         );
     }
 
@@ -121,7 +121,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     } else if graphemes(place_name) > MAX_PLACE_NAME_GRAPHEMES {
         errors.add(
             "place_name",
-            format!("Keep the place's name under {MAX_PLACE_NAME_GRAPHEMES} characters."),
+            format!("Keep the place's name to {MAX_PLACE_NAME_GRAPHEMES} characters or fewer."),
         );
     }
 
@@ -129,7 +129,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     if graphemes(address) > MAX_ADDRESS_GRAPHEMES {
         errors.add(
             "place_address",
-            format!("Keep the address under {MAX_ADDRESS_GRAPHEMES} characters."),
+            format!("Keep the address to {MAX_ADDRESS_GRAPHEMES} characters or fewer."),
         );
     }
 
@@ -184,7 +184,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         if graphemes(&text) > MAX_POST_GRAPHEMES {
             errors.add(
                 "post_text",
-                format!("Keep the post under {MAX_POST_GRAPHEMES} characters."),
+                format!("Keep the post to {MAX_POST_GRAPHEMES} characters or fewer."),
             );
         }
         text
@@ -231,7 +231,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
                 if graphemes(label) > MAX_LABEL_GRAPHEMES {
                     errors.add(
                         format!("link_label_{i}"),
-                        format!("Keep the label under {MAX_LABEL_GRAPHEMES} characters."),
+                        format!("Keep the label to {MAX_LABEL_GRAPHEMES} characters or fewer."),
                     );
                 }
                 let service = link.service_value();
@@ -575,7 +575,7 @@ mod tests {
             ("rating", "Choose a rating from the scale."),
             ("gers_id", "An id has no spaces in it."),
             ("link_url_0", "Links must be https."),
-            ("link_label_1", "Keep the label under 64 characters."),
+            ("link_label_1", "Keep the label to 64 characters or fewer."),
         ];
         for (field, message) in expected {
             assert_eq!(errors.get(field), Some(message), "{field}: {errors:?}");

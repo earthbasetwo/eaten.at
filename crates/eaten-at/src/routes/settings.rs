@@ -294,14 +294,14 @@ fn checked_text(form: &SettingsForm) -> Result<(String, Option<String>), Outcome
     if name.graphemes(true).count() > MAX_NAME_GRAPHEMES {
         return Err(Outcome::problem(
             "name",
-            format!("Keep the name under {MAX_NAME_GRAPHEMES} characters."),
+            format!("Keep the name to {MAX_NAME_GRAPHEMES} characters or fewer."),
         ));
     }
     let description = form.description.trim();
     if description.graphemes(true).count() > MAX_DESCRIPTION_GRAPHEMES {
         return Err(Outcome::problem(
             "description",
-            format!("Keep the description under {MAX_DESCRIPTION_GRAPHEMES} characters."),
+            format!("Keep the description to {MAX_DESCRIPTION_GRAPHEMES} characters or fewer."),
         ));
     }
     Ok((
