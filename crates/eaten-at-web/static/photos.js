@@ -6,7 +6,10 @@
    a blob reference; the list rides in the form as hidden fields, so the
    photos are written with the record on Publish or Save, before or
    after the write-up exists, and nothing else here touches the record.
-   Without this the tiles link to the photos page, once there is one. */
+   Every change is announced to the form, so the draft kept on the
+   device follows the photos, and restoring that draft hands the list
+   back here. Without this the tiles link to the photos page, once
+   there is one. */
 (function () {
   "use strict";
   var form = document.querySelector("form.editor-write");
@@ -86,6 +89,7 @@
 
   /* The list as the form carries it: six hidden fields a photo, in
      the order shown, which is the order written. */
+  function ownPhoto(cid, size) { return "/write/photo/" + encodeURIComponent(cid) + "?size=" + size; }
   function sync() {
     fields.textContent = "";
     photos.forEach(function (p, i) {
@@ -98,6 +102,13 @@
           fields.appendChild(input);
         });
     });
+  }
+  /* A change the author made: rewrite the fields, redraw, and tell the
+     form, so the draft on the device is saved with the photos in it. */
+  function changed() {
+    sync();
+    render();
+    form.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   /* ---- uploading ---- */
@@ -136,8 +147,7 @@
       .then(function () {
         busy = false;
         grid.classList.remove("busy");
-        sync();
-        render();
+        changed();
       });
   }
   function pick() {
@@ -161,8 +171,7 @@
     var i = indexOf(cid);
     if (i < 0) return;
     photos.splice(i, 1);
-    sync();
-    render();
+    changed();
   }
   function render() {
     grid.textContent = "";
@@ -234,8 +243,7 @@
         }).filter(Boolean);
         setTimeout(function () { dragging = null; }, 150);
         if (order.length === photos.length) photos = order;
-        sync();
-        render();
+        changed();
       });
       grid.appendChild(tile);
     });
@@ -308,8 +316,7 @@
     var i = indexOf(d.cid);
     if (discard !== true && i >= 0) {
       photos[i].alt = d.caption.value.trim();
-      sync();
-      render();
+      changed();
     }
     // render() replaces the opener, so focus its replacement by CID.
     var opener = grid.querySelector('[data-cid="' + d.cid + '"]') || grid.querySelector(".photo-add, .photo-empty");
@@ -328,6 +335,26 @@
       }
     }
   }, true);
+
+  /* The draft kept on the device, restored: its photos replace the
+     ones on the page, drawn from the author's own blobs. */
+  form.addEventListener("draft-restore", function (e) {
+    var data = e.detail || {};
+    var list = [];
+    for (var i = 0; Object.prototype.hasOwnProperty.call(data, "photo_cid_" + i); i++) {
+      var cid = data["photo_cid_" + i];
+      if (!cid) continue;
+      list.push({
+        cid: cid, mime: data["photo_mime_" + i] || "", size: data["photo_size_" + i] || "",
+        width: data["photo_width_" + i] || "", height: data["photo_height_" + i] || "",
+        alt: data["photo_alt_" + i] || "", thumb: ownPhoto(cid, "thumb"), full: ownPhoto(cid, "full")
+      });
+    }
+    closeDetail(true);
+    photos = list;
+    showProblems([]);
+    changed();
+  });
 
   sync();
   render();

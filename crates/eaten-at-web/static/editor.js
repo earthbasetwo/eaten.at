@@ -2,7 +2,8 @@
    on top of a form that already works: the draft is kept in localStorage
    under the page's path, a banner offers to restore it, and the textareas
    grow with their text. No network, no dependencies, nothing the page
-   needs. */
+   needs. The photos ride in the draft as their hidden fields; restoring
+   hands them to the photos island, which redraws its tiles. */
 (function () {
   "use strict";
   var form = document.querySelector("form.editor");
@@ -17,12 +18,14 @@
   try { store = window.localStorage; } catch (e) { store = null; }
 
   var placeFields = ["place_name", "place_address", "place_mode", "gers_id", "lat_e6", "lon_e6"];
+  function isPhotoField(name) { return name.indexOf("photo_") === 0; }
   function fields() {
     var out = [];
     var els = form.elements;
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
-      if (!el.name || el.type === "file" || el.type === "submit" || (el.type === "hidden" && placeFields.indexOf(el.name) < 0)) continue;
+      if (!el.name || el.type === "file" || el.type === "submit") continue;
+      if (el.type === "hidden" && placeFields.indexOf(el.name) < 0 && !isPhotoField(el.name)) continue;
       out.push(el);
     }
     return out;
@@ -47,7 +50,9 @@
   function save() {
     if (!store) return;
     var at = Date.now();
-    try { store.setItem(key, JSON.stringify({ at: at, data: snapshot() })); return at; } catch (e) {}
+    // `photos` marks a draft that carries its photo list, so restoring
+    // an older one leaves the photos on the page alone.
+    try { store.setItem(key, JSON.stringify({ at: at, photos: true, data: snapshot() })); return at; } catch (e) {}
   }
   function scheduleSave() {
     if (timer) clearTimeout(timer);
@@ -81,16 +86,20 @@
       // Older drafts lack place identity fields. Never restore only a
       // name/address over a different restaurant's ID and coordinates.
       var restored = fields().filter(function (el) {
-        return Object.prototype.hasOwnProperty.call(saved.data, el.name) && (completePlace || placeFields.indexOf(el.name) < 0);
+        return Object.prototype.hasOwnProperty.call(saved.data, el.name) && !isPhotoField(el.name) &&
+          (completePlace || placeFields.indexOf(el.name) < 0);
       });
       restored.forEach(function (el) {
         el.value = saved.data[el.name];
         grow(el);
       });
-      // Notify islands only after all related fields are restored.
+      // Notify islands only after all related fields are restored. The
+      // photos are a list the photos island owns: it takes the draft's
+      // whole and redraws.
       restored.forEach(function (el) {
         el.dispatchEvent(new Event("change", { bubbles: true }));
       });
+      if (saved.photos) form.dispatchEvent(new CustomEvent("draft-restore", { detail: saved.data }));
       box.remove();
     });
     discard.addEventListener("click", function () { forget(); box.remove(); });
