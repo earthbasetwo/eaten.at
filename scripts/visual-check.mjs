@@ -317,7 +317,7 @@ async function main() {
         scrollTo(0, 0)
       })()`)
       const lines = await browser.evaluate(`(() => { const box = document.querySelector('.digest-editor'); return box.getBoundingClientRect().height / parseFloat(getComputedStyle(box).lineHeight) })()`)
-      if (Math.abs(lines - 6) > 0.1) throw new Error('Short digest should start at six lines: ' + lines)
+      if (Math.abs(lines - 8) > 0.1) throw new Error('Short digest should start at eight lines: ' + lines)
     },
   })
   await check({ name: 'edit-selection', path: `/write/${rkey}`, exercise: checkDigestSelection, expect: '.digest-editor .md-line' })

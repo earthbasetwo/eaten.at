@@ -994,14 +994,14 @@
   /* The text starts a step below the meal line's rule, as the title did. */
   .digest > .editor-body, .digest > .digest-editor { margin-block-start: var(--space-m); }
   .editor-body {
-    display: block; inline-size: 100%; min-block-size: 9.6em; resize: vertical;
+    display: block; inline-size: 100%; min-block-size: 12.8em; resize: vertical;
     padding: 0; background: transparent; border: 0; box-shadow: none;
     font-size: var(--text-prose); line-height: 1.6; color: var(--color-ink);
   }
   .editor-body:hover, .editor-body:focus-visible { box-shadow: none; }
   .editor-body::placeholder { font-style: italic; color: var(--color-stone); }
   .digest-editor {
-    position: relative; inline-size: 100%; min-block-size: 9.6em; padding: 0; cursor: text;
+    position: relative; inline-size: 100%; min-block-size: 12.8em; padding: 0; cursor: text;
     background: transparent; font-size: var(--text-prose); line-height: 1.6; color: var(--color-ink);
   }
   .digest-ghost { position: absolute; inset: 0 auto auto 0; inline-size: 100%; color: var(--color-stone); font-style: italic; pointer-events: none; user-select: none; }
