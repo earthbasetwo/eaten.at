@@ -540,6 +540,44 @@ async function main() {
     steps: [{ press: '.link-word', wait: '.link-card:not([hidden]) .link-card-keep:not([hidden])' }],
     expect: '.link-card:not([hidden]) input[type="url"]',
   })
+  // One link can be removed with script (CB5), a restored draft's link
+  // is drawn as its word (CB7).
+  await check({
+    name: 'edit-link-remove-restore',
+    path: `/write/${bare}`,
+    expect: '.link-word',
+    exercise: async (browser) => {
+      const url = await browser.evaluate('location.href')
+      const words = () => browser.evaluate(`[...document.querySelectorAll('.link-word')].map((w) => w.textContent).join(',')`)
+      await browser.evaluate(`(() => {
+        document.querySelectorAll('.link-card').forEach((card) => {
+          if (card.querySelector('input[type=url]').value === '') return
+          card.querySelector('input[type=url]').value = ''
+          card.querySelector('input[type=text]').value = ''
+          card.querySelector('input[type=url]').dispatchEvent(new Event('change', { bubbles: true }))
+        })
+        document.querySelector('.add-link').click()
+        const card = document.querySelector('.link-card:not([hidden])')
+        card.querySelector('input[type=text]').value = 'Menu'
+        card.querySelector('input[type=url]').value = 'https://example.com/menu'
+        card.querySelector('[data-link-save]').click()
+      })()`)
+      if (await words() !== 'Menu') throw new Error('The link was not saved: ' + await words())
+      await browser.evaluate(`document.querySelector('.link-word').click()`)
+      if (!await browser.evaluate(`!!document.querySelector('.link-card:not([hidden]) button[value^=remove_link]:not([hidden])')`)) throw new Error('A single link offers no "remove it"')
+      await browser.evaluate(`document.querySelector('.link-card:not([hidden]) button[value^=remove_link]').click()`)
+      if (await words() !== '') throw new Error('"remove it" left ' + await words())
+      await browser.evaluate(`(() => {
+        const data = Object.fromEntries(new FormData(document.querySelector('form.editor-write')))
+        Object.assign(data, { body: 'A draft with a link', link_url_0: 'https://example.org/', link_label_0: 'Site' })
+        localStorage.setItem('ea:draft:' + location.pathname, JSON.stringify({ at: Date.now(), photos: true, v: 2, data }))
+      })()`)
+      await browser.navigate(url, [])
+      await browser.evaluate(`document.querySelector('.restore button').click()`)
+      if (await words() !== 'Site') throw new Error('A restored link was not drawn: ' + JSON.stringify(await words()))
+      await browser.evaluate(`localStorage.removeItem('ea:draft:' + location.pathname)`)
+    },
+  })
   await check({
     name: 'edit-photo-detail',
     exercise: checkPhotoDialog,

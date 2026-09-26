@@ -650,7 +650,10 @@ results page any more.
   and `pointing at [url]` with a chain-link mark to open it, and a foot
   of "save it · never mind" and "remove it". With script one card is
   open at a time and a word opens its own; Return saves, Escape cancels,
-  saving without a URL cancels, an empty label falls back to the host.
+  saving without a URL cancels, an empty label falls back to the host,
+  and "remove it" takes a link away even when it is the only one. A
+  link the server refused comes back with its card open, so its
+  problem is seen, and a restored draft's links are drawn as words.
   Without script every row's card is open, "add a link" and "remove it"
   are the server's row actions, and blank rows are skipped.
 - **Actions.** "Save changes" (or "Publish" for a new digest), then

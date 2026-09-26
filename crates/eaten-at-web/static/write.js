@@ -1,10 +1,7 @@
-/* The editor's controls, as the Write Pages handoff draws them. Every
-   one dresses a form control that works on its own: the date input as a word on
-   a hairline over a calendar; the meal and price selects as words over
-   paper menus; the teaser's fold; the link rows as one card at a time
-   under a sentence of their labels; Delete's confirmation in its own
-   slot. Popovers are mutually exclusive and close on an outside click
-   or Escape. Nothing here is needed to send the form. */
+/* The editor's controls, as the Write Pages handoff draws them, each
+   over a form control that works on its own: the date, the meal and
+   price, the teaser's fold, the link cards, Delete's confirmation. One
+   popover at a time; an outside click or Escape closes it. */
 (function () {
   "use strict";
   var form = document.querySelector("form.editor-write");
@@ -27,7 +24,7 @@
     input.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  /* ---- inline fields: measured where field-sizing is not understood ---- */
+  /* ---- inline fields, measured without field-sizing ---- */
   var fit = (function () {
     if (window.CSS && CSS.supports && CSS.supports("field-sizing", "content")) return function () {};
     var mirror = el("span", "inline-mirror");
@@ -277,8 +274,7 @@
       announce(text);
       fold.open = false;
     });
-    /* The first lines the listings would use, roughly as the server
-       draws them, so the placeholder follows the write-up. */
+    // The first lines, roughly as the listings draw them.
     function firstLines(markdown) {
       var lines = markdown.replace(/\r\n?/g, "\n").split("\n");
       var line = "";
@@ -364,7 +360,7 @@
       editing = null;
       render();
     }
-    function openCard(card) {
+    function openCard(card, still) {
       cards.forEach(function (c) { c.hidden = c !== card; });
       editing = card;
       before = value(card);
@@ -374,7 +370,7 @@
       render();
       fit(f.url);
       fit(f.label);
-      f.label.focus();
+      if (!still) f.label.focus();
     }
     cards.forEach(function (card) {
       var f = fields(card);
@@ -417,8 +413,11 @@
         else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancel(); }
       });
     });
+    // A restored draft sets the rows; a link the server refused opens.
+    block.addEventListener("change", function () { if (!editing) render(); });
+    var refused = cards.filter(function (card) { return card.querySelector(".field-error"); })[0];
     if (addButton) {
-      /* A blank row is opened in place; with none free the server adds one. */
+      // A blank row opens in place; else the server adds one.
       addButton.addEventListener("click", function (e) {
         var blank = cards.filter(function (card) { return value(card).url === ""; })[0];
         if (!blank) return;
@@ -426,7 +425,7 @@
         openCard(blank);
       });
     }
-    render();
+    if (refused) openCard(refused, true); else render();
   })();
 
   /* ---- delete, confirmed in its own slot ---- */
