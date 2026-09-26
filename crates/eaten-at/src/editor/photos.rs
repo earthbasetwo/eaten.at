@@ -177,10 +177,7 @@ impl PhotosForm {
                     form.too_many = true;
                     continue;
                 }
-                form.files.push(Upload {
-                    file_name,
-                    bytes,
-                });
+                form.files.push(Upload { file_name, bytes });
                 continue;
             }
             let value = field
