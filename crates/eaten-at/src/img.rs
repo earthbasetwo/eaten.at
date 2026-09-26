@@ -50,9 +50,9 @@ const CARD_WIDTH: u32 = 960;
 pub const MAX_SOURCE_DIMENSION: u32 = 8192;
 /// Most source pixels we will decode, in megapixels.
 pub const MAX_SOURCE_MEGAPIXELS: u64 = 50;
-/// Decode memory budget handed to the image crate: 50 MP at four bytes
-/// a pixel, with a little over. A 16-bit image that size is refused
-/// by it, as too large.
+/// Decode memory budget: 50 MP at four bytes a pixel, with a little
+/// over. A 16-bit image near that size is refused as too large, by
+/// [`decode`] itself before any pixel is allocated.
 const MAX_DECODE_BYTES: u64 = 256 * 1024 * 1024;
 /// JPEG quality of everything we emit.
 const JPEG_QUALITY: u8 = 84;
@@ -449,8 +449,7 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
     if is_truncated_jpeg(bytes) {
         return Err(ImageError::Truncated);
     }
-    let decoded = decode(bytes)?;
-    let image = &*opaque(&decoded);
+    let image = &shrink_cheaply(opaque_owned(decode(bytes)?));
     // Smaller and coarser until it fits. A photograph fits on the first
     // try; only something like pure noise gets as far as the last.
     for limit in [PHOTO_FIT_DIMENSION, 1600, 1200, 800] {
@@ -477,6 +476,50 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
         }
     }
     Err(ImageError::CannotShrink(MAX_IMAGE_BLOB_BYTES))
+}
+
+/// At most this many photos are prepared at once, whoever sent them: a
+/// 48 MP photo holds a few hundred megabytes while it is decoded and
+/// shrunk, so the server's memory is bounded by this, not by how many
+/// uploads arrive together.
+static PREPARING: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+
+/// [`photo_upload`] on a blocking thread, waiting its turn among
+/// [`PREPARING`]. The turn is held by the work itself, so a request
+/// that goes away mid-decode does not let another start beside it.
+pub async fn prepare_photo(
+    bytes: impl AsRef<[u8]> + Send + 'static,
+) -> Result<Result<PreparedPhoto, ImageError>, tokio::task::JoinError> {
+    let turn = PREPARING.acquire().await.ok();
+    tokio::task::spawn_blocking(move || {
+        let _turn = turn;
+        photo_upload(bytes.as_ref())
+    })
+    .await
+}
+
+/// The image with its transparency flattened (see [`flatten`]), taking
+/// it by value so the original is let go as soon as it is replaced.
+fn opaque_owned(image: DynamicImage) -> DynamicImage {
+    if image.color().has_alpha() {
+        DynamicImage::ImageRgb8(flatten(&image))
+    } else {
+        image
+    }
+}
+
+/// A photo far larger than [`PHOTO_FIT_DIMENSION`] brought down to twice
+/// that by area averaging first, which needs no more memory than its
+/// result; Lanczos on a 48 MP original would hold a floating-point copy
+/// of a band of it, some two hundred megabytes. Lanczos then takes the
+/// last step, so the result is as sharp as before.
+fn shrink_cheaply(image: DynamicImage) -> DynamicImage {
+    let side = 2 * PHOTO_FIT_DIMENSION;
+    if image.width().max(image.height()) > side {
+        image.thumbnail(side, side)
+    } else {
+        image
+    }
 }
 
 /// Whether a JPEG stops before its image does. Its decoder fills what
@@ -601,6 +644,13 @@ pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     limits.max_alloc = Some(MAX_DECODE_BYTES);
     reader.limits(limits);
     let mut decoder = reader.into_decoder()?;
+    // `from_decoder` allocates the pixels without asking the limits set
+    // above (only `ImageReader::decode` does), so the budget is checked
+    // here against what the decoder says it needs: a 16-bit picture
+    // inside the side and pixel limits can still need more than it.
+    if decoder.total_bytes() > MAX_DECODE_BYTES {
+        return Err(ImageError::TooLarge(w, h));
+    }
     let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
     let icc = decoder.icc_profile().ok().flatten();
     let mut image = DynamicImage::from_decoder(decoder).map_err(|err| match err {
@@ -854,23 +904,24 @@ fn hsl_to_rgb(hue: f64, saturation: f64, lightness: f64) -> Rgb<u8> {
 mod tests {
     use super::*;
 
+    fn crc32(bytes: &[u8]) -> u32 {
+        let mut c = !0u32;
+        for &b in bytes {
+            c ^= u32::from(b);
+            for _ in 0..8 {
+                c = if c & 1 == 0 {
+                    c >> 1
+                } else {
+                    (c >> 1) ^ 0xEDB8_8320
+                };
+            }
+        }
+        !c
+    }
+
     /// A PNG whose header claims `w`×`h` over a 1×1 image, its IHDR CRC
     /// recomputed so the header reads as valid.
     fn png_claiming(w: u32, h: u32) -> Vec<u8> {
-        fn crc32(bytes: &[u8]) -> u32 {
-            let mut c = !0u32;
-            for &b in bytes {
-                c ^= u32::from(b);
-                for _ in 0..8 {
-                    c = if c & 1 == 0 {
-                        c >> 1
-                    } else {
-                        (c >> 1) ^ 0xEDB8_8320
-                    };
-                }
-            }
-            !c
-        }
         let mut bytes = png(1, 1);
         // IHDR: length at 8..12, type at 12..16, width/height at 16..24,
         // the rest of its data to 29, then its CRC over type and data.
@@ -879,6 +930,75 @@ mod tests {
         let crc = crc32(&bytes[12..29]);
         bytes[29..33].copy_from_slice(&crc.to_be_bytes());
         bytes
+    }
+
+    /// A valid, black `w`×`h` PNG in RGBA at 16 bits a channel. Its
+    /// pixel data is compressed by hand (one zero, then copies of it 258
+    /// bytes at a time), so a picture that decodes to hundreds of
+    /// megabytes is a megabyte or two here and costs the test nothing
+    /// like its decoded size.
+    fn png_rgba16_black(w: u32, h: u32) -> Vec<u8> {
+        #[derive(Default)]
+        struct Bits {
+            out: Vec<u8>,
+            used: u32,
+        }
+        impl Bits {
+            fn push(&mut self, bit: u32) {
+                if self.used.is_multiple_of(8) {
+                    self.out.push(0);
+                }
+                if bit & 1 == 1 {
+                    *self.out.last_mut().unwrap() |= 1 << (self.used % 8);
+                }
+                self.used += 1;
+            }
+            /// A Huffman code, most significant bit first.
+            fn code(&mut self, code: u32, len: u32) {
+                for i in (0..len).rev() {
+                    self.push(code >> i);
+                }
+            }
+        }
+        fn chunk(png: &mut Vec<u8>, kind: &[u8], data: &[u8]) {
+            png.extend(u32::try_from(data.len()).unwrap().to_be_bytes());
+            let start = png.len();
+            png.extend(kind);
+            png.extend(data);
+            let crc = crc32(&png[start..]);
+            png.extend(crc.to_be_bytes());
+        }
+        // Every row is filter type 0 and zero samples: all zeros.
+        let n = u64::from(h) * (1 + u64::from(w) * 8);
+        let mut bits = Bits::default();
+        bits.push(1); // the final block,
+        bits.push(1); // with the fixed codes
+        bits.push(0);
+        bits.code(0x30, 8); // literal 0
+        let mut left = n - 1;
+        while left >= 258 {
+            bits.code(0b1100_0101, 8); // length 258,
+            bits.code(0, 5); // distance 1
+            left -= 258;
+        }
+        for _ in 0..left {
+            bits.code(0x30, 8);
+        }
+        bits.code(0, 7); // end of block
+        let mut zlib = vec![0x78, 0x01];
+        zlib.extend(bits.out);
+        // Adler-32 of n zero bytes: a stays 1, b counts to n.
+        let adler = u32::try_from(n % 65_521).unwrap() << 16 | 1;
+        zlib.extend(adler.to_be_bytes());
+        let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+        let mut ihdr = Vec::new();
+        ihdr.extend(w.to_be_bytes());
+        ihdr.extend(h.to_be_bytes());
+        ihdr.extend([16, 6, 0, 0, 0]); // 16-bit, RGBA, deflate, adaptive, not interlaced
+        chunk(&mut png, b"IHDR", &ihdr);
+        chunk(&mut png, b"IDAT", &zlib);
+        chunk(&mut png, b"IEND", &[]);
+        png
     }
 
     fn png(w: u32, h: u32) -> Vec<u8> {
@@ -1158,6 +1278,35 @@ mod tests {
                 "{w}x{h}"
             );
         }
+    }
+
+    #[test]
+    fn a_deep_picture_inside_the_pixel_limits_is_refused_before_its_pixels() {
+        // The builder makes a real 16-bit PNG: a small one decodes.
+        let small = decode(&png_rgba16_black(64, 48)).unwrap();
+        assert_eq!(small.dimensions(), (64, 48));
+        assert_eq!(small.color(), image::ColorType::Rgba16);
+        // 7000 × 6000 is inside both limits, but at eight bytes a pixel
+        // it would decode to 336 MB, over the 256 MiB budget. It is
+        // refused by name, before the buffer is allocated.
+        let (w, h) = (7000, 6000);
+        let deep = png_rgba16_black(w, h);
+        assert!(deep.len() < 4 * 1024 * 1024, "{} bytes", deep.len());
+        assert!(u64::from(w) * u64::from(h) <= MAX_SOURCE_MEGAPIXELS * 1_000_000);
+        assert!(
+            matches!(decode(&deep), Err(ImageError::TooLarge(a, b)) if (a, b) == (w, h)),
+            "a 16-bit 42 MP PNG must not be decoded"
+        );
+        assert!(matches!(photo_upload(&deep), Err(ImageError::TooLarge(..))));
+    }
+
+    #[test]
+    fn a_huge_photo_is_brought_to_twice_the_fit_before_lanczos() {
+        let wide = DynamicImage::ImageRgb8(RgbImage::new(5000, 100));
+        let shrunk = shrink_cheaply(wide);
+        assert_eq!(shrunk.width(), 2 * PHOTO_FIT_DIMENSION);
+        let small = DynamicImage::ImageRgb8(RgbImage::new(3000, 2000));
+        assert_eq!(shrink_cheaply(small).dimensions(), (3000, 2000));
     }
 
     #[test]

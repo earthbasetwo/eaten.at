@@ -530,6 +530,15 @@ fn signed_out(wants: Wants, return_to: &str) -> Response {
     }
 }
 
+/// Whether a picture refused as too large is inside the stated side and
+/// pixel limits, and so was refused for its depth: a 16-bit PNG needs
+/// twice the memory of the same picture at 8 bits.
+fn within_pixel_limits(w: u32, h: u32) -> bool {
+    w <= MAX_SOURCE_DIMENSION
+        && h <= MAX_SOURCE_DIMENSION
+        && u64::from(w) * u64::from(h) <= MAX_SOURCE_MEGAPIXELS * 1_000_000
+}
+
 /// Why an add could not finish.
 enum Refused {
     Session,
@@ -541,7 +550,8 @@ enum Refused {
 /// Prepare and upload the chosen files, appending each good one. Files
 /// that cannot be used are reported by name; the good ones still go in.
 /// Each file's bytes are let go once it is prepared, so a request holds
-/// one decode and the files still to come, not a copy of every one.
+/// one decode and the files still to come, not a copy of every one,
+/// and no more than two decodes run at once across every request.
 /// Every refusal is logged at INFO with its reason, never the file's
 /// name.
 #[allow(clippy::too_many_lines)]
@@ -606,7 +616,7 @@ async fn add(
         };
         let bytes = upload.bytes;
         let size = bytes.len();
-        let prepared = tokio::task::spawn_blocking(move || img::photo_upload(&bytes)).await;
+        let prepared = img::prepare_photo(bytes).await;
         let prepared = match prepared {
             Ok(Ok(prepared)) => prepared,
             Ok(Err(err)) => {
@@ -615,6 +625,10 @@ async fn add(
                     ImageError::TooBig(..) => format!(
                         "{name} is over {} MB.",
                         MAX_PHOTO_UPLOAD_BYTES / (1024 * 1024)
+                    ),
+                    ImageError::TooLarge(w, h) if within_pixel_limits(w, h) => format!(
+                        "{name} is {w} × {h} pixels in 16-bit colour, more than we can open; \
+                         a JPEG of it will go in."
                     ),
                     ImageError::TooLarge(w, h) => format!(
                         "{name} is {w} × {h} pixels; photos can be at most \
