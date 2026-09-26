@@ -69,7 +69,7 @@ fn login_page(
                     "eaten.at, then send you back here."
                 }
             }
-            form.lookup action="/login" method="post" {
+            form.lookup action=(state.absolute("/login")) method="post" {
                 label.kicker.lookup-label for="handle" { "Your handle" }
                 div.lookup-row {
                     input #handle name="handle" type="text" inputmode="url" autocomplete="username"
@@ -102,7 +102,12 @@ fn login_response(
 ) -> Response {
     let page = login_page(state, nonce, handle, return_to, error);
     let mut response = (status, page).into_response();
-    security::allow_connect(&mut response, nonce, &state.appview_origin());
+    security::allow_connect_and_post(
+        &mut response,
+        nonce,
+        &state.appview_origin(),
+        &state.absolute(""),
+    );
     response
 }
 

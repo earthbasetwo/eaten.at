@@ -47,8 +47,9 @@ pub async fn landing(
     // The handle island calls the AppView from the browser (plan 10),
     // which this page's policy alone allows.
     let appview = state.appview_origin();
-    let mut response = signed_out(&nonce, &appview).into_response();
-    security::allow_connect(&mut response, &nonce, &appview);
+    let origin = state.absolute("");
+    let mut response = signed_out(&nonce, &appview, &origin).into_response();
+    security::allow_connect_and_post(&mut response, &nonce, &appview, &origin);
     Ok(response)
 }
 
@@ -56,7 +57,7 @@ pub async fn landing(
 /// handle field, and beneath a hairline the same treatment for reading
 /// without signing in: a line, then one secondary button that becomes a
 /// field for someone else's handle.
-fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
+fn signed_out(nonce: &Nonce, appview: &str, origin: &str) -> Markup {
     layout::render(&Page {
         title: &[],
         masthead: Masthead::Logotype,
@@ -78,6 +79,7 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
             }
             (connect(&Connect {
                 appview,
+                origin,
                 way: ConnectWay::Write,
                 intro: None,
                 label: "Connect to start writing",
@@ -85,6 +87,7 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
             hr.landing-divider;
             (connect(&Connect {
                 appview,
+                origin,
                 way: ConnectWay::Read,
                 intro: Some("Oh, so you're one of the demanding public, eh?"),
                 label: "Look up a friend",
