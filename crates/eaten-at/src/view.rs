@@ -30,7 +30,7 @@ pub fn card_for(visit: &Visit) -> VisitCard {
             .as_deref()
             .map(str::trim)
             .filter(|a| !a.is_empty())
-            .map(str::to_owned),
+            .map(display_address),
         price: place.price.map(PriceBand::signs),
         visited_on: visit.visited_on.as_string(),
         meal: visit.meal.as_deref().map(meal_label),
@@ -188,6 +188,38 @@ pub fn author_label(identity: &Identity) -> String {
 /// A publication's site as it is printed in chrome: the host and path
 /// without the scheme or a trailing slash, so `https://alice.eaten.test/`
 /// reads as `alice.eaten.test`.
+/// An address as the page shows it: the postcode stays on the record,
+/// where it is useful, and leaves the line, where it is not (Ken,
+/// 2026-09-25). The shapes the places client assembles are "…, NY 11201"
+/// and "…, 1432"; a trailing part that is a region code and a code, or
+/// a code alone, loses the code.
+pub fn display_address(address: &str) -> String {
+    let mut parts: Vec<&str> = address.split(", ").map(str::trim).collect();
+    if let Some(last) = parts.last().copied() {
+        let is_code = |s: &str| {
+            !s.is_empty()
+                && s.chars().any(|c| c.is_ascii_digit())
+                && s.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ' ')
+                && s.chars().filter(char::is_ascii_alphabetic).count() <= 4
+        };
+        let mut words = last.splitn(2, ' ');
+        let (head, tail) = (words.next().unwrap_or(""), words.next());
+        let region = head.len() == 2 && head.chars().all(|c| c.is_ascii_uppercase());
+        match tail {
+            Some(code) if region && is_code(code) => {
+                let n = parts.len();
+                parts[n - 1] = head;
+            }
+            _ if parts.len() > 1 && is_code(last) => {
+                parts.pop();
+            }
+            _ => {}
+        }
+    }
+    parts.join(", ")
+}
+
 pub fn display_url(url: &str) -> String {
     url.trim_start_matches("https://")
         .trim_start_matches("http://")
@@ -311,7 +343,32 @@ pub fn publication_meta(
 
 #[cfg(test)]
 mod tests {
-    use super::{bluesky_post_url, card_for, place_links};
+    use super::{bluesky_post_url, card_for, display_address, place_links};
+
+    #[test]
+    fn an_address_is_shown_without_its_postcode() {
+        assert_eq!(
+            display_address("105 York St, Brooklyn, NY 11201-2597"),
+            "105 York St, Brooklyn, NY"
+        );
+        assert_eq!(
+            display_address("Refshalevej 96, København, 1432"),
+            "Refshalevej 96, København"
+        );
+        assert_eq!(
+            display_address("94–96 Commercial Street, London, E1 6LZ"),
+            "94–96 Commercial Street, London"
+        );
+        assert_eq!(display_address("12 Example Lane"), "12 Example Lane");
+        assert_eq!(
+            display_address("1 Main St, Springfield, IL"),
+            "1 Main St, Springfield, IL"
+        );
+        assert_eq!(
+            display_address("Pier 39, San Francisco"),
+            "Pier 39, San Francisco"
+        );
+    }
     use eaten_at_atproto::lexicon::{Document, Place, StrongRef, Visit};
 
     fn doc(uri: Option<&str>) -> Document {

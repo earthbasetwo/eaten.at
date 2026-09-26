@@ -1996,7 +1996,7 @@ async fn a_picked_suggestion_fills_the_place_from_the_cached_search() {
     // address is the line under it, and the listing's facts are carried.
     assert!(!body.contains("<h1>"), "{body}");
     assert!(
-        body.contains("name=\"title\" type=\"text\" value=\"\" placeholder=\"Title\""),
+        body.contains("class=\"headline\" id=\"title\" name=\"title\" type=\"text\" value=\"\" placeholder=\""),
         "{body}"
     );
     assert!(
@@ -2361,7 +2361,9 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
     // Editing opens on the write-up's own title, with Save changes and
     // Delete, which confirms in place and posts to the delete route.
     assert!(
-        body.contains("name=\"title\" type=\"text\" value=\"Foreign Post\" placeholder=\"Title\""),
+        body.contains(
+            "name=\"title\" type=\"text\" value=\"Foreign Post\" placeholder=\"Foreign Place\""
+        ),
         "{body}"
     );
     assert!(body.contains(">Save changes</button>"), "{body}");

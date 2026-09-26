@@ -924,8 +924,10 @@
 
   /* ---- Screen 2: edit a write-up ---- */
   .editor-write .place-line { margin-block-start: var(--space-xs); }
+  .editor-write .place-line .change-place { white-space: nowrap; }
   .place-line .mark { margin-inline-start: var(--space-s); vertical-align: -2px; padding: 0; }
   .visit-row {
+    margin-block-start: var(--space-xs);
     display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-s) 2rem;
   }
   .date-line { min-inline-size: 0; }
@@ -961,30 +963,14 @@
   @supports not (field-sizing: content) { .tag-field input { inline-size: 8ch; } }
   .field-invalid .tag-field input { text-decoration-color: var(--color-vermilion); }
 
-  /* The digest is a writing surface on the page. Its head is the meal
-     line on a faint rule; the title and the text follow between that
-     rule and the one under the block. */
-  .digest { margin-block-start: var(--space-l); border-block-end: var(--rule-hairline); padding-block-end: var(--space-m); }
-  .digest > .visit-row { border-block-end: var(--rule-hairline); padding-block-end: var(--space-s); }
-  .digest-title { margin-block: var(--space-m) var(--space-s); }
-  .digest-title input {
-    display: block; inline-size: 100%; padding: 0; border: 0; background: transparent;
-    box-shadow: none; font-size: var(--text-heading); font-weight: 500;
-    text-decoration: underline; text-decoration-color: transparent; text-decoration-thickness: 1px; text-underline-offset: 0.16em;
-  }
-  .digest-title input:hover { box-shadow: none; text-decoration-color: var(--color-hairline); }
-  .digest-title input:focus-visible { box-shadow: none; outline: none; text-decoration-color: var(--color-vermilion); }
-  .digest-title input::placeholder { font-style: normal; color: var(--color-stone); }
-  .editor-write .place-head .headline { inline-size: 100%; }
-  .editor button.change-place {
-    display: inline; padding: 0; margin: 0; border: 0; background: none; box-shadow: none;
-    font-family: var(--font-serif); font-size: 2rem; font-weight: 500; line-height: 1.2;
-    color: var(--color-ink); text-align: start; text-transform: none; letter-spacing: normal;
-    text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: var(--color-hairline);
-    cursor: pointer;
-  }
-  .editor button.change-place::before, .editor button.change-place::after { content: none; }
-  .editor button.change-place:hover, .editor button.change-place:focus-visible { text-decoration-color: var(--color-vermilion); }
+  /* The digest is a writing surface on the page: the text between two
+     faint rules, under the visit's facts. */
+  /* One step (16px) on every side of the rules: facts to rule, rule to
+     text, text to rule, rule to teaser. */
+  .digest { margin-block-start: var(--space-m); border-block: var(--rule-hairline); padding-block-end: var(--space-m); }
+  .editor-write .place-head .headline { display: block; inline-size: 100%; }
+  /* The text starts a step below the meal line's rule, as the title did. */
+  .digest > .editor-body, .digest > .digest-editor { margin-block-start: var(--space-m); }
   .editor-body {
     display: block; inline-size: 100%; min-block-size: 9.6em; resize: vertical;
     padding: 0; background: transparent; border: 0; box-shadow: none;
@@ -1211,7 +1197,7 @@
     .tags-line, .elsewhere-line { text-align: start; }
     .link-cards { align-items: flex-start; }
     .photo-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .headline, .editor button.change-place { font-size: 1.75rem; }
+    .headline { font-size: 1.75rem; }
   }
 
   /* The photos page (plan 07): each photo a row with its thumbnail,

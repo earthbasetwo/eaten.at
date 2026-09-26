@@ -575,8 +575,9 @@ async function checkPlaceDraft(browser) {
     await browser.navigate(url, [])
     await browser.evaluate(`document.querySelector('.restore button').click()`)
     if (JSON.stringify(await readPlace()) !== JSON.stringify(expected)) throw new Error('Restoring the draft lost restaurant details or identity')
-    const visible = await browser.evaluate(`({ name: document.querySelector('#change_restaurant').textContent, address: document.querySelector('.place-address-text').textContent, hidden: document.querySelector('.place-line').hidden, body: document.querySelector('#body').value })`)
-    if (visible.name !== expected.place_name || visible.address !== expected.place_address || visible.hidden !== !expected.place_address || visible.body !== 'A draft for the changed restaurant.') throw new Error('Restored place fields and visible composer disagree')
+    const visible = await browser.evaluate(`({ name: document.querySelector('#title').placeholder, title: document.querySelector('#title').value, address: document.querySelector('.place-address-text').textContent, hidden: document.querySelector('.place-where').hidden, body: document.querySelector('#body').value })`)
+    // The place line shows "at …" when there is an address, or a title of its own to name the place under.
+    if (visible.name !== expected.place_name || visible.address !== expected.place_address.replace(/, [A-Z]{2} [\w-]+$/, (m) => m.slice(0, 4)).replace(/, \d[\w-]*$/, '') || visible.hidden !== !(expected.place_address || visible.title.trim()) || visible.body !== 'A draft for the changed restaurant.') throw new Error('Restored place fields and visible composer disagree: ' + JSON.stringify(visible))
   }
   // Legacy drafts cannot safely restore a name without its place identity.
   await browser.evaluate(`(() => {

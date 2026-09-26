@@ -15,6 +15,9 @@ Checked items are implemented on the local branch, not yet committed or merged.
 - [x] Use page-colored paper and faint horizontal rules around title and body.
 - [x] Add the italic stone prompt: “What did you eat? Was it good? What else happened?” It is never saved as content.
 - [x] Put Formatting beside DIGEST, with examples in a disclosure.
+- [x] Return the title to the headline, the restaurant's name standing in, and
+  move changing the restaurant to the place line as “somewhere else”; the digest
+  has no title line (C6, 2026-09-25).
 - [x] Remove the Formatting disclosure and the DIGEST kicker. `For [a meal] on
   [date].` is the digest's head on its rule, and the prompt, written in markdown,
   shows one bold word between faint marks; that is the whole discovery. A pilcrow
