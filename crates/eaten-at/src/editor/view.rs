@@ -403,7 +403,7 @@ fn photo_fields(form: &EditorForm) -> Markup {
     }
 }
 
-/// `Elsewhere:` the place's links. Each link is a small paper card of
+/// The place's links as words, then "add a link". Each link is a small paper card of
 /// two prose rows; without script every card is open, with it the row
 /// reads the labels and opens one card at a time. Blank rows are
 /// skipped by the server, so a card left empty costs nothing.
@@ -412,12 +412,8 @@ fn elsewhere(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.elsewhere {
             p.prose-line.elsewhere-line {
-                span.soft { "Elsewhere:" } " "
                 span.link-words { }
-                span.nowhere hidden { "nowhere yet" }
-                " "
                 span.add-link-slot {
-                    span.soft-stone { "— " }
                     @if rows < RowKind::Link.cap() {
                         button.hint-action.add-link type="submit" name="action" value=(Action::AddRow(RowKind::Link).value()) formnovalidate { "add a link" }
                     }

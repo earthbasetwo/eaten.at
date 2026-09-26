@@ -1160,7 +1160,6 @@
   .editor .choice-inline { display: inline-flex; font-size: inherit; line-height: inherit; vertical-align: baseline; }
   .elsewhere { min-inline-size: 0; overflow-wrap: anywhere; }
   .elsewhere-line { text-align: start; }
-  .nowhere { font-style: italic; color: var(--color-stone); }
   .add-link-slot { font-size: 0.875rem; transition: opacity var(--ease); }
   .elsewhere.has-links .add-link-slot { opacity: 0; }
   .elsewhere:hover .add-link-slot, .elsewhere:focus-within .add-link-slot { opacity: 1; }
