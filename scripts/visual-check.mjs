@@ -406,6 +406,27 @@ async function main() {
       if (!await browser.evaluate(`document.querySelector('[name="photo_alt_0"]').value === 'A caption kept in the draft'`)) throw new Error('Restoring the draft lost a caption')
     },
   })
+  // A caption typed with the photo still open is in the draft: the
+  // lightbox sits outside the form, so it tells the form itself (PH27).
+  await check({
+    name: 'edit-restore-open-caption', path: `/write/${rkey}`,
+    expect: '.photo-tile',
+    exercise: async (browser) => {
+      const url = await browser.evaluate('location.href')
+      await browser.evaluate(`(() => {
+        document.querySelector('.photo-tile').click()
+        const caption = document.querySelector('.photo-caption')
+        caption.value = 'Typed and never closed'
+        caption.dispatchEvent(new Event('input', { bubbles: true }))
+      })()`)
+      if (!await browser.evaluate(`document.querySelector('.photo-detail') !== null && document.activeElement === document.querySelector('.photo-caption')`)) throw new Error('Typing a caption closed the photo or lost its focus')
+      await sleep(600)
+      await browser.navigate(url, [])
+      await browser.evaluate(`document.querySelector('.restore button').click()`)
+      if (!await browser.evaluate(`document.querySelector('[name="photo_alt_0"]').value === 'Typed and never closed'`)) throw new Error('A caption typed in the open photo was not in the draft')
+      await browser.evaluate(`localStorage.removeItem('ea:draft:' + location.pathname)`)
+    },
+  })
   // A restored draft brings back the rating that was checked, every step
   // and none, and leaves each radio's own value alone.
   await check({
