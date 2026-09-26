@@ -299,7 +299,7 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
             }
             p.meta.field-hint {
                 "Up to " (MAX_FILES_PER_REQUEST) " at a time, " (mb) " MB each, "
-                (MAX_PHOTOS) " on a visit. Photos are re-encoded and stripped of "
+                (MAX_PHOTOS) " on a digest. Photos are re-encoded and stripped of "
                 "their metadata, location included, before they are uploaded."
             }
             @for problem in page.problems {
@@ -312,7 +312,7 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
                 }
                 @match page.then {
                     Some(then) => { a.button-link href=(then) { @if count > 0 { "Done" } @else { "Skip for now" } } }
-                    None => { a.button-link href=(page.document_path) { "← Back to the write-up" } }
+                    None => { a.button-link href=(page.document_path) { "← Back to the digest" } }
                 }
             }
         }

@@ -35,7 +35,7 @@ pub async fn lookup(
 ) -> Response {
     let raw = query.handle.trim();
     if raw.is_empty() {
-        return form_response(&state, &nonce, StatusCode::OK, "Whose write-ups?", "", None);
+        return form_response(&state, &nonce, StatusCode::OK, "Whose digests?", "", None);
     }
     match Handle::parse(raw) {
         Ok(handle) => Redirect::to(&paths::handle_lookup(&handle)).into_response(),

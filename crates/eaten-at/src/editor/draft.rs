@@ -102,7 +102,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     if markdown.trim().is_empty() {
         errors.add("body", "Write something.");
     } else if markdown.len() > MAX_BODY_BYTES {
-        errors.add("body", "That's longer than a write-up can be.");
+        errors.add("body", "That's longer than a digest can be.");
     }
 
     let description = form.description.trim();
@@ -314,7 +314,10 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         });
     }
     if photos.len() > MAX_PHOTOS {
-        errors.add("photos", format!("At most {MAX_PHOTOS} photos on a visit."));
+        errors.add(
+            "photos",
+            format!("At most {MAX_PHOTOS} photos on a digest."),
+        );
     }
 
     let tags = match parse_tags(&form.tags) {

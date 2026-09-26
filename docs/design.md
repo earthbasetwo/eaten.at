@@ -25,7 +25,7 @@ is a hairline square with a pen-stroke check. Those three are what
 
 The editor's two screens followed a fourth handoff, Write Pages
 (`docs/design-handoff/write-pages/`, adopted 2026-09-20): **prose-forward
-forms**. Choosing the place and editing a write-up are set as typeset
+forms**. Choosing the place and editing a digest are set as typeset
 paragraphs that happen to be editable: no boxed inputs, no field labels
 but two kickers, no buttons that look like buttons; every value sits
 inline in a sentence on a hairline, controls reveal themselves under the
@@ -49,7 +49,7 @@ a class in that file.
 
 ## Principles
 
-1. **Reading first.** The write-up is the point. The visit's facts and
+1. **Reading first.** The digest is the point. The visit's facts and
    every piece of chrome sit beside the text and stay out of its way.
 2. **Two voices, and a signature.** Everything read is the serif
    (Newsreader): titles and names at weight 500, text at 400. Everything
@@ -63,8 +63,8 @@ a class in that file.
    states, and the rule and arrow under one primary action per page. Never a large fill, a
    heading, a border, or a background (except a field's error state and
    the form error's rule).
-4. **Rules, not boxes.** Things a reader picks between (write-ups,
-   publications, places, photos) are rows on the paper: a 1px ink rule
+4. **Rules, not boxes.** Things a reader picks between (digests,
+   feeds, places, photos) are rows on the paper: a 1px ink rule
    above the first, hairlines between the rest. Sections open with a 1px
    ink rule; mastheads close with a 3px double one. A field is a rule
    too: what is typed sits on the paper with 1px of ink beneath it, not
@@ -77,7 +77,7 @@ a class in that file.
 5. **Same shape everywhere.** Every page opens the same way: a small
    mono kicker, then the title, then the content. A listing row is a
    small document page. A chooser row is a small listing row.
-6. **A publication recolours, never restructures.** An author's theme
+6. **A feed recolours, never restructures.** An author's theme
    replaces paper, ink, and vermilion; layout, type, spacing, and shape
    are fixed.
 7. **Server-rendered, no script.** Nothing here needs JavaScript. A few
@@ -111,7 +111,7 @@ there is no hue but vermilion.
 | `--color-paper` | `#F6F1E5` | page ground (ivory stock) |
 | `--color-paper-bright` | `#FDFBF4` | menus, a checked box, sheets, the visit's fact box, the text on ink and vermilion fills |
 | `--color-ink` | `#1C1914` | titles, strong text, rules, a field's rule, the logotype, secondary buttons |
-| `--color-ink-body` | `#332E24` | a write-up's text, excerpts, comment text |
+| `--color-ink-body` | `#332E24` | a digest's text, excerpts, comment text |
 | `--color-ink-soft` | `#4A4336` | ledes, hints, field labels, notices, quiet links |
 | `--color-stone` | `#988D75` | the mono metadata voice: dates, handles, URLs, kickers, placeholders |
 | `--color-hairline` | `#DDD5C2` | minor rules, every bright surface's border |
@@ -138,9 +138,9 @@ Contrast on the default grounds:
   change if that is ever wanted; `theme.rs` has a test recording the
   ratio so the number does not drift unnoticed.
 
-### Publication themes
+### Feed themes
 
-A publication's `basicTheme` gives four colors. `theme.rs` clamps them to
+A feed's `basicTheme` gives four colors. `theme.rs` clamps them to
 WCAG AA and emits five channels on `:root[data-theme]` as bare integers:
 
 | Channel | Source |
@@ -181,13 +181,13 @@ Sizes are fluid between a 390px and a 1080px viewport.
 | `--text-field` | 16 → 17 | what is typed into a field and what a dropdown shows as chosen |
 | `--text-small` | 14 | excerpts, comment text, hints, notices, the address |
 | `--text-body` | 14 → 15 | the interface, choice labels, a comment's author |
-| `--text-lede` | 16 | ledes, a publication's description |
-| `--text-prose` | 16 | a write-up's text and the editor's body field |
+| `--text-lede` | 16 | ledes, a feed's description |
+| `--text-prose` | 16 | a digest's text and the editor's body field |
 | `--text-card` | 20 → 22 | row titles, the place name, legends, the author's own nameplate, empty states |
 | `--text-heading` | 22 → 24 | h2 inside prose |
 | `--text-masthead` | 22 → 26 | the running head |
 | `--text-title` | 28 → 34 | the page title (h1) |
-| `--text-nameplate` | 32 → 40 | a publication's name on its own front page |
+| `--text-nameplate` | 32 → 40 | a feed's name on its own front page |
 | `--text-logotype` | 40 → 56 | the logotype |
 
 Rules:
@@ -203,7 +203,7 @@ Rules:
   0.1em, the rating at 0.14em. A **kicker** (`.kicker`) sits above a
   title or names a section; it is one of the few places capitals appear,
   with labels and the rating.
-- Italic serif marks a *description* (a publication's description on its
+- Italic serif marks a *description* (a feed's description on its
   nameplate), an *absence* (an empty state), or an *action* (a button).
 
 ## Space and shape
@@ -228,7 +228,7 @@ Shape: **square corners everywhere.** Three rules do the separating:
 |---|---|---|
 | `--rule-ink` | 1px solid ink | above a list of rows, above a section, a blockquote's edge |
 | `--rule-hairline` | 1px solid hairline | between rows, around every bright surface |
-| `--rule-double` | 3px double ink | under a running head and under a publication's nameplate |
+| `--rule-double` | 3px double ink | under a running head and under a feed's nameplate |
 
 A field draws its rule as an inset shadow rather than a border, the way
 an action does, so thickening it moves no text: `--field-rule` (1px ink),
@@ -260,7 +260,7 @@ still, and cuts Connect straight to the form.
 ## Components
 
 **Running head** (`.site-header`). The document page alone carries a
-masthead: the publication's name (`.site-name.running-head`, the serif at
+masthead: the feed's name (`.site-name.running-head`, the serif at
 500 and masthead size), centred, leading to the front page, closed by the
 double rule. Every other page opens with its own content — no site chrome
 above it.
@@ -270,9 +270,9 @@ the **logotype** (`.site-name.logotype`, Evantic at logotype size, leading
 home), centred at the top of the page — it is the one page that has to say
 what the site is. It is not a masthead bar: no tagline, no rule, and
 nothing else beside it. Evantic sets the logotype
-and nothing else, which is why a publication's name is the serif instead.
+and nothing else, which is why a feed's name is the serif instead.
 
-**Nameplate** (`.nameplate`). A publication's front page opens with its
+**Nameplate** (`.nameplate`). A feed's front page opens with its
 own masthead in place of any site chrome: the name at `--text-nameplate`, centred; a mono
 **dateline** (`.dateline`) of author, site, and rss separated by middle
 dots; the description as an italic lede; the tag chips. The double rule
@@ -282,9 +282,9 @@ closes it.
 kicker, the h1, and an optional lede (`.lede`, `ink-soft` serif at 16px)
 or note (`.meta`). The document page's kicker is its date; the tag page's
 is "Tag"; a status page's is "Error 404"; the chooser's is
-"Publications". The one exception is the editor for a new write-up,
+"Feeds". The one exception is the editor for a new digest,
 which has no heading until a place is chosen; editing an existing one
-opens with an "Edit" kicker and the write-up's title.
+opens with an "Edit" kicker and the digest's title.
 
 **Rows** (`.listing`, `.chooser`, `.photo-manage`). A column
 of things to pick between, an ink rule above the first and a hairline
@@ -313,7 +313,7 @@ in miniature.
   what it is.
 
 **Chooser row** (`.chooser-item`). Name in the serif at row-title size,
-description in `ink-body`, the publication's URL in the mono voice.
+description in `ink-body`, the feed's URL in the mono voice.
 Settings reuses the same row, one of them, with its form inside.
 
 **Photo grid** (`section.photos`, `.photo-grid`). Between the visit and
@@ -335,7 +335,7 @@ word is written in the HTML as a word ("Recommended") and the stylesheet
 sets the capitals, so it reads naturally aloud. An unrated visit shows
 nothing. The editor's rating radios carry the same words.
 
-**Prose** (`.prose`). The write-up, at measure and at prose size, in
+**Prose** (`.prose`). The digest, at measure and at prose size, in
 `ink-body`. Headings are the serif at 500 in `ink`. Links keep a faint
 underline at rest, in the accent at 40%, because colour alone does not
 mark a link inside a paragraph; this is the one place a link is underlined
@@ -416,7 +416,7 @@ other field keeps its button.
 chosen rather than typed, so the handoff sets the chosen value the way it
 sets an action: the serif in *italic* on the same bare rule, with a
 vermilion chevron at the rule's end. The chevron is an SVG mask filled
-with `--color-vermilion`, so it follows a publication's accent; the
+with `--color-vermilion`, so it follows a feed's accent; the
 wrapper exists only to give it somewhere to sit. **The menu a native
 `select` opens belongs to the browser and cannot be styled** — the
 handoff's paper menu is drawn where the site draws its own list, the
@@ -434,7 +434,7 @@ vermilion dot instead of the stroke: the handoff draws only the checkbox,
 and a browser-default radio beside a hand-drawn check would read as two
 systems. Disabled, the box and the label go `--color-disabled`.
 `--check-mark` is a data URL and so carries the vermilion literal — the
-one colour in the stylesheet a publication theme does not reach. Nothing
+one colour in the stylesheet a feed theme does not reach. Nothing
 themed carries a form, so it is never seen; the radio's dot, which is a
 gradient, follows the theme as everything else does.
 
@@ -481,25 +481,25 @@ and "Older →" right.
 | Page | Above the content | Opens with | Then |
 |---|---|---|---|
 | Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect to start writing", which becomes the sign-in form in place (that field carries the return mark and no button); a hairline; a second connect, drawn the same but secondary — one line in the lede's voice over a "Look up a friend" button that becomes the field for someone else's handle; both fields suggest handles as you type |
-| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new visit"; "Your publication": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent write-ups" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All write-ups →" when there are more; or, with no publication yet, one lede saying what it will be; then a hairline and one quiet line, Settings · About · Sign out |
-| Publication front page | — | nameplate | listing, notice if truncated, pagination |
-| About `/about` | — | page head: "About" kicker, h1 "About eaten.at", lede | prose: one paragraph on the protocol a write-up lives on, then the credits — the place licences and the IP database, and nothing that is not asked for. The page is static |
+| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new digest"; "Your feed": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent digests" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All digests →" when there are more; or, with no feed yet, one lede saying what it will be; then a hairline and one quiet line, Settings · About · Sign out |
+| Feed front page | — | nameplate | listing, notice if truncated, pagination |
+| About `/about` | — | page head: "About" kicker, h1 "About eaten.at", lede | prose: one paragraph on the protocol a digest lives on, then the credits — the place licences and the IP database, and nothing that is not asked for. The page is static |
 | Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
 | Document | running head | kicker date, h1 title | the visit, photos, prose, comments (when the document names a Bluesky post), footer |
-| Chooser (`/at/{did}/`) | — | page head: "Publications" kicker, h1 author, lede | chooser rows |
-| No publications | — | page head: "Publications" kicker, h1 author | empty state |
+| Chooser (`/at/{did}/`) | — | page head: "Feeds" kicker, h1 author, lede | chooser rows |
+| No feeds | — | page head: "Feeds" kicker, h1 author | empty state |
 | Interstitial | — | page head: "Content warning" kicker, h1 | the labels, note, actions |
-| Lookup `/lookup` | — | page head: "Lookup" kicker, h1 ("Whose write-ups?", or "That doesn't look like a handle") | the form, with its error when there is one |
+| Lookup `/lookup` | — | page head: "Lookup" kicker, h1 ("Whose digests?", or "That doesn't look like a handle") | the form, with its error when there is one |
 | Sign in | — | page head: "Sign in" kicker, h1, lede | handle form (the lookup form's shape) with "Start typing your handle…"; suggestions from Bluesky as you type; errors in place |
 | Signing in | — | page head: "Signing in" kicker, h1 "Continuing to host" | one primary button; the page refreshes itself onward |
 | Sign-in failed | — | page head: "Sign in" kicker, h1 | one line, secondary "← Try again" |
 | Status page | — | page head: "Error nnn" kicker, h1 | detail, secondary "← Back to the start" |
 | Editor `/write`, choosing | — | nothing: the screen is the input | the place's name as a 32px headline field ("St. John" standing in), suggestions opening under it as it is typed; the line `at [address].`; one primary "Start writing", shown once there is a name |
-| Editor `/write`, editing | — | nothing: the title is the heading | the title as the headline field (the place's name standing in), the line `at [name], [address].`, the reset and change-place marks revealed under the pointer; `From a visit on [date].` left and `Filed under [tags].` right; the Digest kicker over the write-up; the teaser, folded; the rating (a clear box, four pluses, the word) left and the meal and price words right; the Photos kicker over the tiles; `Bluesky: …` left and `Elsewhere: …` right; one primary "Save changes" (or "Publish") and, for a record, Delete with its Yes / No in the same slot |
-| Photos `/write/{rkey}/photos` | — | page head: "Photos" kicker, h1 "Photos of {place}", lede | the photos as rows (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "← Back to the write-up". The way photos are managed without script; the editor manages them in place otherwise |
+| Editor `/write`, editing | — | nothing: the title is the heading | the title as the headline field (the place's name standing in), the line `at [name], [address].`, the reset and change-place marks revealed under the pointer; `From a visit on [date].` left and `Filed under [tags].` right; the Digest kicker over the digest's text; the teaser, folded; the rating (a clear box, four pluses, the word) left and the meal and price words right; the Photos kicker over the tiles; `Bluesky: …` left and `Elsewhere: …` right; one primary "Save changes" (or "Publish") and, for a record, Delete with its Yes / No in the same slot |
+| Photos `/write/{rkey}/photos` | — | page head: "Photos" kicker, h1 "Photos of {place}", lede | the photos as rows (thumbnail, alt text field, "Move up", "Move down", "Remove" link buttons), or "No photos yet."; the file input with its hint about re-encoding; one primary "Add photos", secondary "Save alt text", and "← Back to the digest". The way photos are managed without script; the editor manages them in place otherwise |
 | Delete `/write/{rkey}/delete` | — | page head: "Delete" kicker, h1 "Delete “title”?", lede saying what happens | a ticked choice "Also delete the Bluesky post" when there is one to delete (a note when this sign-in may not), one primary button, secondary "← Keep it" |
 | Crosspost `/write/{rkey}/crosspost` | — | page head: "Bluesky" kicker, h1 "Post “title” to Bluesky" (or "… is on Bluesky"), lede | the post text field and one primary "Post to Bluesky"; or, before permission, one primary "Allow posting and continue"; secondary "← Skip for now" either way; posted: the thread link and a secondary way back |
-| Settings `/settings` | — | page head: "Settings" kicker, h1 "Your publication", lede | one chooser row: the name (linked to the front page) and the current address in the metadata voice, or, before there is one, the name it would get and "Made when you save"; then the form: name, description, the two radio choices for where it lives, one primary "Save" ("Create it" the first time) |
+| Settings `/settings` | — | page head: "Settings" kicker, h1 "Your feed", lede | one chooser row: the name (linked to the front page) and the current address in the metadata voice, or, before there is one, the name it would get and "Made when you save"; then the form: name, description, the two radio choices for where it lives, one primary "Save" ("Create it" the first time) |
 
 ### The editor
 
@@ -564,7 +564,7 @@ results page any more.
   cells, the chosen day ink on paper, today underlined in vermilion,
   recessed paper under the pointer. `Filed under [tags].` is right-set
   (see **Filed under**).
-- **Digest.** The kicker, then the write-up on the bright surface
+- **Digest.** The kicker, then the digest's text on the bright surface
   inside an ink rule (vermilion while active), padded 16px 18px, at
   least 384px tall. The textarea is the carrier; the island draws a
   live markdown editor over it (`.digest-editor`): each source line a
@@ -606,7 +606,7 @@ results page any more.
   the grid: "Drag to reorder — the first photo is the cover." A tile
   opens its detail over a scrim (the ink at 35%): the photo letterboxed
   on recessed paper, a centred caption field, "done" and "remove this
-  photo". The same before and after the write-up exists: a picked file
+  photo". The same before and after the digest exists: a picked file
   is uploaded to the author's repository at once (`/write/upload`) and
   comes back as a blob reference, the list rides in the form as hidden
   fields like every other value, and Publish or Save writes it with
@@ -626,7 +626,7 @@ results page any more.
   saving without a URL cancels, an empty label falls back to the host.
   Without script every row's card is open, "add a link" and "remove it"
   are the server's row actions, and blank rows are skipped.
-- **Actions.** "Save changes" (or "Publish" for a new write-up), then
+- **Actions.** "Save changes" (or "Publish" for a new digest), then
   **Delete**, which confirms in its own slot: pressed, it reads
   "Delete?" in italic soft ink followed by **Yes** and **No** (italic
   17px, letter-spaced 0.06em, a 1px rule hugging the text). Yes is
@@ -662,13 +662,13 @@ which is where the credits the data and the fonts ask for are given.
 - Landmarks on every page: skip link, `header` where a page names
   something above its content, and `main#main`;
   `nav` elements carry an `aria-label` naming their scope ("Tags in this
-  publication", "Links", "Pagination").
+  feed", "Links", "Pagination").
 - Focus is a 2px ring of the accent at 55%, offset 3px, on every
   focusable thing but a field, which shows focus by doubling its own rule
   in vermilion. The handoff asks for the ring at full strength and 2px
   offset; it was quieted on 2026-09-15 and stays that way.
 - Contrast: see the palette notes, including the vermilion shortfall.
-  Publication themes are clamped to WCAG AA (`theme::MIN_CONTRAST`) on
+  Feed themes are clamped to WCAG AA (`theme::MIN_CONTRAST`) on
   every surface their text sits on.
 - `prefers-reduced-motion` disables the transitions, holds the primary
   arrow still, and cuts the one animation, Connect, to a plain swap.
@@ -710,9 +710,9 @@ which is a decision this project already took and has not reversed.
 
 | The handoff | The site | Why |
 |---|---|---|
-| A masthead bar: the logotype over a tracked mono tagline, closed by the double rule | No site chrome above a page; the signed-out landing page alone carries the logotype, with no tagline and no bar, and a document carries its publication's name | 2026-09-16: a reader on someone's write-up should see that publication, not this site |
+| A masthead bar: the logotype over a tracked mono tagline, closed by the double rule | No site chrome above a page; the signed-out landing page alone carries the logotype, with no tagline and no bar, and a document carries its feed's name | 2026-09-16: a reader on someone's write-up should see that publication, not this site |
 | Ratings as POOR / FAIR / GOOD / GREAT / SUPERB | Solid / Recommended / Strongly Recommended / Can't Miss | D4: the scale is the record's, not the stylesheet's. The *rendering* — the word alone, tracked mono capitals in vermilion — is the handoff's, exactly |
-| A feed row's metadata as `@handle · cuisine · $$` | The date and the place name | The listing is one author's publication, so the handle is not news on it; the price band is a fact of the visit and sits in the visit's fact box |
+| A feed row's metadata as `@handle · cuisine · $$` | The date and the place name | The listing is one author's feed, so the handle is not news on it; the price band is a fact of the visit and sits in the visit's fact box |
 | Action row counters `♥ 84 ⇄ 6` in the mono voice | Nothing | D5 and D6: there are no likes or reposts here, and comments live on Bluesky |
 | A field's label in `stone` | `ink-soft` | `stone` is 2.9:1 on paper. A label has to be read; `stone` is for metadata that is scanned |
 | Write Pages: meal options Breakfast, Lunch, Dinner, A snack, Drinks | The lexicon's Breakfast, Brunch, Lunch, Dinner, Late night | D3/D31: the choices are the record's `knownValues`, not the stylesheet's; the handoff's list was a specimen |

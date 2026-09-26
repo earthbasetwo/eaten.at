@@ -251,7 +251,7 @@ async fn sign_in_sets_a_session_and_sign_out_clears_it() {
         "{}",
         home.body
     );
-    assert!(home.body.contains("Write a new visit"), "{}", home.body);
+    assert!(home.body.contains("Write a new digest"), "{}", home.body);
     assert!(home.body.contains("action=\"/logout\""), "{}", home.body);
     let anonymous = get(&state, "/", None).await;
     assert!(

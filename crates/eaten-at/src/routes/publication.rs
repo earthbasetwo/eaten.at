@@ -37,9 +37,9 @@ pub async fn repo_index(
                 title: &[&author],
                 main: html! {
                     div.page-head {
-                        p.kicker { "Publications" }
+                        p.kicker { "Feeds" }
                         h1 { (author) }
-                        p.lede { "This account has several publications. Pick one to read." }
+                        p.lede { "This account has several feeds. Pick one to read." }
                     }
                     (publication_chooser(&views))
                 },
@@ -51,10 +51,10 @@ pub async fn repo_index(
             title: &[&author],
             main: html! {
                 div.page-head {
-                    p.kicker { "Publications" }
+                    p.kicker { "Feeds" }
                     h1 { (author) }
                 }
-                p.empty { "This account has no publications yet." }
+                p.empty { "This account has no feeds yet." }
             },
             ..Page::default()
         })
@@ -127,16 +127,16 @@ pub async fn publication_page(
             }
             @if items.is_empty() {
                 @if page.truncated {
-                    p.empty { "No write-ups among the most recent documents. There may be older ones." }
+                    p.empty { "No digests among the most recent documents. There may be older ones." }
                 } @else if cursor.is_some() {
-                    p.empty { "No more write-ups." }
+                    p.empty { "No more digests." }
                 } @else {
-                    p.empty { "No write-ups yet." }
+                    p.empty { "No digests yet." }
                 }
             } @else {
                 (listing(&items))
                 @if page.truncated {
-                    p.notice { "Showing recent write-ups; this publication also has many other documents." }
+                    p.notice { "Showing recent digests; this feed also has many other documents." }
                 }
             }
             (pagination(&base, page.next_cursor.as_deref(), cursor.is_none()))
@@ -206,13 +206,13 @@ pub async fn tagged_page(
             header.page-head {
                 p.kicker { "Tag" }
                 h1 { "Tagged “" (display) "”" }
-                p.meta { "Write-ups in this publication only; tags are not shared across publications." }
+                p.meta { "Digests in this feed only; tags are not shared across feeds." }
             }
             @if items.is_empty() {
                 @if page.truncated {
                     p.empty { "Nothing tagged “" (display) "” among the most recent documents. There may be older ones." }
                 } @else {
-                    p.empty { "Nothing in this publication is tagged “" (display) "”." }
+                    p.empty { "Nothing in this feed is tagged “" (display) "”." }
                 }
             } @else {
                 (listing(&items))

@@ -109,6 +109,7 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | 2026-09-20 | Rating control | The editor's rating is four plus signs (filled to the value) with the verdict's word beside them, drawn by the stylesheet from the radios; D46 stands for how a verdict is shown to readers, which is the word alone. |
 | 2026-09-20 | Script tripwire | D43's tripwire is raised from 24 KB to 72 KB: the live markdown editor, the calendar and menus, the link cards, and photos in place are the handoff's interactions and earn their keep; every page still works without them. |
 | 2026-09-17 | Checkboxes and radios | A checkbox is a 16px square of 1px ink, empty on the paper, that takes `paper-bright` and the handoff's vermilion pen-stroke check when checked; the mark is an SVG, never a font glyph. The handoff draws no radio, so the same box is drawn round with a vermilion dot rather than left to the browser beside it. The check is a data URL and carries the vermilion literal, the one colour a publication theme does not reach; no themed page carries a form. |
+| 2026-09-25 | Vocabulary | A single post is a digest; the publication is a feed; write-up goes; visit stays for the visit a digest describes; protocol and code names unchanged. |
 
 ## Left over from the fork
 

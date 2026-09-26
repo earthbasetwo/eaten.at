@@ -391,7 +391,7 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
     // One primary, and it writes.
     assert_eq!(body.matches("class=\"button\"").count(), 1, "{body}");
     assert!(
-        body.contains("<a class=\"button\" href=\"/write\">Write a new visit</a>"),
+        body.contains("<a class=\"button\" href=\"/write\">Write a new digest</a>"),
         "{body}"
     );
     assert!(body.contains("<h1>Where did you eat?</h1>"), "{body}");
@@ -421,7 +421,7 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
     assert!(!body.contains("Visit 1<"), "the ninth is not shown: {body}");
     assert!(
         body.contains(&format!(
-            "<a class=\"button-link\" href=\"/at/{DID}/pub1/\">All write-ups →</a>"
+            "<a class=\"button-link\" href=\"/at/{DID}/pub1/\">All digests →</a>"
         )),
         "{body}"
     );
@@ -464,10 +464,10 @@ async fn the_home_page_finds_write_ups_and_says_what_a_first_publish_makes() {
         body.contains("<a class=\"button-link\" href=\"/\">Clear</a>"),
         "{body}"
     );
-    assert!(!body.contains("All write-ups"), "{body}");
+    assert!(!body.contains("All digests"), "{body}");
     let (_, _, body) = get_signed(&state, "/?q=zzz", &cookie).await;
     assert!(
-        body.contains("Nothing called “zzz” among your write-ups."),
+        body.contains("Nothing called “zzz” among your digests."),
         "{body}"
     );
     assert!(!body.contains("listing-item"), "{body}");
@@ -501,7 +501,7 @@ async fn the_home_page_finds_write_ups_and_says_what_a_first_publish_makes() {
         "{body}"
     );
     assert!(
-        body.contains("href=\"/write\">Write a new visit</a>"),
+        body.contains("href=\"/write\">Write a new digest</a>"),
         "{body}"
     );
 }
@@ -616,7 +616,7 @@ async fn lookup_form_redirects_to_handle_route_or_rejects_garbage() {
     let (status, location, body) = get(&state, "/lookup").await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(location, None);
-    assert!(body.contains("<h1>Whose write-ups?</h1>"), "{body}");
+    assert!(body.contains("<h1>Whose digests?</h1>"), "{body}");
     assert!(!body.contains("role=\"alert\""), "{body}");
     assert!(body.contains("id=\"handle\" name=\"handle\""), "{body}");
     let (status, _, body) = get(&state, "/lookup?handle=%20%20").await;
@@ -710,7 +710,7 @@ async fn repo_without_publications_says_so() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.contains("no publications"), "{body}");
+    assert!(body.contains("no feeds"), "{body}");
 }
 
 #[tokio::test]
@@ -1300,7 +1300,7 @@ async fn tag_pages_filter_within_the_publication_and_match_loosely() {
         body.contains("Tagged “Longform”"),
         "display form from the first match: {body}"
     );
-    assert!(body.contains("in this publication only"), "{body}");
+    assert!(body.contains("in this feed only"), "{body}");
 
     let (status, _, body) = get(&state, &format!("/at/{DID}/pub1/tagged/long%20%20read")).await;
     assert_eq!(status, StatusCode::OK);
@@ -1315,10 +1315,7 @@ async fn tag_pages_filter_within_the_publication_and_match_loosely() {
         StatusCode::OK,
         "unknown tag is an empty state, not a 404"
     );
-    assert!(
-        body.contains("Nothing in this publication is tagged"),
-        "{body}"
-    );
+    assert!(body.contains("Nothing in this feed is tagged"), "{body}");
 
     let (status, _, body) = get(&state, &format!("/at/{DID}/pub1/tagged/%23longform")).await;
     assert_eq!(status, StatusCode::OK);
@@ -1350,7 +1347,7 @@ async fn tag_links_appear_on_document_and_publication_pages() {
         doc.contains(&format!("/at/{DID}/pub1/tagged/long%20read")),
         "{doc}"
     );
-    assert!(doc.contains("in this publication"), "{doc}");
+    assert!(doc.contains("in this feed"), "{doc}");
     let (_, _, pub_page) = get(&state, &format!("/at/{DID}/pub1/")).await;
     assert_eq!(
         pub_page.matches("class=\"tag\"").count(),
@@ -2853,7 +2850,7 @@ async fn the_photos_page_captions_reorders_and_removes_with_one_write_each() {
         "the first cannot move up: {body}"
     );
     assert!(body.contains("enctype=\"multipart/form-data\""), "{body}");
-    assert!(body.contains("← Back to the write-up"), "{body}");
+    assert!(body.contains("← Back to the digest"), "{body}");
 
     // Alt text: written to the photo, the cover derived, updatedAt set.
     let (status, _, body) = post_photos(
@@ -3794,7 +3791,7 @@ async fn settings_claims_a_subdomain_and_rewrites_the_publication_url() {
 
     let (status, _, body) = get_signed(&state, "/settings", &cookie).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("<h1>Your publication</h1>"), "{body}");
+    assert!(body.contains("<h1>Your feed</h1>"), "{body}");
     assert!(body.contains("Served by you at ross.eaten.at"), "{body}");
     assert!(body.contains("action=\"/settings\""), "{body}");
     assert!(
@@ -3820,7 +3817,7 @@ async fn settings_claims_a_subdomain_and_rewrites_the_publication_url() {
         ("name=Ross+Writes&mode=", "Choose where"),
         (
             "name=+&mode=own&url=https://ross.eaten.at",
-            "Name the publication.",
+            "Name the feed.",
         ),
     ] {
         let (status, _, body) = post_form_signed(&state, "/settings", &cookie, form).await;

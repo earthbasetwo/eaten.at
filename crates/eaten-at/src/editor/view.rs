@@ -634,11 +634,11 @@ pub fn crosspost_page(page: &CrosspostPage<'_>) -> Markup {
                 CrosspostState::Posted(_) => { h1 { "“" (page.title) "” is on Bluesky" } }
                 CrosspostState::Ready => {
                     h1 { "Post “" (page.title) "” to Bluesky" }
-                    p.lede { "The write-up is published. A post with a link card to it goes to your Bluesky account, and replies to it show under the write-up." }
+                    p.lede { "The digest is published. A post with a link card to it goes to your Bluesky account, and replies to it show under the digest." }
                 }
                 CrosspostState::NeedsPermission => {
                     h1 { "Post “" (page.title) "” to Bluesky" }
-                    p.lede { "The write-up is published. To post it to Bluesky, eaten.at needs your account's permission to create posts; your server asks once." }
+                    p.lede { "The digest is published. To post it to Bluesky, eaten.at needs your account's permission to create posts; your server asks once." }
                 }
             }
             @if let Some(error) = page.error {
@@ -648,7 +648,7 @@ pub fn crosspost_page(page: &CrosspostPage<'_>) -> Markup {
         @match &page.state {
             CrosspostState::Posted(url) => {
                 p.meta { a href=(url) rel="noopener" { "See the thread on Bluesky →" } }
-                p.actions { a.button-link href=(page.document_path) { "← Back to the write-up" } }
+                p.actions { a.button-link href=(page.document_path) { "← Back to the digest" } }
             }
             CrosspostState::Ready => {
                 form.crosspost-form method="post" action=(action) {
@@ -701,7 +701,7 @@ pub fn delete_page(page: &DeletePage<'_>) -> Markup {
         div.page-head {
             p.kicker { "Delete" }
             h1 { "Delete “" (page.title) "”?" }
-            p.lede { "The write-up is removed from your repository. Links to it stop working. There is no undo." }
+            p.lede { "The digest is removed from your repository. Links to it stop working. There is no undo." }
         }
         form.actions.delete-form method="post" action=(format!("/write/{}/delete", page.rkey)) {
             @match &page.post {

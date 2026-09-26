@@ -126,7 +126,7 @@ fn page(
         main: html! {
             div.page-head {
                 p.kicker { "Settings" }
-                h1 { "Your publication" }
+                h1 { "Your feed" }
                 p.lede {
                     @if not_yet {
                         "You don't have one yet. This is what it will be; change anything, or leave it."
@@ -150,7 +150,7 @@ fn page(
                         }
                         None => {
                             h2.chooser-name { (form.name) }
-                            p.meta.chooser-url { "Made when you save, or when you publish your first write-up." }
+                            p.meta.chooser-url { "Made when you save, or when you publish your first digest." }
                         }
                     }
                     form.hosting-form method="post" action="/settings" {
@@ -189,10 +189,10 @@ fn page(
                                 " Serve it yourself at"
                             }
                             input type="url" name="url" value=(form.url)
-                                placeholder="https://" spellcheck="false" aria-label="Your publication's address";
+                                placeholder="https://" spellcheck="false" aria-label="Your feed's address";
                             (error_for("url").unwrap_or_default())
                             @if not_yet && !can_host {
-                                p.meta.field-hint { "Left blank, the publication's address is its page on this site." }
+                                p.meta.field-hint { "Left blank, the feed's address is its page on this site." }
                             } @else {
                                 p.meta.field-hint { "Your site serves the pages; keep the .well-known verification there." }
                             }
@@ -289,7 +289,7 @@ struct DbFailure(String);
 fn checked_text(form: &SettingsForm) -> Result<(String, Option<String>), Outcome> {
     let name = form.name.trim();
     if name.is_empty() {
-        return Err(Outcome::problem("name", "Name the publication."));
+        return Err(Outcome::problem("name", "Name the feed."));
     }
     if name.graphemes(true).count() > MAX_NAME_GRAPHEMES {
         return Err(Outcome::problem(
@@ -319,7 +319,7 @@ fn checked_own_url(raw: &str) -> Result<String, Outcome> {
         }
         _ => Err(Outcome::problem(
             "url",
-            "Enter the https address your publication is served at.",
+            "Enter the https address your feed is served at.",
         )),
     }
 }
@@ -344,12 +344,7 @@ async fn create(state: &AppState, identity: &Identity, form: &SettingsForm) -> R
                 Home::Own(checked_own_url(&form.url)?)
             }
         }
-        _ => {
-            return Err(Outcome::problem(
-                "mode",
-                "Choose where the publication lives.",
-            ))
-        }
+        _ => return Err(Outcome::problem("mode", "Choose where the feed lives.")),
     };
     let session = session_for(state, &identity.did).await?;
     publish::create_publication(
@@ -419,12 +414,7 @@ async fn apply(
             state.claims().release(&record.uri).await.map_err(db)?;
             url
         }
-        _ => {
-            return Err(Outcome::problem(
-                "mode",
-                "Choose where the publication lives.",
-            ))
-        }
+        _ => return Err(Outcome::problem("mode", "Choose where the feed lives.")),
     };
     let unchanged = new_url == record.value.base_url()
         && name == record.value.name
