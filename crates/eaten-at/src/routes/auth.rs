@@ -130,6 +130,39 @@ fn continue_page(url: &Url) -> Markup {
     })
 }
 
+/// A page that moves a sign-in posted under another host to the bare
+/// origin's form, the handle filled in. Sign-in only completes on the
+/// bare origin: the session cookie and the OAuth callback live there.
+fn bounce_page(state: &AppState, form: &LoginForm) -> Response {
+    let mut url = Url::parse(&state.absolute("/login")).expect("the public URL is a URL");
+    {
+        let mut pairs = url.query_pairs_mut();
+        if !form.handle.trim().is_empty() {
+            pairs.append_pair("handle", form.handle.trim());
+        }
+        if let Some(return_to) = site_local(&form.return_to) {
+            pairs.append_pair("return_to", &return_to);
+        }
+    }
+    let host = state.public_host();
+    let page = layout::render(&Page {
+        title: &["Sign in"],
+        head: html! {
+            meta http-equiv="refresh" content=(format!("0;url={url}"));
+        },
+        main: html! {
+            div.page-head {
+                p.kicker { "Sign in" }
+                h1 { "Continuing to " (host) }
+                p.lede { "Signing in happens at " (host) ". Your handle comes along." }
+            }
+            p.actions { a.button href=(url.as_str()) { "Continue" } }
+        },
+        ..Page::default()
+    });
+    (StatusCode::OK, page).into_response()
+}
+
 /// A page for a sign-in that did not complete.
 fn failed_page(status: StatusCode, heading: &str, detail: &str) -> Response {
     let page = layout::render(&Page {
@@ -153,6 +186,9 @@ pub struct LoginQuery {
     reauth: bool,
     #[serde(default)]
     return_to: String,
+    /// A handle carried over from a form that posted under another host.
+    #[serde(default)]
+    handle: String,
 }
 
 /// `GET /login` — the form. A signed-in user is sent home.
@@ -173,7 +209,7 @@ pub async fn login_form(
         &state,
         &nonce,
         StatusCode::OK,
-        "",
+        &query.handle,
         site_local(&query.return_to).as_deref().unwrap_or(""),
         None,
     )
@@ -195,7 +231,10 @@ pub async fn login_start(
     Form(form): Form<LoginForm>,
 ) -> Response {
     if !is_bare_origin(&state, &headers) {
-        return to_bare_origin(&state, "/login");
+        // A redirect from a form post to another origin is blocked by
+        // `form-action 'self'`, silently, so the post is answered with a
+        // page that navigates there, the handle along with it.
+        return bounce_page(&state, &form);
     }
     let return_to = site_local(&form.return_to);
     let scopes = scopes_for_sign_in(&state, &form.handle).await;
