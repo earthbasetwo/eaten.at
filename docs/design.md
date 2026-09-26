@@ -634,6 +634,12 @@ results page any more.
   fields like every other value, and Publish or Save writes it with
   the record (D37 amended). A tile is drawn from the author's own blob
   (`/write/photo/{cid}`), so it shows before any record lists it.
+  A batch's problems are one to a line, the files named, the ones an
+  expired sign-in left out too. A picture's transparent parts are
+  flattened onto white, not the ivory paper: the photo is content,
+  kept in the author's repository and shown by other apps and on
+  feeds whose paper is their own, where ivory would be a box of the
+  wrong colour; "no pure whites" is the page's rule, not the photo's.
   While a photo is on its way the tiles dim, the line under them and
   one beside Publish (or Save changes) read "Uploading 3 photos…", and
   the button, with every submit but Delete's, waits until the last

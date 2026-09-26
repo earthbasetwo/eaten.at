@@ -51,7 +51,7 @@
   problems.hidden = true;
   problems.setAttribute("role", "alert");
   grid.insertAdjacentElement("afterend", problems);
-  // Read aloud: a tile's keys, and where a moved photo landed.
+  // Read aloud: a tile's keys, where a moved photo landed.
   var keyHelp = el("span", "visually-hidden");
   keyHelp.id = "photo-keys";
   keyHelp.textContent = "Enter opens it; Alt and an arrow key move it.";
@@ -78,7 +78,7 @@
   }
   var CROSS = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1 9 9M9 1 1 9" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>';
   function showProblems(list) {
-    problems.textContent = list.join(" ");
+    problems.textContent = list.join("\n");
     problems.hidden = list.length === 0;
   }
 

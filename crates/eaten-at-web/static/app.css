@@ -1096,6 +1096,8 @@
   /* Photos: four square tiles to a row, the first the cover, an add
      tile last; or one dashed box that is the invitation. */
   .photos-block { margin-block-start: var(--space-l); }
+  /* A batch's problems, one to a line. */
+  .photos-block > .field-error { white-space: pre-line; }
   .photo-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
   .photo-tiles.photos-empty { display: block; }
   /* Uploading: the tiles rest (a redraw would drop a drag) and dim; the

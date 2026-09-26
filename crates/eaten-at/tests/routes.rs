@@ -3218,7 +3218,7 @@ async fn a_request_over_the_size_cap_is_refused_in_words() {
         "the photos page again, with the reason: {body}"
     );
     assert!(
-        body.contains("Up to 6 at a time, 20 MB each, 24 on a digest."),
+        body.contains("Up to 6 at a time, 20 MB and 50 megapixels each, 24 on a digest."),
         "the hint states limits that add up: {body}"
     );
 
@@ -3313,6 +3313,30 @@ async fn an_upload_counts_the_photos_already_in_the_form() {
             "words.png isn't an image we can use. JPEG, PNG, GIF, or WebP, please.",
             "At most 24 photos on a digest; the last 1 was not added."
         ])
+    );
+    // Past six at a time, the files left out are named (PH24).
+    let names = [
+        "1.png", "2.png", "3.png", "4.png", "5.png", "6.png", "7.png", "8.png",
+    ];
+    let files: Vec<(&str, &[u8])> = names.iter().map(|n| (*n, png.as_slice())).collect();
+    let (content_type, body) = multipart_body(&[("existing", "0")], &files);
+    let response = router(state.clone())
+        .oneshot(
+            Request::post("/write/upload")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, content_type)
+                .header(header::ACCEPT, "application/json")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let json: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(json["photos"].as_array().unwrap().len(), 6, "{json}");
+    assert_eq!(
+        json["problems"],
+        json!(["At most 6 photos at a time; 7.png and 8.png were not added."])
     );
     // Full: nothing is sent to the repository.
     let before = server.received_requests().await.unwrap().len();

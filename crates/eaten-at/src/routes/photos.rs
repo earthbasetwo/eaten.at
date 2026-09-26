@@ -569,13 +569,20 @@ async fn add(
     form: PhotosForm,
 ) -> Result<(Vec<Photo>, Vec<String>), Refused> {
     let mut problems = Vec::new();
-    if form.too_many {
+    if !form.too_many.is_empty() {
         tracing::info!(
             max = MAX_FILES_PER_REQUEST,
+            left = form.too_many.len(),
             "photos refused: more files than one request takes"
         );
         problems.push(format!(
-            "At most {MAX_FILES_PER_REQUEST} photos at a time; the rest were not added."
+            "At most {MAX_FILES_PER_REQUEST} photos at a time; {} {} not added.",
+            photos::listed(&form.too_many),
+            if form.too_many.len() == 1 {
+                "was"
+            } else {
+                "were"
+            }
         ));
     }
     for name in &form.empty {
