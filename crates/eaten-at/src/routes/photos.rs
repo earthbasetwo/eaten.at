@@ -695,6 +695,9 @@ async fn add(
             ));
             return Err(Refused::Repo(problems));
         }
+        if prepared.animated {
+            problems.push(format!("{name} is animated; only its first frame is kept."));
+        }
         photos.push(Photo {
             image: blob,
             alt: None,
