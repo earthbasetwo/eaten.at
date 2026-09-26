@@ -658,7 +658,9 @@ results page any more.
   feeds whose paper is their own, where ivory would be a box of the
   wrong colour; "no pure whites" is the page's rule, not the photo's.
   While a photo is on its way the tiles dim, the line under them and
-  one beside Publish (or Save changes) read "Uploading 3 photos…", and
+  one beside Publish (or Save changes) read "Uploading 3 photos…" (the
+  first photo's progress is written in the empty add box itself, not on
+  a line under it; Ken, 2026-09-26), and
   the button, with every submit but Delete's, waits until the last
   upload answers, taken or refused; more can be picked meanwhile.
   Without script the tiles link to the photos page once there is a

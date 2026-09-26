@@ -178,7 +178,13 @@
     wait.textContent = text;
     if (submit) submit.disabled = n > 0;
     grid.classList.toggle("busy", n > 0);
-    if (n) {
+    // The first photo's progress is written in the add box itself; with
+    // tiles up it goes on the line under them.
+    var empty = grid.querySelector(".photo-empty");
+    if (empty) {
+      empty.querySelector(".photo-empty-idle").textContent = n ? text : "Add photos";
+      empty.querySelector(".photo-empty-hover").textContent = n ? text : "add a photo";
+    } else if (n) {
       hint.hidden = false;
       hint.textContent = text;
     }
