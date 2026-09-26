@@ -830,7 +830,9 @@ async fn taken_paths(
     Ok(taken)
 }
 
-/// The document and every listing that might have shown it.
+/// The document, every listing that might have shown it, and the
+/// images drawn from it: the cover (card and OpenGraph) follows the
+/// first photo, so it must not outlive a change to the photos.
 async fn forget_document(state: &AppState, did: &Did, rkey: &str) {
     let cache = state.cache();
     cache
@@ -838,6 +840,9 @@ async fn forget_document(state: &AppState, did: &Did, rkey: &str) {
         .await;
     cache
         .evict_prefix(Namespace::DocumentList, &format!("{did}:"))
+        .await;
+    cache
+        .evict_prefix(Namespace::Image, &format!("{did}/{rkey}/"))
         .await;
 }
 
