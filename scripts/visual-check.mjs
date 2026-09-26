@@ -280,7 +280,7 @@ async function main() {
   // The editing screen and its islands: the live markdown editor, the
   // calendar, the meal menu, the tags as chips, the teaser fold, a link
   // card, the photos in place, and Delete's confirmation.
-  await check({ name: 'edit', path: `/write/${rkey}`, expect: '.digest-editor .md-line' })
+  await check({ name: 'edit', path: `/write/${rkey}`, exercise: checkTapTargets, expect: '.digest-editor .md-line' })
   await check({
     name: 'edit-short-draft', path: `/write/${rkey}`,
     viewports: [{ label: 'laptop', width: 1440, height: 800, mobile: false }],
@@ -379,7 +379,7 @@ async function main() {
       await browser.navigate(`${BASE}${draftPath}`);
     },
   });
-  await check({ name: 'edit-no-photos', path: `/write/${bare}`, expect: 'button.photo-empty' })
+  await check({ name: 'edit-no-photos', path: `/write/${bare}`, exercise: checkTapTargets, expect: 'button.photo-empty' })
   await check({
     name: 'edit-link',
     path: `/write/${rkey}`,
@@ -593,7 +593,32 @@ async function checkPlaceDraft(browser) {
   if (JSON.stringify(await readPlace()) !== JSON.stringify(original)) throw new Error('A legacy draft mixed incomplete restaurant metadata with the saved record')
 }
 
+// Every visible control takes a tap at its own centre. A touch halo laid
+// out against the wrong box once covered the whole editor on a phone, so
+// that a tap on the title opened the file picker and a tap anywhere in the
+// photo dialog removed the photo; el.click() never noticed.
+async function checkTapTargets(browser, scope = 'form.editor-write') {
+  const covered = await browser.evaluate(`(() => {
+    const out = []
+    const controls = document.querySelectorAll(${JSON.stringify(scope)} + ' :is(input:not([type=hidden]), textarea, button, a, select, summary, .photo-tile, .digest-editor)')
+    for (const el of controls) {
+      const folded = el.closest('details:not([open])')
+      if (el.closest('[hidden]') || (folded && !el.closest('summary')) || el.getClientRects().length === 0) continue
+      el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+      const b = el.getBoundingClientRect()
+      if (b.width < 2 || b.height < 2) continue
+      const hit = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)
+      const ok = hit && (hit === el || el.contains(hit) || (el.labels && [...el.labels].some(l => l.contains(hit))))
+      if (!ok) out.push(el.outerHTML.slice(0, 60) + ' is under ' + (hit ? hit.outerHTML.slice(0, 60) : 'nothing'))
+    }
+    scrollTo(0, 0)
+    return out
+  })()`)
+  if (covered.length) throw new Error('A tap lands on the wrong control: ' + covered.join('; '))
+}
+
 async function checkPhotoDialog(browser) {
+  await checkTapTargets(browser, '.photo-scrim')
   const layout = await browser.evaluate(`(() => {
     const panel = document.querySelector('.photo-detail').getBoundingClientRect()
     const foot = document.querySelector('.photo-detail-foot').getBoundingClientRect()
