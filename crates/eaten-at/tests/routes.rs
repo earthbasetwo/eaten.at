@@ -307,7 +307,7 @@ async fn landing_page_draws_both_ways_in_as_connect_blocks() {
     // The form it becomes is served hidden, posts where the sign-in page
     // does, suggests handles, and does not share the lookup field's id.
     let form =
-        body.find("<form class=\"lookup connect-form\" action=\"/login\" method=\"post\" hidden>");
+        body.find("<form class=\"lookup connect-form\" action=\"https://eaten.at/login\" method=\"post\" hidden>");
     assert!(form.is_some(), "{body}");
     assert!(
         body.contains("<input id=\"connect-handle\" name=\"handle\" type=\"text\" inputmode=\"url\" autocomplete=\"username\""),

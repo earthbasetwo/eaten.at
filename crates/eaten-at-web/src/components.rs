@@ -370,6 +370,10 @@ impl ConnectWay {
 pub struct Connect<'a> {
     /// The `AppView` origin the handle field suggests from (D42).
     pub appview: &'a str,
+    /// The site's bare origin, which a sign-in posts to wherever the
+    /// page was served: sign-in only completes there, and a redirect
+    /// from a form post to another origin is blocked without a word.
+    pub origin: &'a str,
     /// Which way in this one opens.
     pub way: ConnectWay,
     /// A line above the button, in the lede's voice, for a block whose
@@ -400,6 +404,11 @@ pub struct Connect<'a> {
 /// submission, so it holds with the island's script and without it.
 pub fn connect(connect: &Connect<'_>) -> Markup {
     let way = connect.way;
+    let action = if way.method() == "post" {
+        format!("{}{}", connect.origin, way.action())
+    } else {
+        way.action().to_owned()
+    };
     html! {
         @if let Some(intro) = connect.intro {
             p.lede.connect-intro { (intro) }
@@ -408,7 +417,7 @@ pub fn connect(connect: &Connect<'_>) -> Markup {
             div.actions.landing-actions.connect-idle {
                 a class=(way.button_class()) href=(way.action()) { (connect.label) }
             }
-            form.lookup.connect-form action=(way.action()) method=(way.method()) hidden {
+            form.lookup.connect-form action=(action) method=(way.method()) hidden {
                 label.visually-hidden for=(way.field_id()) { (way.field_label()) }
                 div.lookup-row {
                     span.return-rule {

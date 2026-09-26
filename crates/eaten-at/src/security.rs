@@ -28,20 +28,33 @@ impl Nonce {
 
     /// The policy for a page carrying this nonce.
     pub fn csp(&self) -> String {
-        self.policy(None)
+        self.policy(None, None)
     }
 
     /// The policy for a page whose script fetches from `origin` as well
     /// as from us (plan 10, D42: the handle suggestions). Everything
     /// else stays as strict as [`csp`](Self::csp).
     pub fn csp_connecting(&self, origin: &str) -> String {
-        self.policy(Some(origin))
+        self.policy(Some(origin), None)
     }
 
-    fn policy(&self, connect: Option<&str>) -> String {
+    /// The policy for a page that may connect to `origin` and whose
+    /// forms may post to `post`: the bare origin, for a sign-in form
+    /// served under another host. A redirect from a form post to another
+    /// origin is blocked by `form-action 'self'` with nothing shown, so
+    /// the form posts there itself.
+    pub fn csp_connecting_and_posting(&self, origin: &str, post: &str) -> String {
+        self.policy(Some(origin), Some(post))
+    }
+
+    fn policy(&self, connect: Option<&str>, post: Option<&str>) -> String {
         let connect_src = match connect {
             Some(origin) => format!("connect-src 'self' {origin}; "),
             None => String::new(),
+        };
+        let form_action = match post {
+            Some(origin) => format!("form-action 'self' {origin}; "),
+            None => "form-action 'self'; ".to_owned(),
         };
         format!(
             "default-src 'self'; \
@@ -52,7 +65,7 @@ impl Nonce {
              frame-src 'none'; \
              frame-ancestors 'none'; \
              base-uri 'none'; \
-             form-action 'self'; \
+             {form_action}\
              object-src 'none'",
             n = self.0
         )
@@ -63,6 +76,16 @@ impl Nonce {
 /// middleware leaves a header a handler set alone.
 pub fn allow_connect(response: &mut Response, nonce: &Nonce, origin: &str) {
     if let Ok(value) = HeaderValue::from_str(&nonce.csp_connecting(origin)) {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_SECURITY_POLICY, value);
+    }
+}
+
+/// Set a page's policy to one that may connect to `origin` and post its
+/// forms to `post` as well as to itself.
+pub fn allow_connect_and_post(response: &mut Response, nonce: &Nonce, origin: &str, post: &str) {
+    if let Ok(value) = HeaderValue::from_str(&nonce.csp_connecting_and_posting(origin, post)) {
         response
             .headers_mut()
             .insert(header::CONTENT_SECURITY_POLICY, value);
