@@ -987,7 +987,7 @@
   }
   .digest:hover { border-color: var(--color-ink); }
   .digest:focus-within { border-color: var(--color-vermilion); }
-  .editor-write .place-head .headline { display: block; inline-size: 100%; }
+  .editor-write .place-head .headline { display: block; inline-size: 100%; resize: none; }
   /* The text starts a step below the meal line's rule, as the title did. */
   .digest > .editor-body, .digest > .digest-editor { margin-block-start: var(--space-m); }
   .editor-body {

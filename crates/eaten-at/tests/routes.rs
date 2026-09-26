@@ -2045,7 +2045,7 @@ async fn a_picked_suggestion_fills_the_place_from_the_cached_search() {
     // address is the line under it, and the listing's facts are carried.
     assert!(!body.contains("<h1>"), "{body}");
     assert!(
-        body.contains("class=\"headline\" id=\"title\" name=\"title\" type=\"text\" value=\"\" placeholder=\""),
+        body.contains("class=\"headline\" id=\"title\" name=\"title\" rows=\"1\" placeholder=\""),
         "{body}"
     );
     assert!(
@@ -2345,7 +2345,7 @@ async fn editor_reports_problems_beside_fields_and_keeps_a_good_draft() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(!body.contains("class=\"field-error\""), "{body}");
     assert!(
-        body.contains("value=\"A room with the lights off\""),
+        body.contains(">A room with the lights off</textarea>"),
         "{body}"
     );
     assert!(
@@ -2386,7 +2386,7 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
 
     let (status, _, body) = get_signed(&state, "/write/d9", &cookie).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("value=\"Foreign Post\""), "{body}");
+    assert!(body.contains(">Foreign Post</textarea>"), "{body}");
     assert!(body.contains("value=\"Foreign Place\""), "{body}");
     assert!(body.contains("value=\"2026-09-06\""), "{body}");
     // Foreign values are shown as their own selected option, as written,
@@ -2411,7 +2411,7 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
     // Delete, which confirms in place and posts to the delete route.
     assert!(
         body.contains(
-            "name=\"title\" type=\"text\" value=\"Foreign Post\" placeholder=\"Foreign Place\""
+            "name=\"title\" rows=\"1\" placeholder=\"Foreign Place\" autocomplete=\"off\">Foreign Post</textarea>"
         ),
         "{body}"
     );
