@@ -362,6 +362,46 @@ async function main() {
       if (!await browser.evaluate(`document.querySelectorAll('.md-in-li').length === 1 && document.querySelectorAll('.md-in-q').length === 1`)) throw new Error('Prose under an item or a quote is not drawn inside it')
     },
   })
+  // Select All, then copy, cut, paste, and typing, with the caret on the
+  // first line, with real keys: the clipboard event lands on the hidden
+  // label before the digest there, not on the digest (CB3).
+  await check({
+    name: 'edit-selection-first-line',
+    path: `/write/${rkey}`,
+    expect: '.digest-editor .md-line',
+    exercise: async (browser) => {
+      const original = '# Heading\nA **bold** line.\n- item'
+      await browser.session.send('Browser.grantPermissions', { origin: BASE, permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] })
+      const press = async (key, commands) => {
+        const code = 'Key' + key.toUpperCase(), vk = key.toUpperCase().charCodeAt(0)
+        await browser.session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code, modifiers: 4, windowsVirtualKeyCode: vk, commands })
+        await browser.session.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers: 4, windowsVirtualKeyCode: vk })
+      }
+      const body = () => browser.evaluate('document.querySelector("#body").value')
+      const fresh = async () => {
+        await browser.evaluate(`(() => {
+          const ta = document.querySelector('#body'); ta.value = ${JSON.stringify(original)}
+          ta.dispatchEvent(new Event('change', { bubbles: true }))
+          document.querySelector('.md-line').click()
+        })()`)
+        if (!await browser.evaluate(`document.querySelectorAll('.md-line')[0].classList.contains('md-active')`)) throw new Error('The first line did not open')
+        await press('a', ['selectAll'])
+      }
+      await fresh()
+      await browser.evaluate(`navigator.clipboard.writeText('sentinel')`)
+      await press('c', ['copy'])
+      if (await browser.evaluate('navigator.clipboard.readText()') !== original) throw new Error('Copy from the first line did not copy the markdown')
+      await press('x', ['cut'])
+      if (await body() !== '') throw new Error('Cut from the first line left ' + JSON.stringify(await body()))
+      await fresh()
+      await browser.evaluate(`navigator.clipboard.writeText('Pasted\\n\\nover it')`)
+      await press('v', ['paste'])
+      if (await body() !== 'Pasted\n\nover it') throw new Error('Paste from the first line gave ' + JSON.stringify(await body()))
+      await fresh()
+      await browser.session.send('Input.insertText', { text: 'Typed' })
+      if (await body() !== 'Typed') throw new Error('Typing over it from the first line gave ' + JSON.stringify(await body()))
+    },
+  })
   await check({
     name: 'edit-date',
     path: `/write/${rkey}`,
