@@ -1,10 +1,6 @@
-/* Handle suggestions from the Bluesky AppView (plan 10): every
-   input[data-typeahead] becomes a combobox whose source is
-   app.bsky.actor.searchActorsTypeahead on the origin the attribute
-   names, called without credentials. A handle not on Bluesky is still
-   typed in full; the form is untouched either way. Enter sends the
-   field: the highlighted suggestion when there is one, and otherwise
-   exactly what was typed, menu open or not. */
+/* Handle suggestions from the Bluesky AppView (plan 10), called without
+   credentials. Enter sends the highlighted suggestion, else exactly
+   what was typed. The form is untouched either way. */
 (function () {
   "use strict";
   var inputs = document.querySelectorAll("input[data-typeahead]");

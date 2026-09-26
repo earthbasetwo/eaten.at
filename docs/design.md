@@ -617,7 +617,15 @@ results page any more.
   **price** (`$?` unset; `$` to `$$$$`) are selects the island redraws
   as words over small right-aligned paper menus (options at 15px on
   1.9, the chosen one ink and underlined, an italic "no note" to
-  clear).
+  clear). A menu is a short list of buttons, not a listbox: opening it
+  puts focus on the chosen option (Tab moves through them), Escape
+  hands focus back to the word, and the word is named with its field
+  ("Meal: lunch", "Price: $$"). The calendar opens with focus on the
+  chosen day, each day named in full ("September 6, 2026"), and gives
+  focus back the same way. Folding the teaser ("leave it be", "never
+  mind") leaves focus on its line; a restored draft that opens the
+  fold does not move focus into it. The digest's open line is a
+  textbox named "Digest".
 - **Photos.** The kicker, then four square tiles to a row with 10px
   gaps, the first wearing a COVER badge (mono 9px caps, ink on paper),
   a remove mark revealed on the tile, and an add tile (a dashed box

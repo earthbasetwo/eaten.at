@@ -155,6 +155,7 @@
       for (var d = 1; d <= days; d++) {
         var iso = y + "-" + pad(m) + "-" + pad(d);
         var day = button("date-day", String(d));
+        day.setAttribute("aria-label", MONTHS[m - 1] + " " + d + ", " + y);
         if (iso === input.value) {
           day.classList.add("selected");
           day.setAttribute("aria-pressed", "true");
@@ -175,6 +176,7 @@
     }
     var popover = {
       root: field,
+      trigger: trigger,
       close: function () { pop.hidden = true; trigger.setAttribute("aria-expanded", "false"); }
     };
     trigger.addEventListener("click", function () {
@@ -186,6 +188,7 @@
       pop.hidden = false;
       trigger.setAttribute("aria-expanded", "true");
       showPopover(popover);
+      (pop.querySelector(".selected") || pop.querySelector(".today") || pop.querySelector(".date-day")).focus();
     });
     input.addEventListener("change", label);
     label();
@@ -197,13 +200,12 @@
     var rule = field.querySelector(".select-rule");
     if (!select || !rule) return;
     var unset = field.getAttribute("data-unset") || "";
+    // A word that opens a short list of buttons, the chosen one marked
+    // current; named with its field, as "Meal: lunch".
     var trigger = button("note-button");
-    trigger.setAttribute("aria-haspopup", "listbox");
     trigger.setAttribute("aria-expanded", "false");
     var pop = el("div", "popover note-popover paper");
     pop.hidden = true;
-    pop.setAttribute("role", "listbox");
-    pop.setAttribute("aria-label", select.getAttribute("aria-label") || "");
     rule.hidden = true;
     // Where the select was: a problem the server found stays under it.
     rule.after(trigger, pop);
@@ -211,6 +213,7 @@
       var chosen = select.options[select.selectedIndex];
       trigger.classList.toggle("unset", !select.value);
       trigger.textContent = select.value && chosen ? chosen.textContent : unset;
+      trigger.setAttribute("aria-label", select.getAttribute("aria-label") + ": " + trigger.textContent);
     }
     function choose(value) {
       select.value = value;
@@ -223,20 +226,17 @@
       Array.prototype.forEach.call(select.options, function (option) {
         if (!option.value) return;
         var row = button("note-option", option.textContent);
-        row.setAttribute("role", "option");
-        row.setAttribute("aria-selected", option.selected ? "true" : "false");
-        if (option.selected) row.classList.add("selected");
+        if (option.selected) { row.classList.add("selected"); row.setAttribute("aria-current", "true"); }
         row.addEventListener("click", function () { choose(option.value); });
         pop.appendChild(row);
       });
       var clear = button("note-option note-clear", field.dataset.note === "meal" ? "food" : "no note");
-      clear.setAttribute("role", "option");
-      clear.setAttribute("aria-selected", select.value ? "false" : "true");
       clear.addEventListener("click", function () { choose(""); });
       pop.appendChild(clear);
     }
     var popover = {
       root: field,
+      trigger: trigger,
       close: function () { pop.hidden = true; trigger.setAttribute("aria-expanded", "false"); }
     };
     trigger.addEventListener("click", function () {
@@ -245,6 +245,7 @@
       pop.hidden = false;
       trigger.setAttribute("aria-expanded", "true");
       showPopover(popover);
+      (pop.querySelector(".selected") || pop.firstChild).focus();
     });
     select.addEventListener("change", label);
     label();
@@ -258,24 +259,28 @@
     if (!fold || !text) return;
     var whenDefault = fold.querySelector(".teaser-default");
     var whenCustom = fold.querySelector(".teaser-custom");
+    // Opened by the author, the fold hands them the field; opened for a
+    // restored draft's teaser, it leaves focus alone. Folded, focus
+    // goes back to its line.
+    var quiet = false;
     function sync() {
       var custom = text.value.trim() !== "";
       whenDefault.hidden = custom;
       whenCustom.hidden = !custom;
-      if (custom) fold.open = true;
+      if (custom && !fold.open) { quiet = true; fold.open = true; }
     }
     text.addEventListener("input", sync);
     text.addEventListener("change", sync);
     fold.addEventListener("toggle", function () {
-      if (fold.open) text.focus();
+      if (fold.open && !quiet) text.focus();
+      quiet = false;
     });
-    fold.querySelector("[data-teaser=\"fold\"]").addEventListener("click", function () {
-      fold.open = false;
-    });
+    function shut() { fold.open = false; fold.querySelector("summary").focus(); }
+    fold.querySelector("[data-teaser=\"fold\"]").addEventListener("click", shut);
     fold.querySelector("[data-teaser=\"reset\"]").addEventListener("click", function () {
       text.value = "";
       announce(text);
-      fold.open = false;
+      shut();
     });
     // The first lines, roughly as the listings draw them.
     function firstLines(markdown) {
@@ -446,7 +451,7 @@
   /* Escape closes the topmost transient. */
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
-    if (open) { closePopover(); return; }
+    if (open) { var back = open.trigger; closePopover(); back.focus(); return; }
     if (confirm && confirm.open) { confirm.open = false; confirm.querySelector("summary").focus(); }
   });
 })();
