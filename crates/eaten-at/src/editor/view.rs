@@ -167,6 +167,7 @@ fn date_line(form: &EditorForm, errors: &FieldErrors) -> Markup {
                     input #visited_on name="visited_on" type="date" value=(form.visited_on) required
                         aria-label="Date of the visit" aria-describedby=[described(errors, "visited_on")];
                 }
+                span.soft { "." }
             }
             (field_error(errors, "meal"))
             (field_error(errors, "visited_on"))
