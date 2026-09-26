@@ -11,7 +11,7 @@ use eaten_at_atproto::lexicon::{
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::form::{EditorForm, PlaceMode};
-use super::photos::{MAX_ALT_BYTES, MAX_ALT_GRAPHEMES};
+use super::photos::caption_problem;
 use super::{MAX_BODY_BYTES, MAX_LINKS, MAX_TAGS};
 use crate::publish::MAX_POST_GRAPHEMES;
 use crate::tags;
@@ -279,11 +279,8 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
             continue;
         };
         let alt = field.alt.trim();
-        if graphemes(alt) > MAX_ALT_GRAPHEMES || alt.len() > MAX_ALT_BYTES {
-            errors.add(
-                format!("photo_alt_{i}"),
-                format!("Keep a caption under {MAX_ALT_GRAPHEMES} characters."),
-            );
+        if let Some(message) = caption_problem(i + 1, alt) {
+            errors.add(format!("photo_alt_{i}"), message);
         }
         let mime = field.mime.trim();
         let aspect_ratio = match (
