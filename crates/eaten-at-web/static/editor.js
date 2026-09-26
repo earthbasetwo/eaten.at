@@ -7,9 +7,7 @@
   "use strict";
   var form = document.querySelector("form.editor");
   if (!form) return;
-  /* The choosing state (plan 06) is the server's: every field rides
-     along hidden, so there is nothing to keep and a draft from the
-     writing state would only be offered against the wrong fields. */
+  // Choosing, every field rides along hidden (plan 06).
   var mode = form.elements.place_mode;
   if (mode && mode.value === "choosing") return;
   var key = "ea:draft:" + location.pathname;
@@ -64,12 +62,6 @@
     if (timer) clearTimeout(timer);
     timer = setTimeout(save, 400);
   }
-  function forget() {
-    clearTimeout(timer);
-    timer = null;
-    if (!store) return;
-    try { store.removeItem(key); } catch (e) {}
-  }
 
   function banner(saved) {
     var box = document.createElement("div");
@@ -110,7 +102,10 @@
       if (saved.photos) form.dispatchEvent(new CustomEvent("draft-restore", { detail: saved.data }));
       box.remove();
     });
-    discard.addEventListener("click", function () { forget(); box.remove(); });
+    discard.addEventListener("click", function () {
+      try { store.removeItem(key); } catch (e) {}
+      box.remove();
+    });
     box.appendChild(text);
     box.appendChild(restore);
     box.appendChild(document.createTextNode(" "));
@@ -118,7 +113,9 @@
     form.insertBefore(box, form.firstChild);
   }
 
-  if (store) {
+  // Back from the chooser, the page is the draft, with its new place.
+  if (form.dataset.back) save();
+  else if (store) {
     var saved = null;
     try { saved = JSON.parse(store.getItem(key)); } catch (e) { saved = null; }
     if (saved && saved.data && !same(saved.data, snapshot())) banner(saved);
@@ -126,12 +123,11 @@
 
   form.addEventListener("input", function (e) { grow(e.target); scheduleSave(); });
   form.addEventListener("change", scheduleSave);
-  form.addEventListener("submit", function (e) {
-    var action = e.submitter && e.submitter.value;
-    if (action === "change_place") forget(); else {
-      clearTimeout(timer);
-      form.elements.draft_id.value = save() || "";
-    }
+  // Kept on every send, "somewhere else" too: the chooser carries the
+  // writing only in its hidden fields.
+  form.addEventListener("submit", function () {
+    clearTimeout(timer);
+    form.elements.draft_id.value = save() || "";
   });
   fields().forEach(grow);
 })();

@@ -672,6 +672,9 @@ results page any more.
   order, and is saved whenever a photo is added, captioned (as the
   caption is typed, the photo still open), moved, or removed;
   restoring it redraws the tiles from the author's own blobs.
+  "somewhere else" keeps the draft on its way to the chooser, so
+  leaving the chooser loses nothing, and "Keep writing" keeps it again
+  at once, with the new place, instead of offering the old one back.
   Restoring replaces the list whole: a photo still on its way when
   "Restore it" is pressed belongs to the list it replaced and is
   dropped when it answers, so a draft of 24 stays 24.
