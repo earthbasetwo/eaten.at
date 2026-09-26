@@ -10,7 +10,7 @@ use eaten_at_atproto::lexicon::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::form::{EditorForm, PlaceMode};
+use super::form::{EditorForm, PlaceMode, MAX_PHOTO_ROWS};
 use super::photos::caption_problem;
 use super::{MAX_BODY_BYTES, MAX_LINKS, MAX_TAGS};
 use crate::publish::MAX_POST_GRAPHEMES;
@@ -310,12 +310,21 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
             extra: serde_json::Map::new(),
         });
     }
-    if photos.len() > MAX_PHOTOS {
-        let over = photos.len() - MAX_PHOTOS;
+    let unread = form.photos_unread;
+    if photos.len() + unread > MAX_PHOTOS {
+        let over = photos.len().saturating_sub(MAX_PHOTOS);
+        let unread_note = if unread > 0 {
+            format!(
+                " {unread} more, past the first {MAX_PHOTO_ROWS}, {} not read.",
+                if unread == 1 { "was" } else { "were" }
+            )
+        } else {
+            String::new()
+        };
         errors.add(
             "photos",
             format!(
-                "At most {MAX_PHOTOS} photos on a digest; remove {over} {}.",
+                "At most {MAX_PHOTOS} photos on a digest; remove {over} {}.{unread_note}",
                 if over == 1 { "photo" } else { "photos" }
             ),
         );
@@ -463,6 +472,7 @@ mod tests {
             place_mode: PlaceMode::Picked,
             draft_id: None,
             changing_place: false,
+            photos_unread: 0,
             place_query: String::new(),
             gers_id: " 08f2a5b6c7d8e9f0a1b2c3d4e5f60718 ".into(),
             lat_e6: "40688838".into(),
@@ -690,6 +700,13 @@ mod tests {
         assert_eq!(
             errors.get("photos"),
             Some("At most 24 photos on a digest; remove 3 photos.")
+        );
+        // A form past the rows it is read with says what it dropped.
+        form.photos_unread = 12;
+        let errors = validate(&form, &ctx()).unwrap_err();
+        assert_eq!(
+            errors.get("photos"),
+            Some("At most 24 photos on a digest; remove 3 photos. 12 more, past the first 48, were not read.")
         );
     }
 

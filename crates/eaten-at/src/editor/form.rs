@@ -42,6 +42,9 @@ pub struct EditorForm {
     /// photos island uploaded or the record carried. Strings, so the
     /// form can carry them across its own re-renders (D37 amended).
     pub photos: Vec<PhotoField>,
+    /// Photos the form carried past [`MAX_PHOTO_ROWS`], which were not
+    /// read, so the page can say so.
+    pub photos_unread: usize,
     /// Comma-separated, as typed.
     pub tags: String,
     /// Whether to post to Bluesky on publish (plan §5.7).
@@ -323,6 +326,7 @@ impl EditorForm {
             },
             draft_id: None,
             changing_place: false,
+            photos_unread: 0,
             place_query: String::new(),
             gers_id: visit.place.gers_id.clone().unwrap_or_default(),
             lat_e6: visit
@@ -401,6 +405,9 @@ impl EditorForm {
                             // hard bound, so the page can say how many to
                             // remove and show every one; past the bound a
                             // row is dropped rather than written over another.
+                            "photo_cid" if index >= MAX_PHOTO_ROWS && !value.trim().is_empty() => {
+                                form.photos_unread += 1;
+                            }
                             "photo_cid" | "photo_mime" | "photo_size" | "photo_alt"
                             | "photo_width" | "photo_height"
                                 if index < MAX_PHOTO_ROWS =>
@@ -513,7 +520,7 @@ fn remove_if_present<T>(rows: &mut Vec<T>, index: usize) {
 
 /// Most photo rows a posted form is read with: twice what a digest may
 /// hold, so a form over the limit comes back whole with the problem.
-const MAX_PHOTO_ROWS: usize = 2 * MAX_PHOTOS;
+pub const MAX_PHOTO_ROWS: usize = 2 * MAX_PHOTOS;
 
 /// `prefix_N` → `(prefix, N)`.
 fn indexed(name: &str) -> Option<(&str, usize)> {
@@ -703,6 +710,7 @@ mod tests {
         ]);
         assert_eq!(form.photos.len(), 1);
         assert_eq!(form.photos[0].cid, "bafya");
+        assert_eq!(form.photos_unread, 1, "and counted, to be said");
     }
 
     #[test]

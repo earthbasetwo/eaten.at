@@ -745,7 +745,8 @@ async function main() {
         await browser.setCookie(cookieName, cookieValue)
       }
       const expected = "empty.jpg is empty. notes.txt isn't an image we can use. JPEG, PNG, GIF, or WebP, please. " +
-        'Your sign-in has expired. Sign in again in another tab, then add the missing photos.'
+        'Your sign-in has expired. Sign in again in another tab, then add the missing photos. ' +
+        'Not added: one.jpg, two.jpg.'
       if (result.problems !== expected) throw new Error('The refusals were not named: ' + result.problems)
       if (result.sent !== 1) throw new Error(`${result.sent} uploads were sent after the sign-in had expired`)
     },

@@ -51,8 +51,7 @@
   problems.hidden = true;
   problems.setAttribute("role", "alert");
   grid.insertAdjacentElement("afterend", problems);
-  /* For the keyboard: what a tile's keys do, and where a moved photo
-     landed, both unseen and read aloud. */
+  // Read aloud: a tile's keys, and where a moved photo landed.
   var keyHelp = el("span", "visually-hidden");
   keyHelp.id = "photo-keys";
   keyHelp.textContent = "Enter opens it; Alt and an arrow key move it.";
@@ -83,8 +82,7 @@
     problems.hidden = list.length === 0;
   }
 
-  /* The list as the form carries it: six hidden fields a photo, in
-     the order shown, which is the order written. */
+  // The list as the form carries it, six fields a photo, in order.
   function ownPhoto(cid, size) { return "/write/photo/" + encodeURIComponent(cid) + "?size=" + size; }
   function sync() {
     fields.textContent = "";
@@ -149,6 +147,11 @@
       send(file).then(function (got) {
         if (mine !== round) return;
         busy = false;
+        // Signed out, the rest would fare no better: they are named.
+        if (got[2] === 401) {
+          got[1].push("Not added: " + [file].concat(queue).map(function (f) { return f.name; }).join(", ") + ".");
+          queue = [];
+        }
         got[0].forEach(function (p) {
           if (photos.length < maxPhotos) photos.push(keyed(p));
           else got[1].push("At most " + maxPhotos + " photos on a digest; " + file.name + " was not added.");
@@ -202,9 +205,6 @@
       })
       .then(function (res) {
         var body = res.body || {};
-        // Signed out: the rest would fare no better, and the message
-        // says to add the missing ones once signed in again.
-        if (res.status === 401) queue = [];
         var messages = (body.problems || []).slice();
         if (body.error) messages.push(body.error);
         if (!res.ok && messages.length === 0) messages.push(failed);
@@ -214,7 +214,7 @@
             width: p.width == null ? "" : p.width, height: p.height == null ? "" : p.height,
             alt: p.alt || "", thumb: p.thumb, full: p.full
           };
-        }), messages];
+        }), messages, res.status];
       }, function () {
         return [[], [failed]];
       });

@@ -3419,6 +3419,29 @@ async fn an_upload_says_so_when_the_sign_in_has_run_out() {
     let (status, location, _) = upload_files(&state, None, false, &[("one.png", &png)]).await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert_eq!(location.as_deref(), Some("/login?return_to=%2Fwrite"));
+    // The photos page answers the same way, signed out (PH23).
+    for (json, expected) in [
+        (true, StatusCode::UNAUTHORIZED),
+        (false, StatusCode::SEE_OTHER),
+    ] {
+        let (content_type, body) = multipart_body(&[("action", "save")], &[]);
+        let mut request =
+            Request::post("/write/d1/photos").header(header::CONTENT_TYPE, content_type);
+        if json {
+            request = request.header(header::ACCEPT, "application/json");
+        }
+        let response = router(state.clone())
+            .oneshot(request.body(Body::from(body)).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+        if !json {
+            assert_eq!(
+                response.headers()[header::LOCATION],
+                "/login?return_to=%2Fwrite%2Fd1%2Fphotos"
+            );
+        }
+    }
     let uploads = server
         .received_requests()
         .await
