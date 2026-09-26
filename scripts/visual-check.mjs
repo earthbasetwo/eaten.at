@@ -261,7 +261,7 @@ async function main() {
     name: 'write-manual',
     path: '/write',
     steps: [byHand('The Cart')],
-    expect: '.digest-editor.digest-empty .digest-ghost strong',
+    expect: '.digest-editor.digest-empty .digest-ghost em',
   })
   await check({
     name: 'write-manual-blank',

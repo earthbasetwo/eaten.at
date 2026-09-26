@@ -22,7 +22,7 @@
   box.setAttribute("aria-labelledby", "body-label");
   box.tabIndex = 0;
   var prompt = ta.placeholder;
-  box.setAttribute("aria-placeholder", prompt.replace(/\*\*/g, ""));
+  box.setAttribute("aria-placeholder", prompt.replace(/\*/g, ""));
   ta.hidden = true;
   ta.parentNode.insertBefore(box, ta.nextSibling);
 

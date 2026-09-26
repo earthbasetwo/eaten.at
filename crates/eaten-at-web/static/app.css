@@ -993,6 +993,8 @@
   }
   .digest-ghost { position: absolute; inset: 0 auto auto 0; inline-size: 100%; color: var(--color-stone); font-style: italic; pointer-events: none; user-select: none; }
   .digest-ghost .md-tok { font-style: normal; }
+  /* Emphasis inside the italic prompt is set upright, as it is in print. */
+  .digest-ghost em { font-style: normal; }
   .digest-editor:focus-visible { outline: none; }
   .md-line { white-space: pre-wrap; overflow-wrap: break-word; outline: none; min-block-size: 1.6em; caret-color: var(--color-vermilion); }
   .md-h1 { font-size: 1.5625rem; font-weight: 500; line-height: 1.3; }

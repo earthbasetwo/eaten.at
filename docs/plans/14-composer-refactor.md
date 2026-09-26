@@ -20,7 +20,8 @@ Checked items are implemented on the local branch, not yet committed or merged.
   has no title line (C6, 2026-09-25).
 - [x] Remove the Formatting disclosure and the DIGEST kicker. `For [a meal] on
   [date].` is the digest's head on its rule, and the prompt, written in markdown,
-  shows one bold word between faint marks; that is the whole discovery. A pilcrow
+  shows one emphasised word between faint marks, set upright inside the italic
+  prompt; that is the whole discovery. A pilcrow
   that disclosed the marks was built and cut the same day (2026-09-25).
 - [x] Preserve active-line-only markdown while supporting whole-digest Select
   All, copy, cut, replacement, paste, undo, and redo.

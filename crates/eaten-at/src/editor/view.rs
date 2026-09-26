@@ -213,10 +213,11 @@ fn digest(form: &EditorForm, errors: &FieldErrors) -> Markup {
     }
 }
 
-/// The digest's prompt, in markdown: one bold word shows the marks in
-/// the place they are typed. The island draws it as the caret line
-/// would; without script the textarea shows it as written.
-pub const BODY_PROMPT: &str = "What did you eat? Was it good? Describe it with **markdown**.";
+/// The digest's prompt, in markdown: one emphasised word shows the marks
+/// in the place they are typed. The prompt is italic, so the island sets
+/// the word upright, as emphasis inside italic is set; without script the
+/// textarea shows it as written.
+pub const BODY_PROMPT: &str = "What did you eat? Was it good? Describe it with *markdown*.";
 
 /// The teaser (the record's `description`, D19): folded to one line
 /// while the first lines stand in, open once the author writes their
@@ -776,7 +777,7 @@ mod tests {
         assert!(!out.contains("formatting-help"), "no disclosure: {out}");
         assert!(
             out.contains(
-                "placeholder=\"What did you eat? Was it good? Describe it with **markdown**.\""
+                "placeholder=\"What did you eat? Was it good? Describe it with *markdown*.\""
             ),
             "{out}"
         );
