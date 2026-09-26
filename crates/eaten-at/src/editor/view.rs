@@ -916,7 +916,7 @@ mod tests {
         assert!(
             out.contains(
                 "<span class=\"photo-empty\" data-upload=\"/write/upload\" \
-                 data-max-bytes=\"10485760\" data-max-photos=\"24\">"
+                 data-max-bytes=\"20971520\" data-max-photos=\"24\">"
             ),
             "{out}"
         );

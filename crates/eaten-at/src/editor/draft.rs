@@ -680,8 +680,8 @@ mod tests {
 
     #[test]
     fn more_photos_than_a_digest_holds_says_how_many_to_remove() {
-        let mut form = good_form();
         use crate::editor::form::PhotoField;
+        let mut form = good_form();
         form.photos = (0..27)
             .map(|i| PhotoField {
                 cid: format!("bafy{i}"),

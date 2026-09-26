@@ -1107,6 +1107,33 @@ fn png_bytes(w: u32, h: u32) -> Vec<u8> {
     out.into_inner()
 }
 
+/// A PNG whose header claims `w`×`h` over a 1×1 image, its IHDR CRC
+/// recomputed so the header reads as valid.
+fn png_claiming(w: u32, h: u32) -> Vec<u8> {
+    fn crc32(bytes: &[u8]) -> u32 {
+        let mut c = !0u32;
+        for &b in bytes {
+            c ^= u32::from(b);
+            for _ in 0..8 {
+                c = if c & 1 == 0 {
+                    c >> 1
+                } else {
+                    (c >> 1) ^ 0xEDB8_8320
+                };
+            }
+        }
+        !c
+    }
+    let mut bytes = png_bytes(1, 1);
+    // IHDR: length at 8..12, type at 12..16, width/height at 16..24,
+    // the rest of its data to 29, then its CRC over type and data.
+    bytes[16..20].copy_from_slice(&w.to_be_bytes());
+    bytes[20..24].copy_from_slice(&h.to_be_bytes());
+    let crc = crc32(&bytes[12..29]);
+    bytes[29..33].copy_from_slice(&crc.to_be_bytes());
+    bytes
+}
+
 fn visit_doc_with_cover(pub_rkey: &str, mime: &str) -> Value {
     let mut doc = visit_doc(pub_rkey, "Covered", "Covered Place", &[]);
     doc["coverImage"] =
@@ -3045,6 +3072,8 @@ async fn adding_photos_uploads_each_good_file_and_names_the_bad_ones() {
     let cookie = author_session(&state, &server).await;
 
     let png = png_bytes(4, 6);
+    // A PNG whose header claims more pixels than we take.
+    let huge = png_claiming(9000, 1);
     let (status, _, body) = post_photos(
         &state,
         "/write/ph0/photos",
@@ -3053,12 +3082,19 @@ async fn adding_photos_uploads_each_good_file_and_names_the_bad_ones() {
         &[
             ("one.png", &png),
             ("junk.txt", b"not an image"),
+            ("huge.png", &huge),
             ("two.png", &png),
         ],
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("junk.txt isn't an image"), "{body}");
+    assert!(
+        body.contains(
+            "huge.png is 9000 × 1 pixels; photos can be at most 8192 on a side and 50 megapixels."
+        ),
+        "{body}"
+    );
     let requests = server.received_requests().await.unwrap();
     let uploads: Vec<_> = requests
         .iter()
@@ -3117,12 +3153,12 @@ async fn a_request_over_the_size_cap_is_refused_in_words() {
     .await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "{body}");
     assert!(
-        body.contains("These photos add up to more than 64 MB. Choose fewer at a time."),
+        body.contains("These photos add up to more than 128 MB. Choose fewer at a time."),
         "the photos page again, with the reason: {body}"
     );
     assert!(
-        body.contains("64 MB together"),
-        "the hint names the total: {body}"
+        body.contains("Up to 6 at a time, 20 MB each, 24 on a digest."),
+        "the hint states limits that add up: {body}"
     );
 
     let (content_type, multipart) = multipart_body(&[], &[("big.jpg", &big)]);
@@ -3142,7 +3178,7 @@ async fn a_request_over_the_size_cap_is_refused_in_words() {
         serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
     assert_eq!(
         body["problems"][0],
-        "These photos add up to more than 64 MB. Choose fewer at a time."
+        "These photos add up to more than 128 MB. Choose fewer at a time."
     );
     let uploads = server
         .received_requests()

@@ -11,13 +11,15 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::img::MAX_PHOTO_UPLOAD_BYTES;
 
-/// Most files one request may add.
-pub const MAX_FILES_PER_REQUEST: usize = 12;
-/// Request body cap for the photos route: the files plus the fields. It
-/// is less than [`MAX_FILES_PER_REQUEST`] files at the upload limit, so
-/// the page says so, and a request over it is answered in words; the
-/// editor's island sends one file a request and never meets it.
-pub const MAX_REQUEST_BYTES: usize = 64 * 1024 * 1024;
+/// Most files one request may add: as many as fit under
+/// [`MAX_REQUEST_BYTES`] at the upload limit, so the limits the page
+/// states add up. The editor's island sends one file a request.
+pub const MAX_FILES_PER_REQUEST: usize = 6;
+/// Request body cap for the photos route: the files plus the fields. A
+/// request over it (only a hand-made one, within the stated limits) is
+/// answered in words.
+pub const MAX_REQUEST_BYTES: usize = 128 * 1024 * 1024;
+const _: () = assert!(MAX_FILES_PER_REQUEST * MAX_PHOTO_UPLOAD_BYTES < MAX_REQUEST_BYTES);
 /// Longest alt text, in graphemes (lexicon `maxGraphemes`).
 pub const MAX_ALT_GRAPHEMES: usize = 1000;
 /// Longest alt text, in bytes (lexicon `maxLength`).
@@ -342,8 +344,7 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
                 input #photos name="photos" type="file" accept="image/*" multiple;
             }
             p.meta.field-hint {
-                "Up to " (MAX_FILES_PER_REQUEST) " at a time, " (mb) " MB each and "
-                (MAX_REQUEST_BYTES / (1024 * 1024)) " MB together, " (MAX_PHOTOS)
+                "Up to " (MAX_FILES_PER_REQUEST) " at a time, " (mb) " MB each, " (MAX_PHOTOS)
                 " on a digest. Photos are re-encoded and stripped of "
                 "their metadata, location included, before they are uploaded."
             }

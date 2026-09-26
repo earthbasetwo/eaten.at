@@ -26,7 +26,10 @@ use crate::editor::photos::{
     MAX_FILES_PER_REQUEST,
 };
 use crate::error::AppError;
-use crate::img::{self, ImageError, PhotoSize, MAX_PHOTO_UPLOAD_BYTES};
+use crate::img::{
+    self, ImageError, PhotoSize, MAX_PHOTO_UPLOAD_BYTES, MAX_SOURCE_DIMENSION,
+    MAX_SOURCE_MEGAPIXELS,
+};
 use crate::model::VisitDocument;
 use crate::paths;
 use crate::publish::{self, PublishError};
@@ -241,6 +244,7 @@ pub async fn photos_form(
 }
 
 /// `POST /write/{rkey}/photos`.
+#[allow(clippy::too_many_lines)]
 pub async fn photos_submit(
     State(state): State<AppState>,
     RequireUser(did): RequireUser,
@@ -392,7 +396,7 @@ pub async fn upload(
             tracing::info!("upload refused: the request is over the size limit");
             return Ok(upload_json(
                 StatusCode::PAYLOAD_TOO_LARGE,
-                Vec::new(),
+                &[],
                 vec![FormError::too_large_message()],
             ));
         }
@@ -413,12 +417,12 @@ pub async fn upload(
             (Vec::new(), problems, StatusCode::BAD_GATEWAY)
         }
     };
-    Ok(upload_json(status, photos, problems))
+    Ok(upload_json(status, &photos, problems))
 }
 
 /// The upload's answer: the photos taken, and the problems in the
 /// author's words.
-fn upload_json(status: StatusCode, photos: Vec<Photo>, problems: Vec<String>) -> Response {
+fn upload_json(status: StatusCode, photos: &[Photo], problems: Vec<String>) -> Response {
     let body = PhotosJson {
         photos: photos.iter().map(PhotoJson::own).collect(),
         problems,
@@ -513,6 +517,7 @@ enum Refused {
 
 /// Prepare and upload the chosen files, appending each good one. Files
 /// that cannot be used are reported by name; the good ones still go in.
+#[allow(clippy::too_many_lines)]
 async fn add(
     state: &AppState,
     identity: &Identity,
@@ -567,6 +572,13 @@ async fn add(
                     ImageError::TooBig(..) => format!(
                         "{name} is over {} MB.",
                         MAX_PHOTO_UPLOAD_BYTES / (1024 * 1024)
+                    ),
+                    ImageError::TooLarge(w, h) => format!(
+                        "{name} is {w} × {h} pixels; photos can be at most \
+                         {MAX_SOURCE_DIMENSION} on a side and {MAX_SOURCE_MEGAPIXELS} megapixels."
+                    ),
+                    ImageError::CannotShrink(_) => format!(
+                        "{name} could not be made small enough to store, even at a smaller size."
                     ),
                     _ => format!(
                         "{name} isn't an image we can use. JPEG, PNG, GIF, or WebP, please."
