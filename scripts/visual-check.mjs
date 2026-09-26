@@ -230,6 +230,25 @@ async function main() {
   // located by EATEN_AT_DEV_LOCATION, so suggestions are on.
   const byHand = (name) => ({ fill: { '#place_name': name }, click: '#start-writing' })
   await check({ name: 'write', path: '/write', expect: '#place_name[data-suggest]' })
+  // A draft kept on the device is offered on the chooser too, and
+  // restoring it goes on into the writing with every field (CB8).
+  await check({
+    name: 'write-draft-offer', path: '/write',
+    expect: 'form.editor-write[data-back="1"]',
+    exercise: async (browser) => {
+      await browser.evaluate(`localStorage.setItem('ea:draft:/write', JSON.stringify({ at: Date.now(), photos: true, v: 2, data: {
+        title: 'Kept on the device', body: 'Written, then the tab was closed.', description: '', place_name: 'St. John Bread and Wine',
+        place_address: '94–96 Commercial Street, London E1 6LZ', place_mode: 'manual', gers_id: '', lat_e6: '', lon_e6: '',
+        visited_on: '2026-09-20', meal: 'lunch', rating: '2', place_price: '', tags: 'bread', link_url_0: '', link_service_0: '', link_label_0: '' } }))`)
+      await browser.navigate(`${BASE}/write`, [])
+      if (!await browser.evaluate(`!!document.querySelector('form.editor-choosing .notice.restore')`)) throw new Error('The chooser did not offer the draft')
+      await browser.navigate(null, [], () => browser.evaluate(`document.querySelector('.notice.restore .link-button').click()`))
+      const got = await browser.evaluate(`({ title: document.querySelector('#title')?.value, body: document.querySelector('#body')?.value, rating: document.querySelector('input[name=rating]:checked')?.value, banner: !!document.querySelector('.notice.restore') })`)
+      await browser.evaluate(`localStorage.removeItem('ea:draft:/write')`)
+      if (got.title !== 'Kept on the device' || got.body !== 'Written, then the tab was closed.' || got.rating !== '2' || got.banner) throw new Error('Restoring from the chooser gave ' + JSON.stringify(got))
+    },
+  })
+
   await check({
     name: 'write-suggest',
     path: '/write',

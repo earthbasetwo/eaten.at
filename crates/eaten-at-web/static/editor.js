@@ -1,15 +1,16 @@
-/* The editor island (plan §6.3, C3.5), a convenience on a form that
-   already works: the draft is kept in localStorage under the page's
-   path, a banner offers to restore it, and the textareas grow with
-   their text. The photos ride in the draft as their hidden fields;
-   restoring hands them to the photos island, which redraws. */
+/* The editor island (plan §6.3, C3.5): the draft kept in localStorage
+   under the page's path, a banner to restore it, photos and all, and
+   textareas that grow with their text. */
 (function () {
   "use strict";
   var form = document.querySelector("form.editor");
   if (!form) return;
-  // Choosing, every field rides along hidden (plan 06).
+  /* Choosing, every field rides along hidden (plan 06), so nothing is
+     kept; a draft is offered, unless this is "somewhere else", and
+     restoring it sends the draft's fields on into the writing. */
   var mode = form.elements.place_mode;
-  if (mode && mode.value === "choosing") return;
+  var choosing = mode && mode.value === "choosing";
+  if (choosing && form.elements.changing_place) return;
   var key = "ea:draft:" + location.pathname;
   var store = null;
   try { store = window.localStorage; } catch (e) { store = null; }
@@ -83,6 +84,14 @@
     discard.className = "link-button";
     discard.textContent = "Discard it";
     restore.addEventListener("click", function () {
+      if (choosing) {
+        var data = Object.assign({ changing_place: "1" }, saved.data);
+        Object.keys(data).forEach(function (name) {
+          var el = form.elements[name] || form.appendChild(Object.assign(document.createElement("input"), { type: "hidden", name: name }));
+          el.value = data[name];
+        });
+        return form.submit();
+      }
       // Older drafts lack place identity fields. Never restore only a
       // name/address over a different restaurant's ID and coordinates.
       // Older drafts kept the last radio's value, not the checked one.
@@ -120,8 +129,9 @@
   else if (store) {
     var saved = null;
     try { saved = JSON.parse(store.getItem(key)); } catch (e) { saved = null; }
-    if (saved && saved.data && !same(saved.data, snapshot())) banner(saved);
+    if (saved && saved.data && (choosing || !same(saved.data, snapshot()))) banner(saved);
   }
+  if (choosing) return;
 
   form.addEventListener("input", function (e) { grow(e.target); scheduleSave(); });
   form.addEventListener("change", scheduleSave);

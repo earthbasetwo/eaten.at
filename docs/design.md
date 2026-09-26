@@ -698,6 +698,10 @@ results page any more.
   order, and is saved whenever a photo is added, captioned (as the
   caption is typed, the photo still open), moved, or removed;
   restoring it redraws the tiles from the author's own blobs.
+  The chooser offers the draft too, when a tab was closed on the
+  writing, and restoring it there goes on into the writing with every
+  field, the place included; the chooser that "somewhere else" opens
+  does not.
   "somewhere else" keeps the draft on its way to the chooser, so
   leaving the chooser loses nothing, and "Keep writing" keeps it again
   at once, with the new place, instead of offering the old one back.
