@@ -1108,7 +1108,10 @@ mod tests {
         assert!(!is_truncated_jpeg(&wrapped));
         let mut thumb_app1 = vec![0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x06, 0xFF, 0xD8, 0xFF, 0xD9];
         thumb_app1.extend(&jpeg[2..jpeg.len() - 2]);
-        assert!(is_truncated_jpeg(&thumb_app1), "the thumbnail's end is not the photo's");
+        assert!(
+            is_truncated_jpeg(&thumb_app1),
+            "the thumbnail's end is not the photo's"
+        );
         let mut trailing = jpeg.clone();
         trailing.extend([0, 0, 0]);
         assert!(!is_truncated_jpeg(&trailing));

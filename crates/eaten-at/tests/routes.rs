@@ -3275,7 +3275,11 @@ async fn upload_files(
 fn jpeg_bytes(w: u32, h: u32) -> Vec<u8> {
     use image::{DynamicImage, ImageFormat, RgbImage};
     let img = RgbImage::from_fn(w, h, |x, y| {
-        image::Rgb([u8::try_from(x % 256).unwrap(), u8::try_from(y % 256).unwrap(), 90])
+        image::Rgb([
+            u8::try_from(x % 256).unwrap(),
+            u8::try_from(y % 256).unwrap(),
+            90,
+        ])
     });
     let mut out = std::io::Cursor::new(Vec::new());
     DynamicImage::ImageRgb8(img)
@@ -3336,13 +3340,15 @@ async fn an_upload_says_so_when_the_sign_in_has_run_out() {
     mount_writes(&server).await;
     let state = state_for(&server, dns_for_handle());
     let png = png_bytes(4, 6);
-    let expired = "Your sign-in has expired. Sign in again in another tab, then add the missing photos.";
+    let expired =
+        "Your sign-in has expired. Sign in again in another tab, then add the missing photos.";
 
     // A browser session whose OAuth tokens are gone, and no session at
     // all: the island is told in words, not sent to a page it cannot read.
     let cookie = signed_in(&state).await;
     for cookie in [Some(cookie.as_str()), None] {
-        let (status, location, json) = upload_files(&state, cookie, true, &[("one.png", &png)]).await;
+        let (status, location, json) =
+            upload_files(&state, cookie, true, &[("one.png", &png)]).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{json}");
         assert_eq!(location, None);
         assert_eq!(json["problems"], json!([expired]));
