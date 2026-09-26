@@ -1060,15 +1060,15 @@
   }
   .rating-clear:hover { border-color: var(--color-stone); }
   .rating-clear svg { display: block; }
-  .pluses { display: flex; flex-direction: row-reverse; align-items: center; gap: 10px; }
+  .pluses { display: flex; align-items: center; gap: 10px; }
   .plus {
     font-family: var(--font-mono); font-size: 1.625rem; line-height: 1; color: var(--color-disabled);
     cursor: pointer; user-select: none; transition: color 150ms ease-out;
   }
-  /* Set in reverse, so the checked step colours every lower one. */
-  .pluses input:checked ~ .plus { color: var(--color-vermilion); }
-  .pluses:hover .plus { color: var(--color-disabled); }
-  .pluses .plus:hover, .pluses .plus:hover ~ .plus { color: var(--color-vermilion); }
+  /* The checked step colours itself and every lower one, which come
+     before it; under the pointer, the step and those before it. */
+  .pluses:not(:hover) input:checked + .plus, .pluses:not(:hover) .plus:has(~ input:checked),
+  .pluses .plus:hover, .pluses .plus:has(~ .plus:hover) { color: var(--color-vermilion); }
   .rating-control input:focus-visible + label { outline: var(--focus-ring); outline-offset: 3px; }
   .rating-word {
     margin-inline-start: 6px; font-family: var(--font-mono); font-size: var(--text-label); letter-spacing: var(--tracking-rating);
