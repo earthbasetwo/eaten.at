@@ -739,13 +739,15 @@ place whose name says food on its own (settled 2026-09-25). There is no DIGEST
 kicker: the whole post is the digest. The `for [food] on [date].` line sits under
 the place line, and the digest follows it between two hairlines (settled 2026-09-25).
 Nothing on the page explains markdown. The prompt in the empty digest is written in
-it, with one bold word between faint asterisks, drawn as the editor draws the line
-the caret is on, so the marks are seen in the place they are typed. A Formatting
+it, with one emphasised word between faint asterisks, drawn as the editor draws
+the line the caret is on, so the marks are seen in the place they are typed. The
+prompt is italic, so the word is set upright, as emphasis inside italic is in print
+(a bold word was the first cut, and heavier than the page needs). A Formatting
 disclosure, and then a pilcrow that disclosed the marks, were both tried and cut:
 the prompt is enough (Ken, 2026-09-25).
 
 The body is transparent on the page’s paper. Its italic stone placeholder asks
-“What did you eat? Was it good? Describe it with **markdown**.” The rule that
+“What did you eat? Was it good? Describe it with *markdown*.” The rule that
 closes the writing section, and the one that opens it, go to ink under the
 pointer and to vermilion with focus, staying a hairline; the teaser sits on a
 hairline that does the same. Inactive lines remain formatted
