@@ -247,13 +247,18 @@ pub async fn photos_form(
 #[allow(clippy::too_many_lines)]
 pub async fn photos_submit(
     State(state): State<AppState>,
-    RequireUser(did): RequireUser,
+    CurrentUser(user): CurrentUser,
     Path(rkey): Path<String>,
     Query(query): Query<PhotosQuery>,
     headers: HeaderMap,
     multipart: Multipart,
 ) -> Result<Response, AppError> {
     let wants = Wants::from_headers(&headers);
+    // Signed out, JSON is told so with a 401, as the upload is; a page
+    // goes to sign in and comes back.
+    let Some(did) = user else {
+        return Ok(signed_out(wants, &query.action_path(&rkey)));
+    };
     let (identity, visit_doc) = load(&state, &did, &rkey).await?;
     let form = match PhotosForm::from_multipart(multipart).await {
         Ok(form) => form,

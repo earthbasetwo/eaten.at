@@ -446,10 +446,15 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
     if bytes.len() > MAX_PHOTO_UPLOAD_BYTES {
         return Err(ImageError::TooBig(bytes.len(), MAX_PHOTO_UPLOAD_BYTES));
     }
-    if is_truncated_jpeg(bytes) {
+    let end = jpeg_end(bytes);
+    if end == JpegEnd::CutShort {
         return Err(ImageError::Truncated);
     }
-    let image = &shrink_cheaply(opaque_owned(decode(bytes)?));
+    let decoded = decode(bytes)?;
+    if end == JpegEnd::NoEndMarker && filled_grey(&decoded) {
+        return Err(ImageError::Truncated);
+    }
+    let image = &shrink_cheaply(opaque_owned(decoded));
     // Smaller and coarser until it fits. A photograph fits on the first
     // try; only something like pure noise gets as far as the last.
     for limit in [PHOTO_FIT_DIMENSION, 1600, 1200, 800] {
@@ -522,19 +527,33 @@ fn shrink_cheaply(image: DynamicImage) -> DynamicImage {
     }
 }
 
-/// Whether a JPEG stops before its image does. Its decoder fills what
-/// is missing with grey and says nothing, so a file cut short in
-/// copying would be published with a grey half. The scan's data never
-/// holds an end-of-image marker (a 0xFF byte in it is always escaped),
-/// so a JPEG with none after its first scan is cut short. The marker
-/// segments before the scan are stepped over by their lengths, so an
-/// embedded thumbnail's own markers are never seen. Anything that does
-/// not read as a JPEG is left to the decoder. The other formats'
-/// decoders refuse a short file themselves.
-fn is_truncated_jpeg(bytes: &[u8]) -> bool {
+/// How a JPEG ends, as far as its markers tell. Its decoder fills what
+/// is missing with grey and says nothing, so a file cut short in copying
+/// would be published with a grey band.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JpegEnd {
+    /// Its end marker follows its first scan, or it is not a JPEG (the
+    /// other formats' decoders refuse a short file themselves).
+    Whole,
+    /// A baseline JPEG with no end marker after its scan. Some cameras
+    /// and encoders write these whole, so the pixels decide: see
+    /// [`filled_grey`].
+    NoEndMarker,
+    /// It stops inside its headers, or it is progressive with no end
+    /// marker, where a missing refinement cannot be seen in the pixels.
+    CutShort,
+}
+
+/// Read a JPEG's markers to its first scan and look for the end after
+/// it. The scan's data never holds an end-of-image marker (a 0xFF byte
+/// in it is always escaped). The segments before the scan are stepped
+/// over by their lengths, so an embedded thumbnail's own markers are
+/// never seen.
+fn jpeg_end(bytes: &[u8]) -> JpegEnd {
     if !bytes.starts_with(&[0xFF, 0xD8]) {
-        return false;
+        return JpegEnd::Whole;
     }
+    let mut progressive = false;
     let mut i = 2;
     loop {
         // Fill bytes may pad a marker.
@@ -548,26 +567,79 @@ fn is_truncated_jpeg(bytes: &[u8]) -> bool {
                     // Markers without a segment.
                     0x01 | 0xD0..=0xD8 => continue,
                     // An end before any scan: no image to cut short.
-                    0xD9 => return false,
+                    0xD9 => return JpegEnd::Whole,
+                    0xC2 | 0xC6 | 0xCA | 0xCE => progressive = true,
                     _ => {}
                 }
                 let Some(len) = bytes
                     .get(i..i + 2)
                     .map(|b| usize::from(u16::from_be_bytes([b[0], b[1]])))
                 else {
-                    return true;
+                    return JpegEnd::CutShort;
                 };
                 i += len;
                 if marker == 0xDA {
-                    return !bytes
+                    let ended = bytes
                         .get(i..)
                         .is_some_and(|scan| scan.windows(2).any(|w| w == [0xFF, 0xD9]));
+                    return match (ended, progressive) {
+                        (true, _) => JpegEnd::Whole,
+                        (false, false) => JpegEnd::NoEndMarker,
+                        (false, true) => JpegEnd::CutShort,
+                    };
                 }
             }
-            (Some(0xFF), None) | (None, _) => return true,
-            (Some(_), _) => return false,
+            (Some(0xFF), None) | (None, _) => return JpegEnd::CutShort,
+            (Some(_), _) => return JpegEnd::Whole,
         }
     }
+}
+
+/// Whether a picture decoded from a baseline JPEG with no end marker was
+/// cut short: its decoder fills every block row after the one where the
+/// data ran out with flat mid-grey, so the last 8 × 8 block is exactly
+/// that. Orientation may have turned it to any corner. A file cut inside
+/// its last block row is not caught: at most that row is spoiled.
+fn filled_grey(image: &DynamicImage) -> bool {
+    let (w, h) = image.dimensions();
+    if w < 8 || h < 8 {
+        return false;
+    }
+    [(0, 0), (w - 8, 0), (0, h - 8), (w - 8, h - 8)]
+        .into_iter()
+        .any(|(x0, y0)| {
+            (0..8).all(|dy| {
+                (0..8).all(|dx| {
+                    let pixel = image.get_pixel(x0 + dx, y0 + dy).0;
+                    pixel[..3].iter().all(|c| c.abs_diff(128) <= 2)
+                })
+            })
+        })
+}
+
+/// Whether a decoder's refusal is a file that stops early: an end of
+/// file where more was expected, or a WebP shorter than its RIFF header
+/// says (its decoder calls that a corrupt bitstream).
+fn cut_short(bytes: &[u8], err: &image::ImageError) -> bool {
+    if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+        let declared = bytes
+            .get(4..8)
+            .map_or(0, |b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
+        if usize::try_from(declared).is_ok_and(|d| bytes.len() < d.saturating_add(8)) {
+            return true;
+        }
+    }
+    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(err);
+    while let Some(e) = source {
+        if e.downcast_ref::<std::io::Error>()
+            .is_some_and(|io| io.kind() == std::io::ErrorKind::UnexpectedEof)
+            || e.to_string().to_ascii_lowercase().contains("end of file")
+        {
+            return true;
+        }
+        source = e.source();
+    }
+    false
 }
 
 /// A photo at `size`: a centre-cropped square thumbnail, the full
@@ -655,6 +727,7 @@ pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     let icc = decoder.icc_profile().ok().flatten();
     let mut image = DynamicImage::from_decoder(decoder).map_err(|err| match err {
         image::ImageError::Limits(_) => ImageError::TooLarge(w, h),
+        other if cut_short(bytes, &other) => ImageError::Truncated,
         other => ImageError::Image(other),
     })?;
     if let Some(icc) = icc {
@@ -1220,23 +1293,27 @@ mod tests {
     fn a_photo_cut_short_is_refused_in_every_format() {
         let image = decode(&png(320, 240)).unwrap();
         let jpeg = encode_photo(&image, PhotoSize::Full).unwrap();
-        assert!(!is_truncated_jpeg(&jpeg));
+        assert_eq!(jpeg_end(&jpeg), JpegEnd::Whole);
         assert!(photo_upload(&jpeg).is_ok());
         // With an EXIF thumbnail ahead of the scan, whose own end marker
         // must not count, and with bytes after the end.
         let wrapped = jpeg_with_orientation_6(&image.to_rgb8());
-        assert!(!is_truncated_jpeg(&wrapped));
+        assert_eq!(jpeg_end(&wrapped), JpegEnd::Whole);
         let mut thumb_app1 = vec![0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x06, 0xFF, 0xD8, 0xFF, 0xD9];
         thumb_app1.extend(&jpeg[2..jpeg.len() - 2]);
-        assert!(
-            is_truncated_jpeg(&thumb_app1),
+        assert_eq!(
+            jpeg_end(&thumb_app1),
+            JpegEnd::NoEndMarker,
             "the thumbnail's end is not the photo's"
         );
         let mut trailing = jpeg.clone();
         trailing.extend([0, 0, 0]);
-        assert!(!is_truncated_jpeg(&trailing));
+        assert_eq!(jpeg_end(&trailing), JpegEnd::Whole);
 
-        for cut in [jpeg.len() / 2, jpeg.len() - 2, 3, 40] {
+        // Missing only its end marker, the photo is whole and goes in;
+        // cut anywhere before that, it is refused as incomplete.
+        assert!(photo_upload(&jpeg[..jpeg.len() - 2]).is_ok());
+        for cut in [jpeg.len() / 2, jpeg.len() * 3 / 4, 3, 40] {
             assert!(
                 matches!(photo_upload(&jpeg[..cut]), Err(ImageError::Truncated)),
                 "JPEG cut at {cut}"
@@ -1250,8 +1327,11 @@ mod tests {
             let bytes = out.into_inner();
             assert!(photo_upload(&bytes).is_ok(), "{format:?}");
             assert!(
-                photo_upload(&bytes[..bytes.len() / 2]).is_err(),
-                "{format:?} cut in half"
+                matches!(
+                    photo_upload(&bytes[..bytes.len() / 2]),
+                    Err(ImageError::Truncated)
+                ),
+                "{format:?} cut in half is incomplete, not unusable"
             );
         }
     }
