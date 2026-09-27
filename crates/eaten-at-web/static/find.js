@@ -2,9 +2,8 @@
    GET is fetched and its results swapped in, the address kept in step.
    The form still works as a form. The field carries the find's state
    (S19): its clear mark shows while it holds text and empties it in
-   place, and the tag line is away while a find is on. And the tag
-   line folds to its first line, the rest behind one "+n more" (S4);
-   without script every tag shows. */
+   place. And the masthead's tag line folds to its first line, the
+   rest behind one "+n more" (S4); without script every tag shows. */
 (function () {
   "use strict";
   var form = document.querySelector("form.find");
@@ -12,7 +11,6 @@
   if (!form || !section || !window.fetch || !window.DOMParser) return;
   var input = form.elements.q;
   var clear = form.querySelector(".find-clear");
-  var tags = section.querySelector(".own-tags");
   var timer = null, pending = null, shown = input.value.trim();
 
   function url(q) {
@@ -24,8 +22,6 @@
     if (!fresh || !mine) return;
     mine.replaceWith(fresh);
     shown = q;
-    /* The tag line is the feed's, not the find's: away while one is on (S19). */
-    if (tags) tags.hidden = !!q;
     history.replaceState(null, "", url(q));
   }
   function find() {

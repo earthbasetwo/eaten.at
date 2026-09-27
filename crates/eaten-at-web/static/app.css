@@ -742,10 +742,14 @@
   .own-name a { color: inherit; text-decoration: none; }
   .own-name a:hover { color: var(--color-vermilion); }
   .own-masthead .lede { font-style: italic; font-size: var(--text-lede); line-height: 1.5; max-inline-size: var(--measure); }
+  .own-masthead .tags { display: contents; }
+  .own-masthead .tag-line { margin-block-start: var(--space-xs); max-inline-size: var(--measure); }
   /* The list has no head at rest (S11); during a find it takes one,
-     "Matching …" with its Clear. The ink rule read as a second field
-     rule under the find (S5): a hairline here. */
-  .own-publication .listing { border-block-start: var(--rule-hairline); }
+     "Matching …" with its Clear. No rule opens the list here (Ken:
+     one hairline too many): the field's rule is the last stroke, and
+     the first row starts at the block's step under it. */
+  .own-publication .listing { border-block-start: 0; }
+  .own-publication .listing-item:first-child { padding-block-start: 0; }
   .own-publication .list-head {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm);
     margin-block-end: var(--space-sm);

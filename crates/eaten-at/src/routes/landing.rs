@@ -231,15 +231,15 @@ async fn own<'a>(
     })
 }
 
-/// The publication: the front page's nameplate in miniature (S17), the
-/// find field with the tag line under it, then the compact rows. The field has no button and
+/// The publication: the front page's nameplate in miniature (S17) with
+/// the tag line closing it, the find field, then the compact rows. The field has no button and
 /// no visible label (S1, S3): Return sends it, its placeholder says
 /// what it finds, and the live find filters as you type anyway. The
 /// "Your feed" heading names the landmark and shows nowhere (S10). The
 /// field carries the find's whole state (S19): while it holds a query
-/// the tag line is hidden, a clear mark stands at the field's end
-/// where the return mark was, and the list has no visible head; a
-/// hidden "Matching …" line still tells assistive technology.
+/// a clear mark stands at the field's end where the return mark was,
+/// and the list has no visible head; a hidden "Matching …" line still
+/// tells assistive technology. The tags live in the masthead and stay.
 fn own_section(did: &Did, own: &Own<'_>) -> Markup {
     let pub_rkey = own.publication.rkey();
     let front = paths::publication(did, pub_rkey);
@@ -262,6 +262,9 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
                 @if let Some(description) = &own.publication.value.description {
                     p.lede { (description) }
                 }
+                // The tags close the masthead as the front page's chips do,
+                // and stay through a find: they are the feed's, not the find's.
+                (tag_line(&own.tags))
             }
             div.own-find {
                 form.lookup.find action="/" method="get" {
@@ -274,9 +277,6 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
                             a.find-clear href="/" aria-label="Clear the find" hidden[!finding] {}
                         }
                     }
-                }
-                @if !own.tags.is_empty() {
-                    div.own-tags hidden[finding] { (tag_line(&own.tags)) }
                 }
             }
             // What a find replaces, live or by a reload: the head and

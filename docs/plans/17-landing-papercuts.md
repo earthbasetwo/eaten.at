@@ -100,3 +100,8 @@ sheet F: the list as compact rows with the excerpt kept.
   recessed and empty (`.listing-thumb-blank`). A mark by the place's
   kind is the row's open half: the icon source and its licence, the
   map from Overture's category, the fallback.
+- **The tags in the masthead; no rule over the rows.** Ken, after
+  S17: one hairline too many under the find. The tag line closes the
+  masthead as the front page's chips do, and stays through a find; the
+  listing has no rule of its own on the home, the first row starting
+  at the block's step under the field.
