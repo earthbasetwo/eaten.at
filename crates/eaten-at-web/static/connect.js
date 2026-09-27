@@ -2,8 +2,9 @@
    that asks for the handle; with script a plain click swaps that field
    in where the button stood, caret in it. One rule draws the swap: a
    rule laid over the button's slides, grows and reddens to where the
-   field's focus rule will be, then hands over to it, while the block
-   eases to the form's height. The stylesheet names every size. */
+   field's focus rule will be, then hands over to it. The block is the
+   form's height from the start (L3), so the height it eases to is the
+   height it has. The stylesheet names every size. */
 (function () {
   "use strict";
   var SETTLE_AFTER = 400; /* past the longest transition, should its end never fire */

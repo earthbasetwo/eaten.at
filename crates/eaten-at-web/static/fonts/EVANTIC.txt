@@ -7,4 +7,5 @@ Bundled with the "Masthead" design handoff (docs/design-handoff/masthead/)
 as Evantic-Regular.ttf and converted to woff2 here without other changes.
 The handoff records it as a personal-use licence, judged fine for this
 non-commercial site. It is used for the eaten.at logotype only, always
-lowercase, and never for any other text.
+lowercase, and never for any other text. The site icon (static/icons/)
+is that logotype's lowercase e, traced from the glyph.

@@ -11,7 +11,7 @@ use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::Publication;
 use eaten_at_atproto::repo::Record;
 use eaten_at_web::assets::{COMBOBOX_SCRIPT, CONNECT_SCRIPT, FIND_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
-use eaten_at_web::components::{connect, listing, tag_links, Connect, ConnectWay};
+use eaten_at_web::components::{connect, listing, tag_counts, Connect, ConnectWay};
 use eaten_at_web::layout::{self, Masthead, Page};
 use maud::{html, Markup};
 use serde::Deserialize;
@@ -112,7 +112,8 @@ struct Own<'a> {
     /// Whether the publication has more than the list shows.
     more: bool,
     truncated: bool,
-    tags: Vec<eaten_at_web::components::Link>,
+    /// The feed's tags, the most used first, each with its count (S4).
+    tags: Vec<(eaten_at_web::components::Link, usize)>,
 }
 
 /// The author's home. With a publication it ships the live-find island;
@@ -191,10 +192,10 @@ async fn own<'a>(
         listing.items.len()
     };
     let more = listing.items.len() > shown || listing.next_cursor.is_some();
-    let tags = view::tag_links(
+    let tags = view::tag_counts(
         did,
         pub_rkey,
-        &crate::tags::distinct(
+        &crate::tags::tally(
             listing
                 .items
                 .iter()
@@ -218,8 +219,10 @@ async fn own<'a>(
     })
 }
 
-/// The publication: a small nameplate, the find form with the tag
-/// chips under it, then the list.
+/// The publication: a small nameplate, the find field with the tag
+/// chips under it, then the list. The field has no button and no
+/// visible label (S1, S3): Return sends it, its placeholder says what
+/// it finds, and the live find filters as you type anyway.
 fn own_section(did: &Did, own: &Own<'_>) -> Markup {
     let pub_rkey = own.publication.rkey();
     let front = paths::publication(did, pub_rkey);
@@ -235,14 +238,15 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
                 }
             }
             form.lookup.find action="/" method="get" {
-                label.kicker.lookup-label for="q" { "Find a digest" }
+                label.visually-hidden for="q" { "Find a digest" }
                 div.lookup-row {
-                    input #q name="q" type="search" value=(own.query) autocomplete="off"
-                        placeholder="A place, a title, a street";
-                    button.button-secondary type="submit" { "Find" }
+                    span.return-rule {
+                        input #q name="q" type="search" value=(own.query) autocomplete="off"
+                            placeholder="Find a place, a title, a street";
+                    }
                 }
             }
-            (tag_links(&own.tags, None))
+            (tag_counts(&own.tags, None))
             // What a find replaces, live or by a reload: the head and
             // the list, announced to assistive technology when it changes.
             div.find-results aria-live="polite" {

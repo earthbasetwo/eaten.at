@@ -424,8 +424,21 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
         body.contains("<form class=\"lookup find\" action=\"/\" method=\"get\">"),
         "{body}"
     );
+    // The find is one field, sent with Return: no button, no visible
+    // label, the placeholder saying what it finds (S1, S3).
     assert!(
-        body.contains("href=\"/at/") && body.contains("/tagged/late\""),
+        body.contains("<label class=\"visually-hidden\" for=\"q\">Find a digest</label>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<span class=\"return-rule\"><input id=\"q\" name=\"q\" type=\"search\"")
+            && body.contains("placeholder=\"Find a place, a title, a street\""),
+        "{body}"
+    );
+    assert!(!body.contains(">Find</button>"), "{body}");
+    // Each tag chip carries how often the tag appears (S4).
+    assert!(
+        body.contains("/tagged/late\">late <span class=\"tag-count\">9</span></a>"),
         "{body}"
     );
     assert_eq!(body.matches("listing-item").count(), 8, "{body}");
@@ -1038,6 +1051,44 @@ async fn both_landing_pages_lead_to_the_about_page() {
     );
 }
 
+/// The icon paths a browser asks for on its own (L7), and the links
+/// every page carries to the hashed ones.
+#[tokio::test]
+async fn the_icons_are_where_browsers_look() {
+    let server = mount(&Repo::default()).await;
+    let state = state_for(&server, StaticDns::new());
+    for (path, content_type) in [
+        ("/favicon.ico", "image/png"),
+        ("/apple-touch-icon.png", "image/png"),
+    ] {
+        let response = router(state.clone())
+            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], content_type);
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=300",
+            "{path}"
+        );
+    }
+    let (_, _, landing) = get(&state, "/").await;
+    let svg = eaten_at_web::assets::path_of("favicon.svg");
+    assert!(
+        landing.contains(&format!(
+            "<link rel=\"icon\" type=\"image/svg+xml\" href=\"{svg}\">"
+        )),
+        "{landing}"
+    );
+    assert!(
+        landing.contains("<link rel=\"apple-touch-icon\" href=\"/static/apple-touch-icon."),
+        "{landing}"
+    );
+    let (status, _, _) = get(&state, &svg).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
 #[tokio::test]
 async fn stylesheet_is_served_with_cache_headers() {
     let server = mount(&Repo::default()).await;
@@ -1410,12 +1461,12 @@ async fn tag_links_appear_on_document_and_publication_pages() {
     );
 }
 
-/// The `<head>` of a page, with the hashed stylesheet path made stable.
+/// The `<head>` of a page, with the hashed asset paths made stable.
 fn head_of(body: &str) -> String {
     let start = body.find("<head>").unwrap();
     let end = body.find("</head>").unwrap() + "</head>".len();
-    let re = regex_lite::Regex::new(r"app\.[0-9a-f]{8}\.css").unwrap();
-    re.replace_all(&body[start..end], "app.HASH.css")
+    let re = regex_lite::Regex::new(r"\.[0-9a-f]{8}\.(css|svg|png)").unwrap();
+    re.replace_all(&body[start..end], ".HASH.$1")
         .replace("><", ">\n<")
 }
 

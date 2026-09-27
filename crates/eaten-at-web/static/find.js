@@ -1,6 +1,8 @@
-/* Live find on the author's home (plan 11): after a pause, the form's
-   own GET is fetched and its results swapped in, the address kept in
-   step. The form still works as a form. */
+/* The author's home. Live find (plan 11): after a pause, the form's own
+   GET is fetched and its results swapped in, the address kept in step.
+   The form still works as a form. And the tag row folds to its first
+   line, the rest behind one "+n more" chip (S4); without script every
+   tag shows. */
 (function () {
   "use strict";
   var form = document.querySelector("form.find");
@@ -36,4 +38,46 @@
     clearTimeout(timer);
     timer = setTimeout(find, 500);
   });
+
+  var list = section.querySelector(".tag-list");
+  var unfolded = false;
+  function fold() {
+    if (!list || unfolded) return;
+    var old = list.querySelector(".tag-more");
+    if (old) old.remove();
+    var items = Array.prototype.slice.call(list.children);
+    items.forEach(function (li) { li.hidden = false; });
+    if (items.length < 2) return;
+    var top = items[0].offsetTop;
+    var first = items.filter(function (li) { return li.offsetTop === top; }).length;
+    if (first === items.length) return;
+    var more = document.createElement("li");
+    more.className = "tag-more";
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "tag";
+    button.addEventListener("click", function () {
+      unfolded = true;
+      items.forEach(function (li) { li.hidden = false; });
+      var next = items[keep] && items[keep].querySelector("a");
+      more.remove();
+      if (next) next.focus();
+    });
+    more.appendChild(button);
+    list.appendChild(more);
+    /* Hide from the end until the chip itself sits on the first line. */
+    var keep = first;
+    while (keep > 0) {
+      items.forEach(function (li, i) { li.hidden = i >= keep; });
+      button.textContent = "+" + (items.length - keep) + " more";
+      if (more.offsetTop === top) break;
+      keep--;
+    }
+  }
+  var refold = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(refold);
+    refold = setTimeout(fold, 150);
+  });
+  fold();
 })();

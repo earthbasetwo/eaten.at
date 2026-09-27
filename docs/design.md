@@ -265,6 +265,15 @@ masthead: the feed's name (`.site-name.running-head`, the serif at
 double rule. Every other page opens with its own content — no site chrome
 above it.
 
+**Icon** (`static/icons/`). The logotype's lowercase e, ink on paper, in
+a plain square: `favicon.svg`, whose `prefers-color-scheme` block swaps
+the two for a dark browser; `icon-32.png` for browsers that take no SVG
+and for `/favicon.ico`; `apple-touch-icon.png` at 180px. The e is
+Evantic's glyph outline, traced with fontTools (`brew install
+fonttools`) and rastered in headless Chrome, so nothing generates it at
+build time. Every page links all three from `<head>` by their hashed
+paths; the two bare paths answer too, for what asks unbidden.
+
 **Wordmark** (`.wordmark`). The signed-out landing page alone opens with
 the **logotype** (`.site-name.logotype`, Evantic at logotype size, leading
 home), centred at the top of the page — it is the one page that has to say
@@ -360,7 +369,10 @@ rss, and the author pushed right as quiet links in `ink-soft`.
 **Tag chip** (`.tag`). A small square badge: a hairline, the mono voice
 at metadata size, `ink-soft`, the tag as the author wrote it. On hover
 the border and text turn `ink`. The same chip on the front page, the
-author's home, and in the document footer.
+author's home, and in the document footer. On the home each chip also
+carries how often the tag appears, faint after the name (`.tag-count`),
+the most used first; with script the row folds to its first line and a
+"+n more" chip (a button drawn as the others) unfolds it (S4).
 
 **Buttons.** Typeset: an action is a label in the serif italic on a
 rule, with no box and no fill (the Typeset handoff, 6a). The rule is an
@@ -486,8 +498,8 @@ and "Older →" right.
 
 | Page | Above the content | Opens with | Then |
 |---|---|---|---|
-| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect to start writing", which becomes the sign-in form in place (that field carries the return mark and no button); a hairline; a second connect, drawn the same but secondary — one line in the lede's voice over a "Look up a friend" button that becomes the field for someone else's handle; both fields suggest handles as you type |
-| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new digest"; "Your feed": a small nameplate (name linked to the front page, address and rss in the mono voice), the find form with a secondary "Find" button and the tag chips under it, a "Recent digests" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All digests →" when there are more; or, with no feed yet, one lede saying what it will be; then a hairline and one quiet line, Settings · About · Sign out |
+| Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect to start writing", which becomes the sign-in form in place (that field carries the return mark and no button; the block is the field's height from the start, so the hairline below never moves); a hairline; a second connect, drawn the same but secondary — one line in the lede's voice over a "Look up a friend" button that becomes the field for someone else's handle; both fields suggest handles as you type |
+| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new digest"; "Your feed": a small nameplate (name linked to the front page, address and rss in the mono voice), the find field (no button, no visible label: it carries the return mark, and its placeholder says what it finds) with the counted tag chips under it, a "Recent digests" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All digests →" when there are more; or, with no feed yet, one lede saying what it will be; then a hairline and one quiet line, Settings · About · Sign out |
 | Feed front page | — | nameplate | listing, notice if truncated, pagination |
 | About `/about` | — | page head: "About" kicker, h1 "About eaten.at", lede | prose: one paragraph on the protocol a digest lives on, then the credits — the place licences and the IP database, and nothing that is not asked for. The page is static |
 | Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
