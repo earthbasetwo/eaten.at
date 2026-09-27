@@ -1,8 +1,7 @@
 /* Choosing the place (plan 12): suggestions as the name is typed, a
-   last row for a place by hand (PL26), the author's recent places
-   before typing (PL11). A pick is sent as its index into the cached
-   search; a recent place as its fields. A corrected name keeps the
-   pick (PL29); another name drops it; an edited address is by hand. */
+   last row for a place by hand (PL26), recent places before typing
+   (PL11). A pick is sent as its index into the cached search; a recent
+   place as its fields. A corrected name keeps the pick (PL29). */
 (function () {
   "use strict";
   var name = document.querySelector("form.editor-choosing input[name=\"place_name\"]");
@@ -12,8 +11,7 @@
   var query = form.elements.place_query;
   var start = form.querySelector("#start-writing");
   var picked = null, byHand = false;
-  // The second line (D48): "near" the town, or "at" the address once a
-  // place is picked or by hand. Home keeps "near".
+  // The second line (D48): near the town, or at the address. Home keeps near.
   var near = form.elements.near, nearLine = form.querySelector(".near-line");
   var placeLine = form.querySelector(".place-line");
   function isHome() { return /^home$/i.test(name.value.trim()) && !matchesPick(); }
@@ -25,7 +23,7 @@
     if (isHome() && address.value) { address.value = ""; }
   }
 
-  // Measured against a mirror where field-sizing is not understood.
+  // A mirror measures where field-sizing is unknown.
   (function () {
     if (window.CSS && CSS.supports && CSS.supports("field-sizing", "content")) return;
     var mirror = document.createElement("span");
@@ -60,8 +58,7 @@
     }
     return prev[b.length];
   }
-  // Still the picked place: the same folded, a start or tail of it, or
-  // a typo or two away (PL29).
+  // PL29: the same folded, a start or tail of it, or a typo or two away.
   function corrects(typed, pickedName) {
     var a = fold(typed), b = fold(pickedName);
     if (!a || /^home$/i.test(typed.trim())) return false;
@@ -75,7 +72,7 @@
   var ids = ["gers_id", "lat_e6", "lon_e6", "place_category"];
   function fill(values) {
     ids.forEach(function (id) {
-      if (form.elements[id]) form.elements[id].value = values[id] === undefined || values[id] === null ? "" : values[id];
+      if (form.elements[id]) form.elements[id].value = values[id] == null ? "" : values[id];
     });
   }
   function arm() {
@@ -111,6 +108,7 @@
     window.eaCombobox(name, {
       minChars: 3,
       delay: 300,
+      emptyHeading: "Recently",
       empty: recentUrl ? function (q, signal) {
         if (picked || byHand) return Promise.resolve([]);
         return fetch(recentUrl, { signal: signal, credentials: "same-origin", headers: { Accept: "application/json" } })
@@ -120,7 +118,6 @@
           });
       } : undefined,
       source: function (q, signal) {
-        /* The list stays shut while the lines still read as the pick. */
         if (matchesPick()) return Promise.resolve([]);
         return fetch(url + "?q=" + encodeURIComponent(q) + (near ? "&near=" + near.value : ""), {
           signal: signal,
@@ -142,7 +139,6 @@
       },
       pick: function (hit) {
         if (hit.recent) {
-          // Id, position and category ride in the hidden fields.
           picked = { take: true, name: hit.name, address: hit.address || "", q: "" };
           byHand = false;
           fill({ gers_id: hit.gersId, lat_e6: hit.latE6, lon_e6: hit.lonE6, place_category: hit.category });

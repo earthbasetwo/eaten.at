@@ -1,7 +1,6 @@
 /* A combobox over a text input (plan 10), the WAI-ARIA pattern: arrows
-   move, Enter picks, Escape closes. Enter never swallows the send: it
-   takes a highlighted row or leaves the typing, then submits when the
-   source asks (opts.send). The form works without it. */
+   move, Enter picks or submits when the source asks (opts.send), Escape
+   closes. The form works without it. */
 window.eaCombobox = function (input, opts) {
   "use strict";
   var id = input.id + "-list";
@@ -28,7 +27,7 @@ window.eaCombobox = function (input, opts) {
   }
   function highlight(i) {
     active = i;
-    var rows = list.children;
+    var rows = list.querySelectorAll(".combobox-option");
     for (var k = 0; k < rows.length; k++) rows[k].setAttribute("aria-selected", k === i ? "true" : "false");
     if (i >= 0) input.setAttribute("aria-activedescendant", rows[i].id);
     else input.removeAttribute("aria-activedescendant");
@@ -38,9 +37,16 @@ window.eaCombobox = function (input, opts) {
     close();
     if (item) opts.pick(item);
   }
-  function show(found) {
+  function show(found, heading) {
     items = found;
     list.textContent = "";
+    if (heading && items.length) {
+      var head = document.createElement("li");
+      head.className = "combobox-heading kicker";
+      head.setAttribute("role", "presentation");
+      head.textContent = heading;
+      list.appendChild(head);
+    }
     items.forEach(function (item, i) {
       var row = document.createElement("li");
       row.className = "combobox-option";
@@ -71,12 +77,12 @@ window.eaCombobox = function (input, opts) {
     var q = input.value.trim();
     if (pending) pending.abort();
     /* opts.empty: rows for an empty field, before anything is typed. */
-    var from = !q && opts.empty ? opts.empty : q.length < opts.minChars ? null : opts.source;
+    var empty = !q && opts.empty, from = empty ? opts.empty : q.length < opts.minChars ? null : opts.source;
     if (!from) { close(); return; }
     var ctrl = new AbortController();
     pending = ctrl;
     from(q, ctrl.signal).then(function (found) {
-      if (pending === ctrl) show(found || []);
+      if (pending === ctrl) show(found || [], empty && opts.emptyHeading);
     }, function () {
       if (pending === ctrl) close();
     });
