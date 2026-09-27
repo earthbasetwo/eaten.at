@@ -86,3 +86,12 @@ sheet F: the list as compact rows with the excerpt kept.
   is on, the visible head is gone (a hidden one still announces), and
   a clear mark at the field's end replaces the return mark and the
   browser's own cancel button; it is a link home without script.
+- **S17, the nameplate as a preview of the feed.** From an artifact of
+  treatments (https://claude.ai/artifact/M84JCdD3iZQnaSPukmDJo6) Ken
+  chose the front page's nameplate in miniature with a double rule
+  above, parting it from the action, and a hairline closing it (sheet
+  B3): `header.own-masthead`, the name at `--text-masthead-mini`, the
+  front page's dateline with the digest count when one scan saw the
+  whole feed, the description as the lede. Set aside: the action as an
+  ear on the masthead (not clear enough as the action), the find as
+  the band's floor.
