@@ -620,7 +620,10 @@
   .interstitial > .page-head + * { margin-block-start: 0; }
 
   /* Handle lookup: a labelled field and one button. */
-  .lookup { max-inline-size: 34rem; }
+  .lookup { max-inline-size: 34rem; position: relative; }
+  /* The handle list floats over what follows rather than pushing it
+     down (L2, Ken 2026-09-26): an absolute at its static position. */
+  .lookup .combobox-list { position: absolute; inset-block-start: auto; inset-inline: 0; z-index: 20; }
   /* A kicker used as a field's label is read, so it is the soft ink. */
   .lookup-label { display: block; margin-block-end: var(--space-s); color: var(--color-ink-soft); }
   .lookup-row { display: flex; align-items: baseline; gap: var(--space-m); }
@@ -948,13 +951,15 @@
   .editor-choosing .near-line.looking::after { content: "\2026"; color: var(--color-stone); }
   .editor-choosing .near-town:hover { text-decoration-color: var(--color-ink); }
   .editor-choosing .near-town:focus-visible { text-decoration-color: var(--color-vermilion); outline: none; }
-  .editor-choosing .near-line .combobox-list { inset-inline: 0; min-inline-size: 16rem; max-inline-size: 24rem; }
+  .editor-choosing .near-line .inline-field .combobox-list { inset-inline: 0; min-inline-size: 16rem; max-inline-size: 24rem; }
   .editor-choosing .combobox-list {
     position: absolute; inset-block-start: 100%; inset-inline: 0; margin: 8px 0 0; z-index: 20;
   }
-  /* The place list sits under the near line, in the flow, so where the
-     search looks stays in view above it (Ken, 2026-09-27). */
-  .editor-choosing .near-line + .combobox-list { position: static; margin-block-start: var(--space-s); }
+  /* The place list hangs off the near line (its last child, since the
+     form is a flex column and a floating child of one would sit at its
+     top), so where the search looks stays in view above it and "Start
+     writing" stays put beneath it (Ken, 2026-09-27). */
+  .editor-choosing .near-line > .combobox-list { inset-block-start: 100%; inset-inline: 0; margin-block-start: var(--space-s); }
   .editor-choosing .combobox-option { padding: 9px 16px; gap: var(--space-xs) var(--space-s); }
   .editor-choosing .combobox-label { font-size: 1.0625rem; }
   .editor-choosing .start-writing { margin-block-start: 3rem; }
