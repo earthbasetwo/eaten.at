@@ -184,8 +184,21 @@ async fn own<'a>(
     // The recent list is the first page's newest eight; a find shows
     // its whole page. Both come through the same cached scan the front
     // page uses, so a fresh publish shows here at once.
+    // The tag line is always the feed's, not the find's: it is hidden
+    // while a find is on and comes back whole when it is cleared (S19).
+    let recent = state.visit_listing(identity, publication, None).await?;
+    let tags = view::tag_counts(
+        did,
+        pub_rkey,
+        &crate::tags::tally(
+            recent
+                .items
+                .iter()
+                .flat_map(|a| a.document().tags.iter().map(String::as_str)),
+        ),
+    );
     let listing = if query.is_empty() {
-        state.visit_listing(identity, publication, None).await?
+        recent
     } else {
         state
             .find_visits(identity, publication, query, None)
@@ -197,16 +210,6 @@ async fn own<'a>(
         listing.items.len()
     };
     let more = listing.items.len() > shown || listing.next_cursor.is_some();
-    let tags = view::tag_counts(
-        did,
-        pub_rkey,
-        &crate::tags::tally(
-            listing
-                .items
-                .iter()
-                .flat_map(|a| a.document().tags.iter().map(String::as_str)),
-        ),
-    );
     let items = listing
         .items
         .iter()
@@ -228,9 +231,11 @@ async fn own<'a>(
 /// line under it, then the compact rows. The field has no button and
 /// no visible label (S1, S3): Return sends it, its placeholder says
 /// what it finds, and the live find filters as you type anyway. The
-/// "Your feed" heading names the landmark and shows nowhere (S10), and
-/// the list has no head at rest (S11): during a find it takes one,
-/// "Matching …" with its Clear.
+/// "Your feed" heading names the landmark and shows nowhere (S10). The
+/// field carries the find's whole state (S19): while it holds a query
+/// the tag line is hidden, a clear mark stands at the field's end
+/// where the return mark was, and the list has no visible head; a
+/// hidden "Matching …" line still tells assistive technology.
 fn own_section(did: &Did, own: &Own<'_>) -> Markup {
     let pub_rkey = own.publication.rkey();
     let front = paths::publication(did, pub_rkey);
@@ -252,19 +257,20 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
                         span.return-rule {
                             input #q name="q" type="search" value=(own.query) autocomplete="off"
                                 placeholder="Find a place, a title, a street";
+                            // A link home without script; with it, the field empties in place.
+                            a.find-clear href="/" aria-label="Clear the find" hidden[!finding] {}
                         }
                     }
                 }
-                (tag_line(&own.tags))
+                @if !own.tags.is_empty() {
+                    div.own-tags hidden[finding] { (tag_line(&own.tags)) }
+                }
             }
             // What a find replaces, live or by a reload: the head and
             // the list, announced to assistive technology when it changes.
             div.find-results aria-live="polite" {
                 @if finding {
-                    div.list-head {
-                        p.kicker { "Matching “" (own.query) "”" }
-                        a.button-link href="/" { "Clear" }
-                    }
+                    p.kicker.visually-hidden { "Matching “" (own.query) "”" }
                 }
                 @if own.items.is_empty() {
                     @if finding {

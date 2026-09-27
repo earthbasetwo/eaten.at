@@ -454,6 +454,11 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
         "{body}"
     );
     assert!(
+        body.contains("aria-label=\"Clear the find\" hidden></a>")
+            && body.contains("<div class=\"own-tags\"><nav"),
+        "{body}"
+    );
+    assert!(
         !body.contains("Recent digests") && !body.contains("list-head"),
         "{body}"
     );
@@ -500,11 +505,17 @@ async fn the_home_page_finds_write_ups_and_says_what_a_first_publish_makes() {
     let (status, _, body) = get_signed(&state, "/?q=place+3", &cookie).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body.matches("listing-item").count(), 1, "{body}");
-    assert!(body.contains("Matching “place 3”"), "{body}");
+    // The field carries the find (S19): a hidden "Matching" line for
+    // assistive technology, the clear mark shown, the tag line away.
     assert!(
-        body.contains("<a class=\"button-link\" href=\"/\">Clear</a>"),
+        body.contains("<p class=\"kicker visually-hidden\">Matching “place 3”</p>"),
         "{body}"
     );
+    assert!(
+        body.contains("<a class=\"find-clear\" href=\"/\" aria-label=\"Clear the find\"></a>"),
+        "{body}"
+    );
+    assert!(body.contains("<div class=\"own-tags\" hidden>"), "{body}");
     assert!(!body.contains("All digests"), "{body}");
     let (_, _, body) = get_signed(&state, "/?q=zzz", &cookie).await;
     assert!(
