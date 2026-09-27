@@ -114,6 +114,8 @@ struct Own<'a> {
     items: Vec<eaten_at_web::components::ListingItem>,
     /// Whether the publication has more than the list shows.
     more: bool,
+    /// How many digests the feed has, when one scan saw them all.
+    count: Option<usize>,
     truncated: bool,
     /// The feed's tags, the most used first, each with its count (S4, S9).
     tags: Vec<(eaten_at_web::components::Link, usize)>,
@@ -197,6 +199,7 @@ async fn own<'a>(
                 .flat_map(|a| a.document().tags.iter().map(String::as_str)),
         ),
     );
+    let count = (recent.next_cursor.is_none() && !recent.truncated).then_some(recent.items.len());
     let listing = if query.is_empty() {
         recent
     } else {
@@ -222,13 +225,14 @@ async fn own<'a>(
         query,
         items,
         more,
+        count,
         truncated: listing.truncated,
         tags,
     })
 }
 
-/// The publication: a small nameplate, the find field with the tag
-/// line under it, then the compact rows. The field has no button and
+/// The publication: the front page's nameplate in miniature (S17), the
+/// find field with the tag line under it, then the compact rows. The field has no button and
 /// no visible label (S1, S3): Return sends it, its placeholder says
 /// what it finds, and the live find filters as you type anyway. The
 /// "Your feed" heading names the landmark and shows nowhere (S10). The
@@ -243,11 +247,20 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
     html! {
         section.own-publication aria-labelledby="own-heading" {
             p.kicker.visually-hidden #own-heading { "Your feed" }
-            div.own-nameplate {
+            // The front page's nameplate in miniature (S17): the reader's
+            // masthead, so the rows below read as the feed. A double rule
+            // parts it from the action above; a hairline closes it.
+            header.own-masthead {
                 p.own-name { a href=(front) { (own.publication.value.name) } }
-                p.meta.own-address {
-                    (own.address) " · "
-                    a href=(paths::feed(did, pub_rkey)) rel="alternate" type="application/rss+xml" { "rss" }
+                ul.dateline {
+                    li { (own.address) }
+                    li { a href=(paths::feed(did, pub_rkey)) rel="alternate" type="application/rss+xml" { "rss" } }
+                    @if let Some(count) = own.count {
+                        li { (count) " " @if count == 1 { "digest" } @else { "digests" } }
+                    }
+                }
+                @if let Some(description) = &own.publication.value.description {
+                    p.lede { (description) }
                 }
             }
             div.own-find {

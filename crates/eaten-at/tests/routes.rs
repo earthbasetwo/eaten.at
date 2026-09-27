@@ -419,7 +419,13 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
         )),
         "{body}"
     );
-    assert!(body.contains("ross.eaten.at · <a href="), "{body}");
+    // The front page's nameplate in miniature (S17): a dateline of the
+    // address, rss and the count, then the description.
+    assert!(
+        body.contains("<ul class=\"dateline\"><li>ross.eaten.at</li><li><a href=\"/at/")
+            && body.contains("</a></li><li>9 digests</li></ul>"),
+        "{body}"
+    );
     assert!(
         body.contains("<form class=\"lookup find\" action=\"/\" method=\"get\">"),
         "{body}"
