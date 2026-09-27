@@ -461,8 +461,8 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
     );
     assert!(
         body.contains("aria-label=\"Clear the find\" hidden></a>")
-            && body.contains("<div class=\"own-tags\"><nav"),
-        "{body}"
+            && body.contains("</ul></nav></header>"),
+        "the tags close the masthead: {body}"
     );
     assert!(
         !body.contains("Recent digests") && !body.contains("list-head"),
@@ -521,7 +521,10 @@ async fn the_home_page_finds_write_ups_and_says_what_a_first_publish_makes() {
         body.contains("<a class=\"find-clear\" href=\"/\" aria-label=\"Clear the find\"></a>"),
         "{body}"
     );
-    assert!(body.contains("<div class=\"own-tags\" hidden>"), "{body}");
+    assert!(
+        body.contains("</ul></nav></header>") && !body.contains("own-tags"),
+        "the tags stay through a find: {body}"
+    );
     assert!(!body.contains("All digests"), "{body}");
     let (_, _, body) = get_signed(&state, "/?q=zzz", &cookie).await;
     assert!(

@@ -372,7 +372,8 @@ the border and text turn `ink`. The same chip on the front page, the
 and in the document footer. The author's home sets its tags as a line
 instead (`.tag-line`, S9): the composer's treatment, the serif at field
 size with a hairline underline, commas drawn by the stylesheet, a faint
-mono count after a tag used more than once, the most used first. With
+mono count after a tag used more than once, the most used first, set in
+the masthead under the description as the front page sets its chips. With
 script the line folds to its first row and "+n more", a button set like
 the words, unfolds it (S4).
 
@@ -509,7 +510,7 @@ and "Older →" right.
 | Page | Above the content | Opens with | Then |
 |---|---|---|---|
 | Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect to start writing", which becomes the sign-in form in place (that field carries the return mark and no button; the block is the field's height from the start, so the hairline below never moves); a hairline; a second connect, drawn the same but secondary — one line in the lede's voice over a "Look up a friend" button that becomes the field for someone else's handle; both fields suggest handles as you type |
-| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new digest"; "Your feed" as a hidden heading; the front page's nameplate in miniature (S17): the name linked to the front page, a dateline of address, rss and the digest count, the description as an italic lede, a double rule above and a hairline below; the find field (no button, no visible label: it carries the return mark, and its placeholder says what it finds) with the tag line under it, then the compact rows under a hairline with no visible head; during a find the field carries the state: a clear mark at its end in place of the return mark, the tag line away, a hidden "Matching “q”" line for assistive technology; "All digests →" when there are more; or, with no feed yet, one lede saying what it will be; then, in the page foot, a hairline and one quiet line, Settings · About · Sign out |
+| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new digest"; "Your feed" as a hidden heading; the front page's nameplate in miniature (S17): the name linked to the front page, a dateline of address, rss and the digest count, the description as an italic lede, the tag line, a double rule above and a hairline below; the find field (no button, no visible label: it carries the return mark, and its placeholder says what it finds), then the compact rows with no rule and no visible head; during a find the field carries the state: a clear mark at its end in place of the return mark, a hidden "Matching “q”" line for assistive technology; "All digests →" when there are more; or, with no feed yet, one lede saying what it will be; then, in the page foot, a hairline and one quiet line, Settings · About · Sign out |
 | Feed front page | — | nameplate | listing, notice if truncated, pagination |
 | About `/about` | — | page head: "About" kicker, h1 "About eaten.at", lede | prose: one paragraph on the protocol a digest lives on, then the credits — the place licences and the IP database, and nothing that is not asked for. The page is static |
 | Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
