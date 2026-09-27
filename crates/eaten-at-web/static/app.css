@@ -742,6 +742,7 @@
   .combobox-option:hover .combobox-label, .combobox-option[aria-selected="true"] .combobox-label {
     color: var(--color-vermilion);
   }
+  .combobox-heading { padding: var(--space-s) var(--space-m) 0; }
   .combobox-label { color: var(--color-ink); transition: color var(--ease); }
   .combobox-action .combobox-label { font-style: italic; }
   .combobox-detail {
