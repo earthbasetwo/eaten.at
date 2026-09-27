@@ -749,6 +749,11 @@
     margin-block-start: var(--section-gap); padding-block-start: var(--space-m);
     border-top: var(--rule-hairline);
   }
+  /* The page foot (S18): after main, which grows, so the line sits at
+     the window's bottom on a short page and under the content on a
+     long one. Main's own bottom padding is the distance above it. */
+  .page-foot { padding-block-end: var(--page-bottom); }
+  .page-foot .tertiary { margin-block-start: 0; }
   .tertiary a, .tertiary .link-button { color: var(--color-ink-soft); }
   .tertiary a:hover, .tertiary .link-button:hover { color: var(--color-vermilion); }
 

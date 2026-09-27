@@ -19,6 +19,10 @@ pub struct Page<'a> {
     pub main: Markup,
     /// Extra `<head>` markup (meta tags, canonical links).
     pub head: Markup,
+    /// The page foot, after `<main>`: the landing pages' one quiet line
+    /// (S18). It sits at the bottom of the window when the page is
+    /// short, and below the content when it is not. Empty on most pages.
+    pub foot: Markup,
     /// What the page names at the top. Nothing, by default.
     pub masthead: Masthead<'a>,
     /// Publication theme, already clamped, applied to the whole page.
@@ -94,6 +98,9 @@ pub fn render(page: &Page<'_>) -> Markup {
                     },
                 }
                 main #main { div class=(column) { (page.main) } }
+                @if !page.foot.0.is_empty() {
+                    footer.page-foot { div class=(column) { (page.foot) } }
+                }
                 @for script in &page.scripts {
                     script nonce=[page.nonce.as_deref()] { (PreEscaped(script)) }
                 }
