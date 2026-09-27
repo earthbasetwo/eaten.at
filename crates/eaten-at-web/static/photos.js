@@ -345,7 +345,7 @@
     add.addEventListener("dragover", function (e) { e.preventDefault(); });
     grid.appendChild(add);
     hint.hidden = false;
-    hint.textContent = "Drag to reorder — the first photo is the cover.";
+    hint.textContent = "Drag to reorder, or press Alt and an arrow key — the first photo is the cover.";
   }
 
   /* ---- one photo, large, with its caption ---- */
