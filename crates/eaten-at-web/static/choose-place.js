@@ -1,5 +1,6 @@
 /* Choosing the place (plan 12). Suggestions open under the name as it
-   is typed, from this site's suggest endpoint. A pick fills name and
+   is typed, from this site's suggest endpoint, with a last row that
+   takes what was typed as a place by hand (PL26). A pick fills name and
    address and is sent as the pick, read back from the same cached
    search; typing over either line makes it a place by hand again, and
    clearing the name clears the address. Without this, both are typed. */
@@ -72,11 +73,25 @@
           .then(function (r) { return r.ok ? r.json() : { hits: [] }; })
           .then(function (body) {
             searched = body.q || q;
-            return body.hits || [];
+            var hits = body.hits || [];
+            hits.push({ byHand: true, name: q });
+            return hits;
           });
       },
-      render: function (hit) { return { label: hit.name, detail: hit.detail }; },
+      render: function (hit) {
+        if (hit.byHand) return { label: "Add \u201c" + hit.name + "\u201d by hand", kind: "combobox-action" };
+        return { label: hit.name, detail: hit.detail };
+      },
       pick: function (hit) {
+        if (hit.byHand) {
+          picked = null;
+          name.value = hit.name;
+          address.value = "";
+          address.dispatchEvent(new Event("input", { bubbles: true }));
+          arm();
+          address.focus();
+          return;
+        }
         picked = { i: hit.i, name: hit.name, address: hit.address || "", q: searched };
         name.value = hit.name;
         address.value = picked.address;

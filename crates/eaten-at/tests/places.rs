@@ -76,7 +76,9 @@ async fn a_search_sends_the_key_and_the_point_and_is_cached() {
         .and(query_param("q", "devocion"))
         .and(query_param("lat", "40.6888"))
         .and(query_param("lon", "-73.9799"))
-        .and(query_param("limit", "10"))
+        .and(query_param("limit", "20"))
+        .and(query_param("category", "food_and_drink"))
+        .and(query_param("radius_mi", "25"))
         .respond_with(ResponseTemplate::new(200).set_body_json(results()))
         .expect(1)
         .mount(&server)
@@ -103,6 +105,120 @@ async fn a_search_sends_the_key_and_the_point_and_is_cached() {
         lon: -73.97991,
     };
     assert_eq!(state.search_places("devocion", nearby).await.unwrap(), hits);
+}
+
+/// `n` places named `Dunkin'`, the furthest first, as the API orders a
+/// chain: by name match, not distance.
+fn chain(n: usize, from_mi: f64, ids_from: usize) -> serde_json::Value {
+    let results: Vec<_> = (0..n)
+        .map(|i| {
+            json!({
+                "place_id": format!("overture:{:08}-0000-0000-0000-000000000000", ids_from + i),
+                "name": "Dunkin'", "lat": 42.5, "lon": -71.4,
+                "distance_mi": from_mi - f64::from(u8::try_from(i).unwrap()),
+                "category": "donut_shop",
+                "address": {"formatted": format!("{} Main St", i), "locality": "Somewhere"}
+            })
+        })
+        .collect();
+    json!({"results": results, "meta": {"data_release": "2026-08-19.0", "warnings": []}})
+}
+
+#[tokio::test]
+async fn a_full_answer_is_searched_again_close_in_and_read_by_distance() {
+    // PL22, PL24: the API's order is by name match and a text search is
+    // capped at twenty, so a full answer can hide the nearest branches.
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/places"))
+        .and(query_param("q", "dunkin"))
+        .and(query_param("radius_mi", "25"))
+        .and(query_param("category", "food_and_drink"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(chain(20, 24.0, 100)))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/places"))
+        .and(query_param("q", "dunkin"))
+        .and(query_param("radius_mi", "3"))
+        .and(query_param("category", "food_and_drink"))
+        // One of the two is already in the wide answer.
+        .respond_with(ResponseTemplate::new(200).set_body_json(chain(2, 2.0, 119)))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let state = state_for(&server, Some("test-key"));
+    let hits = state.search_places("dunkin", brooklyn()).await.unwrap();
+    assert_eq!(hits.len(), 21, "merged and deduplicated by id");
+    let distances: Vec<f64> = hits.iter().map(|h| h.distance_mi).collect();
+    let mut sorted = distances.clone();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    assert_eq!(distances, sorted, "nearest first");
+    assert_eq!(hits[0].gers_id, "00000120-0000-0000-0000-000000000000");
+    // Cached as one list, so a pick's index reads the same row.
+    assert_eq!(
+        state.search_places("Dunkin", brooklyn()).await.unwrap(),
+        hits
+    );
+}
+
+#[tokio::test]
+async fn an_empty_answer_is_searched_without_the_category_and_then_wider() {
+    // PL21, PL24: a market filed under retail, or a place past 25 miles.
+    let server = MockServer::start().await;
+    let none = json!({"results": [], "meta": {}});
+    Mock::given(method("GET"))
+        .and(path("/v1/places"))
+        .and(query_param("q", "nowhere"))
+        .and(query_param("radius_mi", "25"))
+        .and(query_param("category", "food_and_drink"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(none.clone()))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/places"))
+        .and(query_param("q", "nowhere"))
+        .and(query_param("radius_mi", "50"))
+        .and(query_param("category", "food_and_drink"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(results()))
+        .expect(1)
+        .mount(&server)
+        .await;
+    // Mounted after the two above, so it takes only the search without
+    // a category.
+    Mock::given(method("GET"))
+        .and(path("/v1/places"))
+        .and(query_param("q", "nowhere"))
+        .and(query_param("radius_mi", "25"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(none.clone()))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let state = state_for(&server, Some("test-key"));
+    let hits = state.search_places("nowhere", brooklyn()).await.unwrap();
+    assert_eq!(hits.len(), 2, "found at fifty miles");
+    // A different query whose unfiltered search finds something stops there.
+    Mock::given(method("GET"))
+        .and(path("/v1/places"))
+        .and(query_param("q", "market"))
+        .and(query_param("radius_mi", "25"))
+        .and(query_param("category", "food_and_drink"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(none.clone()))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/places"))
+        .and(query_param("q", "market"))
+        .and(query_param("radius_mi", "25"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(results()))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let hits = state.search_places("market", brooklyn()).await.unwrap();
+    assert_eq!(hits.len(), 2);
 }
 
 #[tokio::test]
@@ -152,10 +268,11 @@ async fn failures_read_calmly_and_are_not_cached() {
     );
     server.reset().await;
 
-    // A failure is not remembered: the next call asks again.
+    // A failure is not remembered: the next call asks again (and an
+    // empty answer runs the whole ladder: without the category, then wider).
     Mock::given(path("/v1/places"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"results": []})))
-        .expect(1)
+        .expect(3)
         .mount(&server)
         .await;
     assert_eq!(state.search_places("katz", point).await.unwrap(), vec![]);

@@ -48,6 +48,7 @@ window.eaCombobox = function (input, opts) {
       row.setAttribute("role", "option");
       row.setAttribute("aria-selected", "false");
       var view = opts.render(item);
+      if (view.kind) row.classList.add(view.kind);
       var label = document.createElement("span");
       label.className = "combobox-label";
       label.textContent = view.label;
