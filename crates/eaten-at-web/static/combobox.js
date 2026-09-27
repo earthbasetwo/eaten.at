@@ -1,6 +1,6 @@
 /* A combobox over a text input (plan 10), the WAI-ARIA pattern: arrows
    move, Enter picks or submits when the source asks (opts.send), Escape
-   closes. The form works without it. */
+   closes. */
 window.eaCombobox = function (input, opts) {
   "use strict";
   var id = input.id + "-list";
@@ -15,7 +15,7 @@ window.eaCombobox = function (input, opts) {
   input.setAttribute("aria-autocomplete", "list");
   input.setAttribute("aria-controls", id);
   input.setAttribute("aria-expanded", "false");
-  var items = [], active = -1, timer = null, pending = null;
+  var items = [], active = -1, timer = null, pending = null, resting = false;
 
   function close() {
     list.hidden = true;
@@ -38,6 +38,7 @@ window.eaCombobox = function (input, opts) {
     if (item) opts.pick(item);
   }
   function show(found, heading) {
+    resting = !!heading;
     items = found;
     list.textContent = "";
     if (heading && items.length) {
@@ -95,6 +96,8 @@ window.eaCombobox = function (input, opts) {
 
   input.addEventListener("input", function () {
     clearTimeout(timer);
+    /* The rows for an empty field go the moment typing starts. */
+    if (resting && input.value.trim()) close();
     timer = setTimeout(search, opts.delay);
   });
   if (opts.empty) {

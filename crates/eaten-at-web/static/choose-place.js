@@ -166,7 +166,6 @@
       }
     });
   }
-  // Arrival focused the name before this ran.
   if (recentUrl && document.activeElement === name && !name.value.trim()) name.dispatchEvent(new Event("focus"));
   var town = form.elements.near_query;
   if (town && near && window.eaCombobox) {
@@ -208,8 +207,7 @@
     if (e.key === "Enter") { e.preventDefault(); name.blur(); }
   });
   arm();
-  // Typing on arrival replaces the current name; a later click still
-  // places the caret.
+  // Typing on arrival replaces the name.
   if (name.value) {
     name.focus();
     name.select();
