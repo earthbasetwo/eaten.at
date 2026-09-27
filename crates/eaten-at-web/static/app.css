@@ -928,18 +928,19 @@
   .editor-choosing .headline { display: block; inline-size: 100%; min-inline-size: 0; }
   .editor-choosing .place-line { margin-block-start: var(--space-xs); }
   /* The near line (plan 15, D48): "near" and the town, in the address
-     line's voice; the town is the control, and opening it puts the town
-     field in its place. */
+     line's voice; the town is the control, a button that script swaps
+     for the town field in its place. */
   .editor-choosing .near-line { margin-block-start: var(--space-xs); position: relative; }
-  .editor-choosing .near-change { display: inline; }
-  .editor-choosing .near-change summary {
-    display: inline; list-style: none; cursor: pointer; color: var(--color-ink);
+  .editor-choosing .near-town {
+    position: static; display: inline; font: inherit; font-style: normal; letter-spacing: 0; line-height: inherit;
+    color: var(--color-ink); background: none; border: 0; border-radius: 0; padding: 0; margin: 0; box-shadow: none;
+    cursor: pointer; text-align: start;
     text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em;
     text-decoration-color: var(--color-hairline); transition: text-decoration-color var(--ease);
   }
-  .editor-choosing .near-change summary::-webkit-details-marker { display: none; }
-  .editor-choosing .near-change summary:hover { text-decoration-color: var(--color-ink); }
-  .editor-choosing .near-change[open] summary { display: none; }
+  .editor-choosing .near-town::before, .editor-choosing .near-town::after { content: none; }
+  .editor-choosing .near-town:hover { text-decoration-color: var(--color-ink); }
+  .editor-choosing .near-town:focus-visible { text-decoration-color: var(--color-vermilion); outline: none; }
   .editor-choosing .near-line .combobox-list { inset-inline: 0; min-inline-size: 16rem; max-inline-size: 24rem; }
   .editor-choosing .address-hint { margin-block-start: var(--space-xs); }
   .editor-choosing .combobox-list {

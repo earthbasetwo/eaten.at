@@ -545,7 +545,7 @@ islands dress it and fall away.
 **Choosing** (`.editor-choosing`). The place's name as the headline,
 and one second line (plan 15, D48): `near [town]` while no place is
 chosen, the town underlined like the address and itself the control
-(a `<summary>`; opening it puts a town field in its place, a combobox
+(a button; pressing it puts a town field in its place, a combobox
 over `/write/near`), or `at [address].` once a place is picked or typed
 by hand. The town is the one nearest the request or the last visit,
 "where?" when nothing locates. The near line ships hidden and script
