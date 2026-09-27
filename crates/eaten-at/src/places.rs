@@ -4,8 +4,10 @@
 //! The API is proximity search only: every query needs a point, and there
 //! is no lookup by id. So everything the record keeps about a place (its
 //! GERS id, name, address, coordinates) is captured from a search hit at
-//! pick time. Results are cached for an hour so re-rendering a results
-//! page never spends quota; the terms allow storing results.
+//! pick time. Results are cached for a day (PL10; Overture updates
+//! monthly) so re-rendering a results page never spends quota; the terms
+//! allow storing results. Names come with HTML entities as stored
+//! upstream ("Katz&amp Nelson") and are decoded here (PL23).
 
 use std::fmt;
 
@@ -121,7 +123,8 @@ pub struct Hit {
     pub lat_e6: i32,
     pub lon_e6: i32,
     pub distance_mi: f64,
-    /// The primary category, as words (`coffee shop`).
+    /// The primary category as Overture names it (`coffee_shop`), the
+    /// leaf of its hierarchy; kept on the record as is (PL13).
     pub category: Option<String>,
     /// The place's website, as the API has it (may be plain `http`).
     pub website: Option<String>,
@@ -279,22 +282,34 @@ async fn fetch(
         .unwrap_or("-")
         .to_owned();
     let status = response.status;
+    // The month's remaining calls, on every answer (PL12), so the log
+    // shows the quota running down and not only the refusal at the end.
+    let quota_remaining = response
+        .headers
+        .get("x-quota-remaining")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-")
+        .to_owned();
     if status.is_success() {
         let body: SearchResponse = response.json().map_err(|err| {
             tracing::warn!(%err, request_id, "place search response did not decode");
             SearchError::Unavailable
         })?;
-        return Ok(body.hits());
+        let hits = body.hits();
+        tracing::info!(
+            request_id,
+            quota_remaining,
+            radius_mi,
+            category = category.unwrap_or("-"),
+            results = hits.len(),
+            "place search"
+        );
+        return Ok(hits);
     }
     let envelope: Option<ErrorEnvelope> = response.json().ok();
     let code = envelope
         .as_ref()
         .map_or_else(|| "-".to_owned(), |e| e.error.code.clone());
-    let quota_remaining = response
-        .headers
-        .get("x-quota-remaining")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("-");
     match status.as_u16() {
         400 => {
             let message = envelope
@@ -400,17 +415,25 @@ impl WirePlace {
             .unwrap_or(&self.place_id)
             .trim()
             .to_owned();
-        let name = self.name.trim().to_owned();
+        let name = unescape(self.name.trim());
         if gers_id.is_empty() || name.is_empty() {
             return None;
         }
+        let address = self.address.map(|mut a| {
+            for part in [&mut a.formatted, &mut a.street, &mut a.locality] {
+                if let Some(text) = part.as_deref() {
+                    *part = Some(unescape(text));
+                }
+            }
+            a
+        });
         let lat_e6 = to_e6(self.lat).and_then(LatE6::new)?.value();
         let lon_e6 = to_e6(self.lon).and_then(LonE6::new)?.value();
-        let parts = self.address.as_ref().map(address_parts).unwrap_or_default();
+        let parts = address.as_ref().map(address_parts).unwrap_or_default();
         Some(Hit {
             gers_id,
             name,
-            address: self.address.as_ref().and_then(one_line),
+            address: address.as_ref().and_then(one_line),
             street: parts.0,
             locality: parts.1,
             region: parts.2,
@@ -422,7 +445,7 @@ impl WirePlace {
                 .as_deref()
                 .map(str::trim)
                 .filter(|c| !c.is_empty())
-                .map(|c| c.replace('_', " ")),
+                .map(str::to_owned),
             website: self
                 .website
                 .as_deref()
@@ -446,6 +469,60 @@ fn to_e6(degrees: f64) -> Option<i32> {
     // Bounded above, so the cast cannot truncate or wrap.
     #[allow(clippy::cast_possible_truncation)]
     Some(scaled as i32)
+}
+
+/// Overture stores some names and addresses with HTML entities in them,
+/// with or without the closing semicolon ("Katz&amp Nelson, Inc"). The
+/// five named entities and numeric ones are decoded; anything else is
+/// left as written (PL23).
+fn unescape(text: &str) -> String {
+    if !text.contains('&') {
+        return text.to_owned();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('&') {
+        out.push_str(&rest[..at]);
+        rest = &rest[at..];
+        let mut decoded = None;
+        for (entity, replacement) in [
+            ("&amp", "&"),
+            ("&lt", "<"),
+            ("&gt", ">"),
+            ("&quot", "\""),
+            ("&apos", "'"),
+            ("&#39", "'"),
+        ] {
+            if let Some(after) = rest.strip_prefix(entity) {
+                decoded = Some((
+                    replacement.to_owned(),
+                    after.strip_prefix(';').unwrap_or(after),
+                ));
+                break;
+            }
+        }
+        if decoded.is_none() {
+            if let Some(digits) = rest.strip_prefix("&#") {
+                let end = digits
+                    .find(|c: char| !c.is_ascii_digit())
+                    .unwrap_or(digits.len());
+                if end > 0 && digits[end..].starts_with(';') {
+                    if let Some(c) = digits[..end].parse::<u32>().ok().and_then(char::from_u32) {
+                        decoded = Some((c.to_string(), &digits[end + 1..]));
+                    }
+                }
+            }
+        }
+        if let Some((replacement, after)) = decoded {
+            out.push_str(&replacement);
+            rest = after;
+        } else {
+            out.push('&');
+            rest = &rest[1..];
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// The cleaned street line, locality, and two-letter region code.
@@ -543,6 +620,26 @@ mod tests {
     }
 
     #[test]
+    fn entities_in_names_and_addresses_are_decoded() {
+        assert_eq!(unescape("Katz&amp Nelson, Inc"), "Katz& Nelson, Inc");
+        assert_eq!(unescape("Fish &amp; Chips"), "Fish & Chips");
+        assert_eq!(unescape("Joe&#39;s &quot;Place&quot;"), "Joe's \"Place\"");
+        assert_eq!(unescape("Caf&#233; &lt;3"), "Café <3");
+        assert_eq!(unescape("A & B &co"), "A & B &co");
+        let hit = place(serde_json::json!({
+            "place_id": "overture:k1", "name": "Katz&amp Nelson", "lat": 40.7, "lon": -74.0,
+            "address": {"street": "1 Main &amp; Elm", "locality": "Brooklyn", "region": "NY"}
+        }))
+        .unwrap();
+        assert_eq!(hit.name, "Katz& Nelson");
+        assert_eq!(hit.street.as_deref(), Some("1 Main & Elm"));
+        assert!(
+            hit.address.as_deref().unwrap().starts_with("1 Main & Elm"),
+            "{hit:?}"
+        );
+    }
+
+    #[test]
     fn a_hit_keeps_the_gers_id_and_assembles_the_address() {
         let hit = place(serde_json::json!({
             "place_id": "overture:76f1250d-8e38-40b3-a021-bfe1c16b4e1c",
@@ -562,7 +659,7 @@ mod tests {
             Some("105 York St, Brooklyn, NY 11201-2597")
         );
         assert_eq!((hit.lat_e6, hit.lon_e6), (40_701_607, -73_986_565));
-        assert_eq!(hit.category.as_deref(), Some("coffee shop"));
+        assert_eq!(hit.category.as_deref(), Some("coffee_shop"));
         assert!(hit.website.is_some());
     }
 

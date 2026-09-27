@@ -603,7 +603,7 @@ mod tests {
             lat_e6: 40_701_607,
             lon_e6: -73_986_565,
             distance_mi: 0.9,
-            category: Some("coffee shop".into()),
+            category: Some("coffee_shop".into()),
             website: Some("https://www.devocion.com/".into()),
         };
         let mut form = EditorForm::blank();
