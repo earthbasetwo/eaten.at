@@ -4072,29 +4072,41 @@ async fn the_near_line_names_the_town_and_moves_the_search() {
         body.contains("<input type=\"hidden\" name=\"near\" value=\"2643743\">"),
         "{body}"
     );
+    // The second line is "near" the town, the town its own control;
+    // it ships hidden, since only script offers suggestions.
     assert!(
-        body.contains(
-            "<span class=\"soft\">Near</span> <span class=\"near-town\">London, England</span>"
-        ),
+        body.contains("<p class=\"near-line\" hidden><span class=\"soft\">near</span> <details class=\"near-change\"><summary class=\"near-town\">London, England</summary>"),
         "{body}"
     );
-    assert!(
-        body.contains("<summary class=\"hint-action\">change</summary>"),
-        "{body}"
-    );
+    assert!(!body.contains("change</summary>"), "{body}");
     assert!(
         body.contains("name=\"near_query\"") && body.contains("data-near=\"/write/near\""),
         "{body}"
     );
+    // The note that the address is public waits for Home.
     assert!(
-        body.contains("The address is public. Leave it out for home."),
+        body.contains("<p class=\"hint address-hint\" hidden>The address is public. Leave it out for home.</p>"),
+        "{body}"
+    );
+    let (_, body) = post_editor_from(
+        &state,
+        "/write",
+        &cookie,
+        &[("place_mode", "choosing"), ("place_name", "Home")],
+        Some(LONDON_IP),
+    )
+    .await;
+    assert!(
+        body.contains(
+            "<p class=\"hint address-hint\">The address is public. Leave it out for home.</p>"
+        ),
         "{body}"
     );
 
     // No address: the town nearest the author's last visit.
     let (_, _, body) = get_signed(&state, "/write", &cookie).await;
     assert!(
-        body.contains("<span class=\"near-town\">New York City, NY</span>"),
+        body.contains("<summary class=\"near-town\">New York City, NY</summary>"),
         "{body}"
     );
 
@@ -4162,7 +4174,7 @@ async fn a_chosen_town_moves_the_search_and_pins_a_place_by_hand() {
     assert_eq!(status, StatusCode::OK);
     assert!(
         body.contains("<input type=\"hidden\" name=\"near\" value=\"2657697\">")
-            && body.contains("<span class=\"near-town\">Acton, England</span>"),
+            && body.contains("<summary class=\"near-town\">Acton, England</summary>"),
         "{body}"
     );
 

@@ -543,15 +543,16 @@ islands dress it and fall away.
   time; an outside click or Escape closes it.
 
 **Choosing** (`.editor-choosing`). The place's name as the headline,
-the near line under it (plan 15: "Near Acton, MA · change" in the mono
-voice, the town nearest the request or the last visit, "change" opening
-a town field in place, a combobox over `/write/near` with script and a
-plain field resolved on the next submit without; "Near where? · choose"
-when nothing locates, and the search waits), then `at [address].`,
-which with script shows only once a place is picked or typed by hand
-(the near line gives way to it on a pick; a place by hand keeps both,
-with "The address is public. Leave it out for home." under the
-address), "Start writing" 48px below, and nothing
+and one second line (plan 15, D48): `near [town]` while no place is
+chosen, the town underlined like the address and itself the control
+(a `<summary>`; opening it puts a town field in its place, a combobox
+over `/write/near`), or `at [address].` once a place is picked or typed
+by hand. The town is the one nearest the request or the last visit,
+"where?" when nothing locates. The near line ships hidden and script
+shows it, since only script offers suggestions; without script the
+address line stands alone and the town still pins a place by hand.
+"The address is public. Leave it out for home." shows under the address
+only when the name is Home. Then "Start writing" 48px below, and nothing
 else: the Overture and DB-IP credit the earlier choosing page carried
 (plan 12) is gone with it, and is given on the about page instead. Suggestions (the combobox, positioned under the headline) open
 while the name has three characters and matches: up to ten, nearest

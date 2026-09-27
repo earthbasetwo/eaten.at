@@ -560,7 +560,9 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                 span.soft { "." }
             }
             @if page.near != Near::Off {
-                p.hint.address-hint { "The address is public. Leave it out for home." }
+                p.hint.address-hint hidden[!form.place_name.trim().eq_ignore_ascii_case("home")] {
+                    "The address is public. Leave it out for home."
+                }
             }
             (field_error(errors, "place_name"))
             (field_error(errors, "place_address"))
@@ -573,11 +575,13 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
     }
 }
 
-/// Where the search looks, and the way to change it (plan 15): the
-/// town, then "change", which opens a town field. The field works as a
-/// plain input, resolved on the next submit; with script it is a
-/// combobox over `/write/near`, and the line becomes the address once a
-/// place is picked.
+/// Where the search looks (plan 15, D48): "near" and the town, the
+/// second line while no place is chosen, in the address line's voice.
+/// The town is the control: it is a `<summary>`, and opening it puts a
+/// town field in its place, a combobox over `/write/near`. The line
+/// ships hidden: only script offers suggestions, so only script shows
+/// it, and the address line stands alone without; a pick or a place by
+/// hand swaps the line for the address.
 fn near_line(near: &Near) -> Markup {
     let (id, label) = match near {
         Near::Off => return html! {},
@@ -586,14 +590,14 @@ fn near_line(near: &Near) -> Markup {
     };
     html! {
         input type="hidden" name="near" value=(id);
-        div.near-line {
-            span.soft { "Near" } " "
-            span.near-town { (label.unwrap_or("where?")) }
-            span.soft { " · " }
+        p.near-line hidden {
+            span.soft { "near" } " "
             details.near-change {
-                summary.hint-action { @if label.is_some() { "change" } @else { "choose" } }
-                input #near_query name="near_query" type="text" value="" placeholder="Town"
-                    autocomplete="off" aria-label="Town to search near" data-near="/write/near";
+                summary.near-town { (label.unwrap_or("where?")) }
+                span.inline-field {
+                    input #near_query name="near_query" type="text" value="" placeholder="Town"
+                        autocomplete="off" aria-label="Town to search near" data-near="/write/near";
+                }
             }
         }
     }
