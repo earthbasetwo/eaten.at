@@ -145,9 +145,10 @@ window.eaCombobox = function (input, opts) {
     if (e.key === "ArrowDown") { e.preventDefault(); highlight((active + 1) % items.length); }
     else if (e.key === "ArrowUp") { e.preventDefault(); highlight((active - 1 + items.length) % items.length); }
     else if (e.key === "Enter") {
-      if (active >= 0) pick(active); else close();
+      var had = active >= 0;
+      if (had) pick(active); else close();
       if (opts.send && input.form) { e.preventDefault(); submit(input.form); }
-      else if (active >= 0) e.preventDefault();
+      else if (had) e.preventDefault();
     }
     else if (e.key === "Escape") { close(); }
   });

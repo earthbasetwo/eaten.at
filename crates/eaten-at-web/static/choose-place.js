@@ -207,6 +207,12 @@
     town.addEventListener("blur", function () {
       setTimeout(function () { if (document.activeElement !== town) closeTown(); }, 200);
     });
+    // Return never sends the form from here; Escape puts the town back.
+    town.addEventListener("keydown", function (e) {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === "Enter") e.preventDefault();
+      else if (e.key === "Escape") { closeTown(); name.focus(); }
+    });
   }
   // Return with nothing highlighted leaves the field as typed.
   name.addEventListener("keydown", function (e) {
