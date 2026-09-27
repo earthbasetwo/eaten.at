@@ -140,6 +140,7 @@
     --text-action:    clamp(1rem,      0.929rem + 0.29vw,  1.125rem);  /* 16 → 18, the primary action */
     --text-action-small: clamp(0.9375rem, 0.902rem + 0.145vw, 1rem);   /* 15 → 16, every other action */
     --text-field:     clamp(1rem,      0.965rem + 0.145vw, 1.0625rem); /* 16 → 17, what is typed and what is chosen */
+    --field-height: calc(var(--text-field) * 1.55 + 0.75rem); /* a text field's box: its line at 1.55, 6px above and below the rule (the field rule in base) */
     --text-small:     0.875rem;                                         /* 14, interface text */
     --text-body:      clamp(0.875rem,  0.84rem + 0.145vw,  0.9375rem); /* 14 → 15 */
     --text-lede:      1rem;                                             /* 16 */
@@ -654,7 +655,7 @@
      drawn this way — signing in to write, and looking someone up to
      read — and a block that cannot say its whole reason on its button
      takes a line above it (.connect-intro), outside the block because
-     the row is lifted to the block's top corner in flight.
+     the row is lifted to the block's bottom corner in flight.
 
      The site's one animation, and the rule draws it: the rule under the
      button grows in place into the 2px of vermilion under the field,
@@ -662,19 +663,27 @@
      the two ends differ the rule grows and reddens on the way: the
      primary sets out on its own 2px of vermilion, a secondary on 1px of
      ink, and both land on the field's rule. The label fades as the rule
-     sets out; the field fades in as it lands; and the block eases to the
-     form's height so nothing below jumps. The script measures both ends,
-     reads both thicknesses from the two properties below, and moves one
-     rule (.connect-rule) between them, holding the row out of the flow
-     while the form takes its place. In flight, neither the button nor
-     the field shows a rule of its own: the moving one is the rule.
-     Reduced motion collapses every transition here to a cut. */
-  .connect { --connect-rule-from: 2px; --connect-rule-to: 2px; --connect-rule-ink: var(--color-vermilion); }
+     sets out; the field fades in as it lands. The block is the field's
+     height from the start (--field-height; the hidden form cannot size
+     it, since hidden is display: none) and the button stands at its
+     foot, on the line the field's rule will take, so the rule only
+     widens and nothing below the block moves (L3). The script
+     measures both ends, reads both thicknesses from the two properties
+     below, and moves one rule (.connect-rule) between them, holding the
+     row out of the flow while the form takes its place. In flight,
+     neither the button nor the field shows a rule of its own: the
+     moving one is the rule. Reduced motion collapses every transition
+     here to a cut. */
+  .connect {
+    --connect-rule-from: 2px; --connect-rule-to: 2px; --connect-rule-ink: var(--color-vermilion);
+    display: grid; align-items: end; min-block-size: var(--field-height);
+  }
+  .connect > .connect-idle, .connect > .connect-form { grid-area: 1 / 1; }
   .connect-read { --connect-rule-from: 1px; --connect-rule-ink: var(--color-ink); }
   .connect-intro { margin-block-end: var(--space-m); }
   .connect-live { position: relative; overflow: hidden; transition: height var(--connect-time) ease-out; }
   .connect-live .connect-idle {
-    position: absolute; inset-block-start: 0; inset-inline: 0; pointer-events: none;
+    position: absolute; inset-block-end: 0; inset-inline: 0; pointer-events: none;
     transition: opacity 120ms ease-out;
   }
   .connect-live .connect-button { box-shadow: none; transition: none; }
@@ -706,6 +715,14 @@
   .own-address a { color: var(--color-ink-soft); }
   .find { margin-block-start: var(--space-l); }
   .find + .tags .tag-list { margin-block-start: var(--space-sm); }
+  /* The home's tag row folds to its first line with script; the chip
+     that unfolds it is a button drawn as the others are (S4). */
+  .tag-more .tag { font-style: normal; box-shadow: none; }
+  .tag-more .tag::after { content: none; }
+  .tag-more .tag:hover { box-shadow: none; }
+  /* The kicker already opens the list, and the ink rule read as a
+     second field rule under the find (S5): a hairline here. */
+  .own-publication .listing { border-block-start: var(--rule-hairline); }
   .own-publication .list-head {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm);
     margin-block: var(--space-l) var(--space-sm);
@@ -1442,6 +1459,8 @@
     transition: color var(--ease), background-color var(--ease), border-color var(--ease);
   }
   .doc-footer .tag:hover, .tag:hover { border-color: var(--color-ink); color: var(--color-ink); text-decoration: none; }
+  /* How often a tag appears, faint after its name (S4). */
+  .tag-count { margin-inline-start: 0.4em; color: var(--color-stone); }
   .tags-note { inline-size: 100%; color: var(--color-stone); }
 }
 

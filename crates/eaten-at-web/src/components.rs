@@ -396,8 +396,10 @@ pub struct Connect<'a> {
 ///
 /// The intro, when there is one, is a sibling of the block rather than
 /// part of it: the island lifts the button's row out of the flow to the
-/// block's top corner while the form takes its place, and a line inside
-/// the block would be what the row landed on.
+/// block's bottom corner while the form takes its place, and a line
+/// inside the block would be what the row landed on. The block is the
+/// form's height from the start, the button standing on the line the
+/// field's rule will take, so nothing below it moves (L3).
 ///
 /// The field carries no button: it is sent with Return, which the faint
 /// mark at the end of its rule says. That is the browser's own implicit
@@ -436,12 +438,36 @@ pub fn connect(connect: &Connect<'_>) -> Markup {
 /// the tag, so the landmark says so; `scope_note` adds visible copy where
 /// a page wants it spelled out.
 pub fn tag_links(tags: &[Link], scope_note: Option<&str>) -> Markup {
+    tag_nav(
+        &tags.iter().map(|tag| (tag, None)).collect::<Vec<_>>(),
+        scope_note,
+    )
+}
+
+/// Tag links with how often each tag appears, faint after the name
+/// (S4): the author's home, where the row is a picture of the feed.
+pub fn tag_counts(tags: &[(Link, usize)], scope_note: Option<&str>) -> Markup {
+    tag_nav(
+        &tags
+            .iter()
+            .map(|(tag, count)| (tag, Some(*count)))
+            .collect::<Vec<_>>(),
+        scope_note,
+    )
+}
+
+fn tag_nav(tags: &[(&Link, Option<usize>)], scope_note: Option<&str>) -> Markup {
     html! {
         @if !tags.is_empty() {
             nav.tags aria-label="Tags in this feed" {
                 ul.tag-list {
-                    @for tag in tags {
-                        li { a.tag href=(tag.href) { (tag.label) } }
+                    @for (tag, count) in tags {
+                        li {
+                            a.tag href=(tag.href) {
+                                (tag.label)
+                                @if let Some(count) = count { " " span.tag-count { (count) } }
+                            }
+                        }
                     }
                 }
                 @if let Some(note) = scope_note { p.muted.tags-note { (note) } }
@@ -724,6 +750,13 @@ mod tests {
             "{out}"
         );
         assert!(!out.contains("tags-note"), "{out}");
+        let counted = tag_counts(&[(link("mpb", "/t/mpb"), 3)], None).into_string();
+        assert!(
+            counted.contains(
+                "<a class=\"tag\" href=\"/t/mpb\">mpb <span class=\"tag-count\">3</span></a>"
+            ),
+            "{counted}"
+        );
         let noted = tag_links(&[link("mpb", "/t/mpb")], Some("Only here.")).into_string();
         assert!(
             noted.contains("<p class=\"muted tags-note\">Only here.</p>"),

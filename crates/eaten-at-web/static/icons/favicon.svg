@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    .paper { fill: #f6f1e5; }
+    .ink { fill: #1c1914; }
+    @media (prefers-color-scheme: dark) {
+      .paper { fill: #1c1914; }
+      .ink { fill: #f6f1e5; }
+    }
+  </style>
+  <rect class="paper" width="64" height="64"/>
+  <path class="ink" transform="translate(11.94 53.46) scale(0.1073 -0.1073)" d="M231 332Q231 359 220 374Q210 389 194 389Q170 389 151 356Q130 317 130 251Q130 175 165 133Q199 93 257 93Q286 93 313 106Q341 119 359 142Q354 75 311 34Q268 -5 205 -5Q123 -5 70 48Q15 103 15 194Q15 285 69 344Q124 405 211 405Q272 405 308 373Q340 344 340 304Q340 267 314 242Q286 214 239 214Q194 214 154 241Q185 244 208 269Q231 296 231 332Z"/>
+</svg>

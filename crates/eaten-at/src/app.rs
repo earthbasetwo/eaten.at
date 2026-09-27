@@ -63,6 +63,8 @@ fn routes(state: AppState) -> Router {
         .merge(photos)
         .route("/healthz", get(healthz))
         .route("/static/{file}", get(assets::static_file))
+        .route("/favicon.ico", get(assets::favicon_ico))
+        .route("/apple-touch-icon.png", get(assets::apple_touch_icon))
         .route("/img/{did}/{doc_rkey}", get(image::cover))
         .route("/img/{did}/{doc_rkey}/{cid}", get(image::photo))
         .route("/", get(landing::landing))

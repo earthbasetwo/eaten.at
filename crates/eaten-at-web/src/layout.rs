@@ -6,7 +6,7 @@
 
 use maud::{html, Markup, PreEscaped, DOCTYPE};
 
-use crate::assets::css_path;
+use crate::assets::{self, css_path};
 use crate::theme::Theme;
 use crate::{page_title, APP_NAME};
 
@@ -74,6 +74,9 @@ pub fn render(page: &Page<'_>) -> Markup {
                 meta name="viewport" content="width=device-width, initial-scale=1";
                 title { (title) }
                 link rel="stylesheet" href=(css_path());
+                link rel="icon" type="image/svg+xml" href=(assets::path_of("favicon.svg"));
+                link rel="icon" type="image/png" sizes="32x32" href=(assets::path_of("icon-32.png"));
+                link rel="apple-touch-icon" href=(assets::path_of("apple-touch-icon.png"));
                 @if let Some(theme) = &page.theme {
                     style nonce=[page.nonce.as_deref()] { (PreEscaped(theme.css_rule())) }
                 }
@@ -176,6 +179,15 @@ mod tests {
         );
         // The logotype stands on its own: no tagline, no masthead bar.
         assert!(!out.contains("site-header"), "{out}");
+        // Every page names the icon, SVG first, then the PNG (L7).
+        assert!(
+            out.contains("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.")
+                && out.contains(
+                    "<link rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/static/icon-32."
+                )
+                && out.contains("<link rel=\"apple-touch-icon\" href=\"/static/apple-touch-icon."),
+            "{out}"
+        );
         assert!(!out.contains("tagline"), "{out}");
     }
 

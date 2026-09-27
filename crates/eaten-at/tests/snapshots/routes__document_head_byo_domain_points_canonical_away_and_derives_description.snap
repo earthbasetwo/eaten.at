@@ -7,6 +7,9 @@ expression: head
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Third Post — Ross Writes — eaten.at</title>
 <link rel="stylesheet" href="/static/app.HASH.css">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.HASH.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icon-32.HASH.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.HASH.png">
 <meta name="description" content="A write-up of Third Place.">
 <link rel="canonical" href="https://records.example.net/2026/09/third-post">
 <meta property="og:url" content="https://records.example.net/2026/09/third-post">

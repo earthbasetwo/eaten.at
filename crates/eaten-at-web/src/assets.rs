@@ -129,6 +129,29 @@ const FONT_FILES: &[(&str, &[u8])] = &[
     ),
 ];
 
+/// The site's icon (L7): the logotype's lowercase e, ink on paper. The
+/// SVG is what browsers take first and carries a dark variant; the 32px
+/// PNG is for the rest, and the 180px one is the apple-touch-icon. The
+/// e is Evantic's glyph outline (`static/fonts/EVANTIC.txt`), traced
+/// with fontTools and rastered in headless Chrome (docs/design.md).
+const ICON_FILES: &[(&str, &str, &[u8])] = &[
+    (
+        "favicon.svg",
+        "image/svg+xml",
+        include_bytes!("../static/icons/favicon.svg"),
+    ),
+    (
+        "icon-32.png",
+        "image/png",
+        include_bytes!("../static/icons/icon-32.png"),
+    ),
+    (
+        "apple-touch-icon.png",
+        "image/png",
+        include_bytes!("../static/icons/apple-touch-icon.png"),
+    ),
+];
+
 /// The SIL Open Font License 1.1, served beside the fonts it covers.
 /// Condition 2 asks that every copy of the font software carry the
 /// copyright notice and the licence; the notice is already in each
@@ -205,6 +228,11 @@ fn build() -> Vec<Asset> {
     )];
     assets.extend(fonts);
     assets.extend(
+        ICON_FILES
+            .iter()
+            .map(|(name, content_type, bytes)| Asset::new(name, content_type, bytes)),
+    );
+    assets.extend(
         LICENCE_FILES
             .iter()
             .map(|(name, text)| Asset::new(name, "text/plain; charset=utf-8", text.as_bytes())),
@@ -221,6 +249,15 @@ pub fn css() -> &'static str {
 /// URL path of the stylesheet, including its hash: `/static/app.<hash>.css`.
 pub fn css_path() -> String {
     ASSETS[0].path()
+}
+
+/// URL path of a named asset, including its hash. A name the table does
+/// not hold falls back to the plain path, which the lookup then refuses.
+pub fn path_of(name: &str) -> String {
+    ASSETS
+        .iter()
+        .find(|asset| asset.name == name)
+        .map_or_else(|| format!("/static/{name}"), Asset::path)
 }
 
 /// Resolve a `/static/{name}` request. Both the hashed and the plain name
@@ -258,6 +295,25 @@ fn hex8(h: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_icons_are_served_hashed() {
+        for (name, content_type) in [
+            ("favicon.svg", "image/svg+xml"),
+            ("icon-32.png", "image/png"),
+            ("apple-touch-icon.png", "image/png"),
+        ] {
+            let served = lookup(name).unwrap_or_else(|| panic!("{name}"));
+            assert_eq!(served.asset.content_type, content_type);
+            assert!(!served.immutable);
+            let hashed = path_of(name);
+            assert!(hashed.starts_with("/static/") && hashed != format!("/static/{name}"));
+            let by_hash = lookup(hashed.trim_start_matches("/static/")).unwrap();
+            assert!(by_hash.immutable);
+            assert!(!by_hash.asset.body.is_empty());
+        }
+        assert_eq!(path_of("nothing.png"), "/static/nothing.png");
+    }
 
     #[test]
     fn hashed_names_are_stable_hex() {
