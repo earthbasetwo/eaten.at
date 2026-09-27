@@ -70,10 +70,12 @@ window.eaCombobox = function (input, opts) {
   function search() {
     var q = input.value.trim();
     if (pending) pending.abort();
-    if (q.length < opts.minChars) { close(); return; }
+    /* opts.empty: rows for an empty field, before anything is typed. */
+    var from = !q && opts.empty ? opts.empty : q.length < opts.minChars ? null : opts.source;
+    if (!from) { close(); return; }
     var ctrl = new AbortController();
     pending = ctrl;
-    opts.source(q, ctrl.signal).then(function (found) {
+    from(q, ctrl.signal).then(function (found) {
       if (pending === ctrl) show(found || []);
     }, function () {
       if (pending === ctrl) close();
@@ -89,6 +91,9 @@ window.eaCombobox = function (input, opts) {
     clearTimeout(timer);
     timer = setTimeout(search, opts.delay);
   });
+  if (opts.empty) {
+    input.addEventListener("focus", function () { if (!input.value.trim()) search(); });
+  }
   input.addEventListener("keydown", function (e) {
     // Mid-word in an input method, the keys are its own.
     if (e.isComposing || e.keyCode === 229) return;

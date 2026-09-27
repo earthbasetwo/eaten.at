@@ -32,6 +32,7 @@ fn routes(state: AppState) -> Router {
         .route("/write", get(write::new_form).post(write::submit_new))
         .route("/write/suggest", get(write::suggest))
         .route("/write/near", get(write::near_towns))
+        .route("/write/recent", get(write::recent_places))
         .route(
             "/write/{rkey}",
             get(write::edit_form).post(write::submit_edit),

@@ -555,11 +555,19 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
             @if form.changing_place { input type="hidden" name="changing_place" value="1"; }
             input type="hidden" name="place_mode" value=(PlaceMode::Choosing.value());
             input type="hidden" name="place_query" value=(form.place_query);
+            // Filled by a recent place taken before typing (PL11); a
+            // search pick fills them on the server, a place by hand
+            // never has them.
+            input type="hidden" name="gers_id" value="";
+            input type="hidden" name="lat_e6" value="";
+            input type="hidden" name="lon_e6" value="";
+            input type="hidden" name="place_category" value="";
             div.place-head {
                 input #place_name.headline name="place_name" type="text" value=(form.place_name)
                     placeholder="St. John Bread and Wine" autocomplete="off" autofocus
                     aria-label="Name of the place"
                     data-suggest=[page.suggesting.then_some("/write/suggest")]
+                    data-recent=[page.suggesting.then_some("/write/recent")]
                     aria-describedby=[described(errors, "place_name")];
             }
             (near_line(&page.near))
