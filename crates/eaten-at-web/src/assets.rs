@@ -86,9 +86,12 @@ pub const INLINE_SCRIPTS: &[&str] = &[
 /// keeping photos, the upload queue and its hold on Publish, the
 /// keyboard's reorder, naming refused files) added about 6 KB. Raised
 /// to 84 KB on 2026-09-27 for the chooser's near line (plan 15), which
-/// crossed 80 by under a kilobyte; Ken expects a script refactor, or
-/// measuring without comments, before it moves again.
-pub const JS_BUDGET_BYTES: usize = 84 * 1024;
+/// crossed 80 by under a kilobyte. Raised to 96 KB on 2026-09-27 (Ken:
+/// "bump the tripwire while we're developing") with the places work in
+/// flight, comments having been trimmed twice to stay under 84; the
+/// audit (T4) settles whether it comes back down or is measured
+/// without comments.
+pub const JS_BUDGET_BYTES: usize = 96 * 1024;
 
 /// Self-hosted web fonts. Newsreader and the mono face are OFL
 /// (`static/fonts/OFL.txt`), as latin and latin-ext subsets that the

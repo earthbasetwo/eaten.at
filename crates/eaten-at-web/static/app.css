@@ -733,8 +733,11 @@
   .combobox-option {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs) var(--space-s);
     padding: var(--space-s) var(--space-m); cursor: pointer;
-    transition: background-color var(--ease), color var(--ease);
+    transition: background-color var(--ease), color var(--ease), opacity var(--ease);
   }
+  /* While a search runs the rows on show are the last query's: they step
+     back (PL31). */
+  .combobox-list.stale .combobox-option { opacity: 0.45; }
   .combobox-option + .combobox-option { border-block-start: var(--rule-hairline); }
   .combobox-option:hover, .combobox-option[aria-selected="true"] {
     background: var(--color-paper); color: var(--color-vermilion);
@@ -940,6 +943,9 @@
     text-decoration-color: var(--color-hairline); transition: text-decoration-color var(--ease);
   }
   .editor-choosing .near-town::before, .editor-choosing .near-town::after { content: none; }
+  /* After 400 ms of a search, the near line says so: "looking near Acton, MA…" (PL31). */
+  .editor-choosing .near-line.looking > .soft::before { content: "looking "; }
+  .editor-choosing .near-line.looking::after { content: "\2026"; color: var(--color-stone); }
   .editor-choosing .near-town:hover { text-decoration-color: var(--color-ink); }
   .editor-choosing .near-town:focus-visible { text-decoration-color: var(--color-vermilion); outline: none; }
   .editor-choosing .near-line .combobox-list { inset-inline: 0; min-inline-size: 16rem; max-inline-size: 24rem; }

@@ -15,9 +15,27 @@ window.eaCombobox = function (input, opts) {
   input.setAttribute("aria-autocomplete", "list");
   input.setAttribute("aria-controls", id);
   input.setAttribute("aria-expanded", "false");
-  var items = [], active = -1, timer = null, pending = null, resting = false;
+  var items = [], active = -1, timer = null, pending = null, resting = false, slow = null, live = null, told = false;
+
+  /* Said to screen readers when a search runs long enough to be shown. */
+  function say(text) {
+    if (!live) {
+      live = document.createElement("div");
+      live.className = "visually-hidden";
+      live.setAttribute("aria-live", "polite");
+      list.parentNode.insertBefore(live, list.nextSibling);
+    }
+    live.textContent = text;
+  }
+  function settle() {
+    clearTimeout(slow);
+    list.classList.remove("stale");
+    list.removeAttribute("aria-busy");
+    if (opts.busy) opts.busy(false);
+  }
 
   function close() {
+    settle();
     list.hidden = true;
     list.textContent = "";
     items = [];
@@ -38,9 +56,11 @@ window.eaCombobox = function (input, opts) {
     if (item) opts.pick(item);
   }
   function show(found, heading) {
+    settle();
     resting = !!heading;
     items = found;
     list.textContent = "";
+    if (told) { say(found.length ? found.length + " rows" : "Nothing found"); told = false; }
     if (heading && items.length) {
       var head = document.createElement("li");
       head.className = "combobox-heading kicker";
@@ -82,6 +102,21 @@ window.eaCombobox = function (input, opts) {
     if (!from) { close(); return; }
     var ctrl = new AbortController();
     pending = ctrl;
+    /* A slow search: the rows on show step back at once, and after
+       400 ms the page is told (opts.busy) and screen readers hear where
+       it looks (opts.searching), so a cached answer never flickers
+       either (PL31, Ken 2026-09-27). */
+    if (opts.searching && !empty) {
+      list.classList.add("stale");
+      clearTimeout(slow);
+      slow = setTimeout(function () {
+        if (pending !== ctrl) return;
+        list.setAttribute("aria-busy", "true");
+        if (opts.busy) opts.busy(true);
+        say(opts.searching());
+        told = true;
+      }, 400);
+    }
     from(q, ctrl.signal).then(function (found) {
       if (pending === ctrl) show(found || [], empty && opts.emptyHeading);
     }, function () {
