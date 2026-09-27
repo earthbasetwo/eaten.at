@@ -80,6 +80,8 @@ EATEN_AT_LEXICON_APP_PASSWORD=… just lexicons-publish        # write what diff
 | `/img/{did}/{doc}/{cid}` | One of the document's photos, `?size=thumb` (a 400px square), `?size=card` (up to 960px wide, cropped to 3:2, for listing cards), or `?size=full`. Only CIDs the document lists. |
 | `/write`, `/write/{doc}` | The editor, for signed-in authors, set as prose. A new digest starts by choosing the place: its name, with suggestions as you type near where the request is from, and its address, both by hand if need be. Editing manages the digest's photos in place. |
 | `/write/suggest` | Place suggestions for the editor's place field (JSON, signed-in only, rate-limited). |
+| `/write/near` | Towns for the chooser's near line (JSON, signed-in only). |
+| `/write/recent` | The signed-in author's own recent places, for the chooser before anything is typed (JSON). |
 | `/write/upload` | The editor's photo upload (signed-in only): each file is re-encoded and uploaded to the author's repository at once, and answered as the blob reference the form carries until the record is written. |
 | `/write/photo/{cid}` | One of the signed-in author's own blobs, at `?size=thumb` or `full`, for the editor's tiles before a record lists it. |
 | `/write/{doc}/photos` | Add, caption, reorder, and remove a digest's photos without JavaScript; every action writes the record at once (JSON when asked). |

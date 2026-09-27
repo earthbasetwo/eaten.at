@@ -80,6 +80,7 @@ was settled.
 | 13 | [Listing cards that show the photos](13-listing-cards.md) | 22 | medium | — |
 | 14 | [Composer refactor](14-composer-refactor.md) | Ken, 9-20 | large | 12 |
 | 15 | [The near line](15-near-line.md) | PL3, PL4, PL6 | medium | 12 |
+| 16 | [Places, round two](16-places-round-two.md) | PL7, PL10–PL13, PL23, PL29 | medium | 15 |
 
 ### Order
 

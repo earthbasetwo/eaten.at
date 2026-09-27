@@ -552,7 +552,10 @@ by hand. The town is the one nearest the request or the last visit,
 shows it, since only script offers suggestions; without script the
 address line stands alone and the town still pins a place by hand.
 Home keeps the near line: it is a name and a town, and any address
-posted with it is dropped. Then "Start writing" 48px below, and nothing
+posted with it is dropped. An empty name, focused, lists the author's
+own recent places (plan 16): rows like the suggestions, the address as
+the detail, taken as they were written. A corrected name keeps the
+pick; another name drops it. Then "Start writing" 48px below, and nothing
 else: the Overture and DB-IP credit the earlier choosing page carried
 (plan 12) is gone with it, and is given on the about page instead. Suggestions (the combobox, positioned under the headline) open
 while the name has three characters and matches: up to ten, nearest
