@@ -369,10 +369,19 @@ rss, and the author pushed right as quiet links in `ink-soft`.
 **Tag chip** (`.tag`). A small square badge: a hairline, the mono voice
 at metadata size, `ink-soft`, the tag as the author wrote it. On hover
 the border and text turn `ink`. The same chip on the front page, the
-author's home, and in the document footer. On the home each chip also
-carries how often the tag appears, faint after the name (`.tag-count`),
-the most used first; with script the row folds to its first line and a
-"+n more" chip (a button drawn as the others) unfolds it (S4).
+and in the document footer. The author's home sets its tags as a line
+instead (`.tag-line`, S9): the composer's treatment, the serif at field
+size with a hairline underline, commas drawn by the stylesheet, a faint
+mono count after a tag used more than once, the most used first. With
+script the line folds to its first row and "+n more", a button set like
+the words, unfolds it (S4).
+
+**Compact rows** (`.listing-compact`). The author's home lists its
+digests compactly (S7): a square thumbnail on `--thumb-small` when the
+visit has a photo, the title, one mono line with the verdict first
+(S8) then the date and the place, and the excerpt. No photo badge. A
+row without a photo keeps the thumbnail column empty, so every title
+starts on the same line. The front page keeps the full card.
 
 **Buttons.** Typeset: an action is a label in the serif italic on a
 rule, with no box and no fill (the Typeset handoff, 6a). The rule is an
@@ -499,7 +508,7 @@ and "Older →" right.
 | Page | Above the content | Opens with | Then |
 |---|---|---|---|
 | Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect to start writing", which becomes the sign-in form in place (that field carries the return mark and no button; the block is the field's height from the start, so the hairline below never moves); a hairline; a second connect, drawn the same but secondary — one line in the lede's voice over a "Look up a friend" button that becomes the field for someone else's handle; both fields suggest handles as you type |
-| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new digest"; "Your feed": a small nameplate (name linked to the front page, address and rss in the mono voice), the find field (no button, no visible label: it carries the return mark, and its placeholder says what it finds) with the counted tag chips under it, a "Recent digests" (or "Matching “q”" with a secondary "Clear") kicker over the listing rows, "All digests →" when there are more; or, with no feed yet, one lede saying what it will be; then a hairline and one quiet line, Settings · About · Sign out |
+| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new digest"; "Your feed" as a hidden heading; a small nameplate (name linked to the front page, address and rss in the mono voice), the find field (no button, no visible label: it carries the return mark, and its placeholder says what it finds) with the tag line under it, then the compact rows under a hairline with no head at rest ("Matching “q”" with a secondary "Clear" during a find), "All digests →" when there are more; or, with no feed yet, one lede saying what it will be; then a hairline and one quiet line, Settings · About · Sign out |
 | Feed front page | — | nameplate | listing, notice if truncated, pagination |
 | About `/about` | — | page head: "About" kicker, h1 "About eaten.at", lede | prose: one paragraph on the protocol a digest lives on, then the credits — the place licences and the IP database, and nothing that is not asked for. The page is static |
 | Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |

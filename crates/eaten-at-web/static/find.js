@@ -1,8 +1,8 @@
 /* The author's home. Live find (plan 11): after a pause, the form's own
    GET is fetched and its results swapped in, the address kept in step.
-   The form still works as a form. And the tag row folds to its first
-   line, the rest behind one "+n more" chip (S4); without script every
-   tag shows. */
+   The form still works as a form. And the tag line folds to its first
+   line, the rest behind one "+n more" (S4); without script every tag
+   shows. */
 (function () {
   "use strict";
   var form = document.querySelector("form.find");
@@ -55,7 +55,9 @@
     more.className = "tag-more";
     var button = document.createElement("button");
     button.type = "button";
-    button.className = "tag";
+    /* Set like the words it stands in for: a chip among chips, a word in a line. */
+    var word = list.querySelector("a");
+    button.className = word ? word.className : "tag";
     button.addEventListener("click", function () {
       unfolded = true;
       items.forEach(function (li) { li.hidden = false; });

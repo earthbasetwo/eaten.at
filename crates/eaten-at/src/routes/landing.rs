@@ -11,7 +11,7 @@ use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::Publication;
 use eaten_at_atproto::repo::Record;
 use eaten_at_web::assets::{COMBOBOX_SCRIPT, CONNECT_SCRIPT, FIND_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
-use eaten_at_web::components::{connect, listing, tag_counts, Connect, ConnectWay};
+use eaten_at_web::components::{connect, listing_compact, tag_line, Connect, ConnectWay};
 use eaten_at_web::layout::{self, Masthead, Page};
 use maud::{html, Markup};
 use serde::Deserialize;
@@ -112,7 +112,7 @@ struct Own<'a> {
     /// Whether the publication has more than the list shows.
     more: bool,
     truncated: bool,
-    /// The feed's tags, the most used first, each with its count (S4).
+    /// The feed's tags, the most used first, each with its count (S4, S9).
     tags: Vec<(eaten_at_web::components::Link, usize)>,
 }
 
@@ -220,16 +220,19 @@ async fn own<'a>(
 }
 
 /// The publication: a small nameplate, the find field with the tag
-/// chips under it, then the list. The field has no button and no
-/// visible label (S1, S3): Return sends it, its placeholder says what
-/// it finds, and the live find filters as you type anyway.
+/// line under it, then the compact rows. The field has no button and
+/// no visible label (S1, S3): Return sends it, its placeholder says
+/// what it finds, and the live find filters as you type anyway. The
+/// "Your feed" heading names the landmark and shows nowhere (S10), and
+/// the list has no head at rest (S11): during a find it takes one,
+/// "Matching …" with its Clear.
 fn own_section(did: &Did, own: &Own<'_>) -> Markup {
     let pub_rkey = own.publication.rkey();
     let front = paths::publication(did, pub_rkey);
     let finding = !own.query.is_empty();
     html! {
         section.own-publication aria-labelledby="own-heading" {
-            p.kicker #own-heading { "Your feed" }
+            p.kicker.visually-hidden #own-heading { "Your feed" }
             div.own-nameplate {
                 p.own-name { a href=(front) { (own.publication.value.name) } }
                 p.meta.own-address {
@@ -237,24 +240,24 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
                     a href=(paths::feed(did, pub_rkey)) rel="alternate" type="application/rss+xml" { "rss" }
                 }
             }
-            form.lookup.find action="/" method="get" {
-                label.visually-hidden for="q" { "Find a digest" }
-                div.lookup-row {
-                    span.return-rule {
-                        input #q name="q" type="search" value=(own.query) autocomplete="off"
-                            placeholder="Find a place, a title, a street";
+            div.own-find {
+                form.lookup.find action="/" method="get" {
+                    label.visually-hidden for="q" { "Find a digest" }
+                    div.lookup-row {
+                        span.return-rule {
+                            input #q name="q" type="search" value=(own.query) autocomplete="off"
+                                placeholder="Find a place, a title, a street";
+                        }
                     }
                 }
+                (tag_line(&own.tags))
             }
-            (tag_counts(&own.tags, None))
             // What a find replaces, live or by a reload: the head and
             // the list, announced to assistive technology when it changes.
             div.find-results aria-live="polite" {
-                div.list-head {
-                    p.kicker {
-                        @if finding { "Matching “" (own.query) "”" } @else { "Recent digests" }
-                    }
-                    @if finding {
+                @if finding {
+                    div.list-head {
+                        p.kicker { "Matching “" (own.query) "”" }
                         a.button-link href="/" { "Clear" }
                     }
                 }
@@ -265,7 +268,7 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
                         p.empty { "No digests yet." }
                     }
                 } @else {
-                    (listing(&own.items))
+                    (listing_compact(&own.items))
                 }
                 @if own.truncated {
                     p.notice { "Showing recent digests; this feed also has many other documents." }
