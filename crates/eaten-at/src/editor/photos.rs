@@ -4,27 +4,34 @@
 
 use std::fmt;
 
+use axum::body::Bytes;
 use axum::extract::Multipart;
 use eaten_at_atproto::lexicon::{Photo, MAX_PHOTOS};
 use maud::{html, Markup};
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::img::MAX_PHOTO_UPLOAD_BYTES;
+use crate::img::{MAX_PHOTO_UPLOAD_BYTES, MAX_SOURCE_MEGAPIXELS};
 
-/// Most files one request may add.
-pub const MAX_FILES_PER_REQUEST: usize = 12;
-/// Request body cap for the photos route: the files plus the fields.
-pub const MAX_REQUEST_BYTES: usize = 64 * 1024 * 1024;
+/// Most files one request may add: as many as fit under
+/// [`MAX_REQUEST_BYTES`] at the upload limit, so the limits the page
+/// states add up. The editor's island sends one file a request.
+pub const MAX_FILES_PER_REQUEST: usize = 6;
+/// Request body cap for the photos route: the files plus the fields. A
+/// request over it (only a hand-made one, within the stated limits) is
+/// answered in words.
+pub const MAX_REQUEST_BYTES: usize = 128 * 1024 * 1024;
+const _: () = assert!(MAX_FILES_PER_REQUEST * MAX_PHOTO_UPLOAD_BYTES < MAX_REQUEST_BYTES);
 /// Longest alt text, in graphemes (lexicon `maxGraphemes`).
 pub const MAX_ALT_GRAPHEMES: usize = 1000;
 /// Longest alt text, in bytes (lexicon `maxLength`).
 pub const MAX_ALT_BYTES: usize = 2000;
 
-/// A file from the form.
+/// A file from the form, its bytes as the parser gathered them (never
+/// copied: a phone photo is megabytes).
 #[derive(Clone, PartialEq, Eq)]
 pub struct Upload {
     pub file_name: String,
-    pub bytes: Vec<u8>,
+    pub bytes: Bytes,
 }
 
 impl fmt::Debug for Upload {
@@ -96,45 +103,90 @@ impl PhotosAction {
     }
 }
 
+/// Why a posted form could not be read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FormError {
+    /// The request is over [`MAX_REQUEST_BYTES`].
+    TooLarge,
+    /// Anything else, in the multipart parser's words.
+    Unreadable(String),
+}
+
+impl FormError {
+    fn from_multipart(err: &axum::extract::multipart::MultipartError) -> Self {
+        if err.status() == axum::http::StatusCode::PAYLOAD_TOO_LARGE {
+            Self::TooLarge
+        } else {
+            Self::Unreadable(err.body_text())
+        }
+    }
+
+    /// What the author is told when the request was too large.
+    pub fn too_large_message() -> String {
+        format!(
+            "These photos add up to more than {} MB. Choose fewer at a time.",
+            MAX_REQUEST_BYTES / (1024 * 1024)
+        )
+    }
+}
+
 /// The posted form: the alt texts by index, the files, and the action.
 #[derive(Debug, Default)]
 pub struct PhotosForm {
     pub alts: Vec<String>,
     pub files: Vec<Upload>,
-    /// More files were chosen than one request may add; the extra ones
-    /// were not read.
-    pub too_many: bool,
+    /// Files chosen with nothing in them, by name, so they are named
+    /// back rather than dropped.
+    pub empty: Vec<String>,
+    /// Files chosen past the most one request may add, by name: they
+    /// were not read, and are named back.
+    pub too_many: Vec<String>,
+    /// Photos already in the editor's form, which the upload cannot
+    /// see: the island says how many, so the digest's limit holds.
+    pub existing: usize,
     pub action: Option<PhotosAction>,
 }
 
 impl PhotosForm {
     /// Read a multipart body. A file over the upload limit is kept as a
     /// marker (its bytes dropped) so the page can name it.
-    pub async fn from_multipart(mut multipart: Multipart) -> Result<Self, String> {
+    pub async fn from_multipart(mut multipart: Multipart) -> Result<Self, FormError> {
         let mut form = Self::default();
-        while let Some(field) = multipart.next_field().await.map_err(|e| e.body_text())? {
+        while let Some(field) = multipart
+            .next_field()
+            .await
+            .map_err(|e| FormError::from_multipart(&e))?
+        {
             let Some(name) = field.name().map(str::to_owned) else {
                 continue;
             };
             if name == "photos" {
                 let file_name = field.file_name().unwrap_or_default().to_owned();
-                let bytes = field.bytes().await.map_err(|e| e.body_text())?;
+                let bytes = field
+                    .bytes()
+                    .await
+                    .map_err(|e| FormError::from_multipart(&e))?;
                 if bytes.is_empty() {
+                    // A file input left blank sends a nameless empty part.
+                    if !file_name.trim().is_empty() {
+                        form.empty.push(file_name);
+                    }
                     continue;
                 }
                 if form.files.len() >= MAX_FILES_PER_REQUEST {
-                    form.too_many = true;
+                    form.too_many.push(file_name);
                     continue;
                 }
-                form.files.push(Upload {
-                    file_name,
-                    bytes: bytes.to_vec(),
-                });
+                form.files.push(Upload { file_name, bytes });
                 continue;
             }
-            let value = field.text().await.map_err(|e| e.body_text())?;
+            let value = field
+                .text()
+                .await
+                .map_err(|e| FormError::from_multipart(&e))?;
             match name.as_str() {
                 "action" => form.action = PhotosAction::parse(&value),
+                "existing" => form.existing = value.trim().parse().unwrap_or(0),
                 other => {
                     if let Some(index) = other
                         .strip_prefix("alt_")
@@ -160,6 +212,46 @@ pub struct AltError {
     pub message: String,
 }
 
+/// Names as a sentence lists them: "a", "a and b", "a, b, and c".
+pub fn listed(names: &[String]) -> String {
+    match names {
+        [] => String::new(),
+        [one] => one.clone(),
+        [first, second] => format!("{first} and {second}"),
+        [rest @ .., last] => format!("{}, and {last}", rest.join(", ")),
+    }
+}
+
+/// Why a photo's caption (its alt text) cannot be stored, naming the
+/// photo by its place, `n` counting from 1; `None` when it can. The
+/// lexicon bounds it twice: in characters as they are seen, and in
+/// bytes, which an emoji or an accented letter spends several of, so a
+/// caption can be short to the eye and still too long to store.
+pub fn caption_problem(n: usize, caption: &str) -> Option<String> {
+    let caption = caption.trim();
+    if caption.graphemes(true).count() > MAX_ALT_GRAPHEMES {
+        Some(format!(
+            "Photo {n}'s caption is too long; keep it to {MAX_ALT_GRAPHEMES} characters or fewer."
+        ))
+    } else if caption.len() > MAX_ALT_BYTES {
+        Some(format!(
+            "Photo {n}'s caption is too long to store: emoji and some letters take more room \
+             than they show. Shorten it a little."
+        ))
+    } else {
+        None
+    }
+}
+
+/// The photos with the alt texts as typed, unchecked: what the page
+/// shows again when one of them is refused, so nothing typed is lost.
+pub fn as_typed(mut photos: Vec<Photo>, alts: &[String]) -> Vec<Photo> {
+    for (photo, alt) in photos.iter_mut().zip(alts) {
+        photo.alt = (!alt.trim().is_empty()).then(|| alt.clone());
+    }
+    photos
+}
+
 /// The photos with the typed alt texts applied: trimmed, blank meaning
 /// none, and bounded by the lexicon.
 pub fn with_alts(mut photos: Vec<Photo>, alts: &[String]) -> Result<Vec<Photo>, AltError> {
@@ -167,13 +259,10 @@ pub fn with_alts(mut photos: Vec<Photo>, alts: &[String]) -> Result<Vec<Photo>, 
         let Some(alt) = alts.get(index) else {
             continue;
         };
-        let alt = alt.trim();
-        if alt.graphemes(true).count() > MAX_ALT_GRAPHEMES || alt.len() > MAX_ALT_BYTES {
-            return Err(AltError {
-                index,
-                message: format!("Keep alt text under {MAX_ALT_GRAPHEMES} characters."),
-            });
+        if let Some(message) = caption_problem(index + 1, alt) {
+            return Err(AltError { index, message });
         }
+        let alt = alt.trim();
         photo.alt = (!alt.is_empty()).then(|| alt.to_owned());
     }
     Ok(photos)
@@ -269,7 +358,7 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
                             }
                             div.photo-row-body {
                                 div.field.field-invalid[invalid] {
-                                    label.kicker for=(alt_name) { "Alt text (optional)" }
+                                    label.kicker for=(alt_name) { "Describe this photo (optional)" }
                                     input id=(alt_name) name=(alt_name) type="text" value=(photo.alt);
                                     @if invalid {
                                         @if let Some(error) = page.alt_error {
@@ -298,8 +387,9 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
                 input #photos name="photos" type="file" accept="image/*" multiple;
             }
             p.meta.field-hint {
-                "Up to " (MAX_FILES_PER_REQUEST) " at a time, " (mb) " MB each, "
-                (MAX_PHOTOS) " on a visit. Photos are re-encoded and stripped of "
+                "Up to " (MAX_FILES_PER_REQUEST) " at a time, " (mb) " MB and "
+                (MAX_SOURCE_MEGAPIXELS) " megapixels each, " (MAX_PHOTOS)
+                " on a digest. Photos are re-encoded and stripped of "
                 "their metadata, location included, before they are uploaded."
             }
             @for problem in page.problems {
@@ -308,11 +398,11 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
             div.actions {
                 button type="submit" name="action" value=(PhotosAction::Add.value()) { "Add photos" }
                 @if count > 0 {
-                    button.button-secondary type="submit" name="action" value=(PhotosAction::Save.value()) { "Save alt text" }
+                    button.button-secondary type="submit" name="action" value=(PhotosAction::Save.value()) { "Save descriptions" }
                 }
                 @match page.then {
                     Some(then) => { a.button-link href=(then) { @if count > 0 { "Done" } @else { "Skip for now" } } }
-                    None => { a.button-link href=(page.document_path) { "← Back to the write-up" } }
+                    None => { a.button-link href=(page.document_path) { "← Back to the digest" } }
                 }
             }
         }
@@ -322,6 +412,15 @@ pub fn page(page: &PhotosPage<'_>) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn names_are_listed_as_a_sentence_lists_them() {
+        let names = |list: &[&str]| list.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        assert_eq!(listed(&names(&[])), "");
+        assert_eq!(listed(&names(&["a.jpg"])), "a.jpg");
+        assert_eq!(listed(&names(&["a.jpg", "b.jpg"])), "a.jpg and b.jpg");
+        assert_eq!(listed(&names(&["a", "b", "c"])), "a, b, and c");
+    }
 
     fn photo(cid: &str) -> Photo {
         serde_json::from_value(serde_json::json!({

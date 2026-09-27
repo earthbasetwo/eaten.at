@@ -108,7 +108,14 @@ Taken on 2026-09-13, when the placeholder subject became a visit.
 | 2026-09-20 | Delete in place | Delete confirms in the actions row (Delete? Yes / No) and Yes posts to the delete route, asking for the Bluesky post's deletion as the delete page's ticked default does; the delete page stays for a direct visit. The Yes is `--color-alert`, the one red besides vermilion, used nowhere else. |
 | 2026-09-20 | Rating control | The editor's rating is four plus signs (filled to the value) with the verdict's word beside them, drawn by the stylesheet from the radios; D46 stands for how a verdict is shown to readers, which is the word alone. |
 | 2026-09-20 | Script tripwire | D43's tripwire is raised from 24 KB to 72 KB: the live markdown editor, the calendar and menus, the link cards, and photos in place are the handoff's interactions and earn their keep; every page still works without them. |
+| 2026-09-26 | Script tripwire | D43's tripwire is raised from 72 KB to 80 KB. The composer trial had already crossed 72 (about 73 KB of inline script), and the photo fixes add about 6 KB: the draft keeping its photos, the upload queue that holds Publish until it is done, reordering from the keyboard, and naming the files that are refused. Every page still works without script. Proposed by the photo-fixes work for Ken to confirm or overrule. |
 | 2026-09-17 | Checkboxes and radios | A checkbox is a 16px square of 1px ink, empty on the paper, that takes `paper-bright` and the handoff's vermilion pen-stroke check when checked; the mark is an SVG, never a font glyph. The handoff draws no radio, so the same box is drawn round with a vermilion dot rather than left to the browser beside it. The check is a data URL and carries the vermilion literal, the one colour a publication theme does not reach; no themed page carries a form. |
+| 2026-09-25 | Vocabulary | A single post is a digest; the publication is a feed; write-up goes; visit stays for the visit a digest describes; protocol and code names unchanged. |
+| 2026-09-25 | Composer: nothing on the page explains markdown. The prompt is written in it, with one emphasised word between faint marks drawn as the caret line draws them, set upright inside the italic prompt (bold at first; upright italic from 2026-09-25 as the lighter mark). The Formatting disclosure goes, and so does the DIGEST kicker: the whole post is the digest, and the meal line is its head on that rule. | Ken, with Fable, on a canvas of nine glyphs and six patterns. A bold ghost prompt and a specimen line were too heavy; a pilcrow in the margin was built, tried on the local server, and cut as more than the page needs. |
+| 2026-09-25 | Composer: the headline is the title, the restaurant's name standing in until one is typed; the place line under it reads `at [name,] [address] — somewhere else`, and the shrug is how the restaurant is changed. No title line in the digest. | Ken: retitling and changing the place were one headline doing two jobs, which is what made both hard to find. Two lines, no hint, no icon: words are the page's idiom. |
+| 2026-09-25 | Composer: the digest's two hairlines change colour together, ink under the pointer and vermilion with focus, and never thicken; the teaser sits on a hairline that does the same (C7). | Ken, with Fable. Tried on the way: the lower rule alone at 2px, both rules at 2px (a frame), and the teaser on the full field rule (too heavy under a folded aside). Also considered: a vermilion rule in the margin beside the text. The teaser as a whole is still to be gone over. |
+| 2026-09-25 | Composer: the links row is "Elsewhere:", the link words and "add a link". "Nowhere yet" and the dash go (C11). | Ken and Ross, in the walkthrough meeting; built by Fable. The label was dropped for one commit on a misreading of the backlog and put back. |
+| 2026-09-26 | Composer: Return in the digest keeps what the writer typed. Return in a line of prose starts a paragraph and writes the blank line CommonMark needs; Return on an empty list or quote line ends it with a blank line; prose already right under an item or a quote is drawn inside it; headings are drawn at the sizes they publish at (CB2). | The retest found the editor and the page disagreeing: one Return drew two lines that published as one paragraph, and a paragraph after an ended list published inside its last item. Of the two ways to agree, drawing a single Return as the soft-wrapped continuation CommonMark makes of it would show the writer's line break being taken away; writing the blank line keeps the break they typed. A line break inside a paragraph (an address, a verse) is not offered; CommonMark's trailing backslash still works when typed. |
 
 ## Left over from the fork
 
@@ -122,3 +129,51 @@ Cosmetic only; nothing here affects behaviour.
 - Rust identifiers were renamed from "subject document" and "subject
   card" to "visit document" and "visit card" on 2026-09-13, when the
   vocabulary settled.
+
+## Composer refactor trial (2026-09-22)
+
+Ken's feedback authorizes a trial on `composer-refactor`: the restaurant remains
+at the head of the page; an optional title moves inside DIGEST above its body.
+The digest uses the page's paper and horizontal rules only. Filed under moves
+below photos and Elsewhere is left-aligned. Formatting help is a disclosure;
+whole-digest selection preserves the active-line-only markdown presentation.
+The second iteration removes Cancel and the composer’s Bluesky controls.
+Title and body share faint horizontal rules, with a body prompt and Formatting
+beside DIGEST; the title has no full-width underline or explanatory hint.
+Snack is added; Late night was kept at first and dropped from the picker on 2026-09-25 (Ken and Ross), with records that carry it still read. This amends the corresponding Write Pages layout and meal choices;
+see `docs/plans/14-composer-refactor.md`. Bluesky and post-publication changes
+remain deferred.
+
+The composer’s unpublished photo previews are cached from the metadata-free JPEG
+at upload time (2026-09-22): the PDS may not serve an uploaded blob until a record
+references it. Preview keys include the author DID and CID, responses require
+sign-in and vary by Cookie, and the existing six-hour image-cache TTL bounds
+abandoned previews. This corrects the assumption in Photos in the editor above.
+
+The trial now uses the underlined restaurant name to open the chooser, with a
+plain-text address and no separate change action. One photo-description string
+serves as the digest caption and the alt text for images without that caption.
+
+Post-publication trial (2026-09-22): successful creation and editing redirect to
+the digest with an author-only confirmation (“Your digest is published.” or
+“Changes saved.”). The confirmation offers the canonical permalink and a
+Bluesky compose intent containing that link. No posting permission is needed
+and no post is sent by this action. Thread discovery remains deferred. The
+confirmation query is removed from browser history by the small copy-link
+island; without JavaScript a Permalink and Dismiss link remain available.
+
+Publishing recovery (2026-09-22): an expired PDS authorization leaves the
+submitted composer visible with a reconnect link that opens in another tab.
+Explicit reauthentication bypasses the normal signed-in redirect from login.
+A publish submission saves its local text draft; only the author’s successful
+publish/save confirmation clears that draft. A failure must not silently
+return the writer to their publication or discard their text.
+
+Reconnection finishes on a dedicated confirmation in the sign-in tab, with
+instructions to return to the existing draft tab. Returning to `/write` was
+misleading because a new visit starts at restaurant selection. The completion
+page requires a stored publishing authorization as well as browser sign-in.
+
+Local draft cleanup matches the submitted draft version echoed after a
+successful write. Revisiting an older confirmation must not clear newer
+writing. The version is only a cleanup correlation value, never authorization.

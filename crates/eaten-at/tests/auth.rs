@@ -164,8 +164,7 @@ async fn par_state(server: &MockServer) -> String {
     let requests = server.received_requests().await.unwrap();
     let par = requests
         .iter()
-        .filter(|r| r.url.path() == "/oauth/par")
-        .next_back()
+        .rfind(|r| r.url.path() == "/oauth/par")
         .expect("a PAR request was made");
     url::form_urlencoded::parse(&par.body)
         .find(|(k, _)| k == "state")
@@ -187,7 +186,8 @@ async fn sign_in_sets_a_session_and_sign_out_clears_it() {
     let form = get(&state, "/login?return_to=/write", None).await;
     assert_eq!(form.status, StatusCode::OK);
     assert!(
-        form.body.contains("action=\"/login\" method=\"post\""),
+        form.body
+            .contains("action=\"https://eaten.at/login\" method=\"post\""),
         "{}",
         form.body
     );
@@ -252,7 +252,7 @@ async fn sign_in_sets_a_session_and_sign_out_clears_it() {
         "{}",
         home.body
     );
-    assert!(home.body.contains("Write a new visit"), "{}", home.body);
+    assert!(home.body.contains("Write a new digest"), "{}", home.body);
     assert!(home.body.contains("action=\"/logout\""), "{}", home.body);
     let anonymous = get(&state, "/", None).await;
     assert!(

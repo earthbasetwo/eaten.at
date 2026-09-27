@@ -51,7 +51,7 @@ Required: `place`, `visitedOn`.
 | `body` | open union | | The prose, keyed by `$type`. We write `at.markpub.markdown` (D12). Readers that know no member fall back to the document's `textContent`. |
 | `photos` | array of [`#photo`](#photo) | ≤ 24 items | Photos of the visit, in the author's order (D37). The first is also written as the document's `coverImage` (D38). |
 
-`meal` known values: `breakfast`, `brunch`, `lunch`, `dinner`, `lateNight`.
+`meal` known values: `breakfast`, `brunch`, `lunch`, `dinner`, `snack`, `lateNight`.
 
 The rating scale, and how eaten.at renders it:
 

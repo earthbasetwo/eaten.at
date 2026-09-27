@@ -10,6 +10,7 @@
 //! encoded JPEG. Uploads go the same way (plan 07): re-encoded, so no
 //! metadata block, and with it no camera position, reaches the repo.
 
+use std::borrow::Cow;
 use std::io::Cursor;
 
 use eaten_at_atproto::lexicon::MAX_PHOTO_BYTES;
@@ -17,7 +18,9 @@ use image::imageops::FilterType;
 use image::metadata::Orientation;
 use image::{
     DynamicImage, GenericImageView, ImageDecoder, ImageFormat, ImageReader, Rgb, RgbImage,
+    RgbaImage,
 };
+use moxcms::{ColorProfile, DataColorSpace, Layout, TransformOptions, Xyzd};
 use url::Url;
 
 use crate::cache::Namespace;
@@ -31,8 +34,9 @@ pub const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 /// Largest image blob we write, in bytes: the lexicon caps a photo, and
 /// Standard caps a cover, at the same size.
 pub const MAX_IMAGE_BLOB_BYTES: usize = MAX_PHOTO_BYTES;
-/// Largest photo file accepted for upload, before it is re-encoded.
-pub const MAX_PHOTO_UPLOAD_BYTES: usize = 10 * 1024 * 1024;
+/// Largest photo file accepted for upload, before it is re-encoded:
+/// room for a 48 or 50 MP phone JPEG.
+pub const MAX_PHOTO_UPLOAD_BYTES: usize = 20 * 1024 * 1024;
 /// Long side a photo is shrunk to on upload.
 const PHOTO_FIT_DIMENSION: u32 = 2048;
 /// Side of a square photo thumbnail.
@@ -41,10 +45,15 @@ const THUMB_SIDE: u32 = 400;
 const FULL_FIT_DIMENSION: u32 = 1600;
 /// Widest a listing card's photo is served (plan 13), cropped to 3:2.
 const CARD_WIDTH: u32 = 960;
-/// Largest source dimensions we will decode.
-const MAX_SOURCE_DIMENSION: u32 = 6000;
-/// Decode memory budget handed to the image crate.
-const MAX_DECODE_BYTES: u64 = 96 * 1024 * 1024;
+/// Largest source side we will decode: today's 48 and 50 MP phone
+/// photos are about 8160 pixels on the long side.
+pub const MAX_SOURCE_DIMENSION: u32 = 8192;
+/// Most source pixels we will decode, in megapixels.
+pub const MAX_SOURCE_MEGAPIXELS: u64 = 50;
+/// Decode memory budget: 50 MP at four bytes a pixel, with a little
+/// over. A 16-bit image near that size is refused as too large, by
+/// [`decode`] itself before any pixel is allocated.
+const MAX_DECODE_BYTES: u64 = 256 * 1024 * 1024;
 /// JPEG quality of everything we emit.
 const JPEG_QUALITY: u8 = 84;
 
@@ -280,6 +289,34 @@ impl AppState {
         }
     }
 
+    /// Keep private previews of a successful upload. A PDS stores new blobs
+    /// temporarily and may not serve them through `getBlob` until a record
+    /// references them. Use the metadata-free JPEG we just uploaded instead.
+    /// The existing image-cache TTL bounds abandoned previews; the DID in
+    /// each key keeps unpublished images scoped to their author.
+    pub async fn cache_uploaded_photo(
+        &self,
+        identity: &eaten_at_atproto::identity::Identity,
+        cid: &str,
+        jpeg: Vec<u8>,
+    ) -> Result<(), AppError> {
+        let renditions = tokio::task::spawn_blocking(move || {
+            let image = decode(&jpeg)?;
+            [PhotoSize::Thumb, PhotoSize::Full, PhotoSize::Card]
+                .into_iter()
+                .map(|size| encode_photo(&image, size).map(|bytes| (size, bytes)))
+                .collect::<Result<Vec<_>, ImageError>>()
+        })
+        .await
+        .map_err(|err| AppError::Upstream(err.to_string()))?
+        .map_err(|err| AppError::Upstream(err.to_string()))?;
+        for (size, bytes) in renditions {
+            let key = own_photo_key(identity, cid, size);
+            self.cache().put_bytes(Namespace::Image, &key, &bytes).await;
+        }
+        Ok(())
+    }
+
     /// One of the author's own blobs at `size`, cached, for the editor's
     /// tiles (D37 amended); `None` when the repository has no such blob
     /// or it is not an image. Only reached signed in, for the caller's
@@ -290,7 +327,7 @@ impl AppState {
         cid: &str,
         size: PhotoSize,
     ) -> Option<Rendition> {
-        let key = format!("{}/own/{}/{}", identity.did, cid, size.as_str());
+        let key = own_photo_key(identity, cid, size);
         let build = || async {
             let url = self.repo_for(identity).blob_url(&identity.did, cid);
             let image = self.fetch_and_decode(url).await?;
@@ -356,6 +393,14 @@ fn is_raster_content_type(content_type: &str) -> bool {
     )
 }
 
+fn own_photo_key(
+    identity: &eaten_at_atproto::identity::Identity,
+    cid: &str,
+    size: PhotoSize,
+) -> String {
+    format!("{}/own/{}/{}", identity.did, cid, size.as_str())
+}
+
 /// Why an image was rejected or could not be produced.
 #[derive(Debug, thiserror::Error)]
 pub enum ImageError {
@@ -367,6 +412,8 @@ pub enum ImageError {
     CannotShrink(usize),
     #[error("image dimensions {0}×{1} exceed the limit")]
     TooLarge(u32, u32),
+    #[error("the file ends partway through the image")]
+    Truncated,
     #[error("image error: {0}")]
     Image(#[from] image::ImageError),
     #[error("read error: {0}")]
@@ -379,6 +426,9 @@ pub struct PreparedPhoto {
     pub jpeg: Vec<u8>,
     pub width: u32,
     pub height: u32,
+    /// The file was an animated GIF or WebP, of which only the first
+    /// frame is kept: a JPEG holds one picture.
+    pub animated: bool,
 }
 
 impl std::fmt::Debug for PreparedPhoto {
@@ -387,6 +437,7 @@ impl std::fmt::Debug for PreparedPhoto {
             .field("bytes", &self.jpeg.len())
             .field("width", &self.width)
             .field("height", &self.height)
+            .field("animated", &self.animated)
             .finish()
     }
 }
@@ -399,7 +450,15 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
     if bytes.len() > MAX_PHOTO_UPLOAD_BYTES {
         return Err(ImageError::TooBig(bytes.len(), MAX_PHOTO_UPLOAD_BYTES));
     }
-    let image = decode(bytes)?;
+    let end = jpeg_end(bytes);
+    if end == JpegEnd::CutShort {
+        return Err(ImageError::Truncated);
+    }
+    let decoded = decode(bytes)?;
+    if end == JpegEnd::NoEndMarker && filled_grey(&decoded) {
+        return Err(ImageError::Truncated);
+    }
+    let image = &shrink_cheaply(opaque_owned(decoded));
     // Smaller and coarser until it fits. A photograph fits on the first
     // try; only something like pure noise gets as far as the last.
     for limit in [PHOTO_FIT_DIMENSION, 1600, 1200, 800] {
@@ -410,7 +469,7 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
             image.clone()
         };
         let (width, height) = fitted.dimensions();
-        let rgb = fitted.to_rgb8();
+        let rgb = flatten(&fitted);
         for quality in [JPEG_QUALITY, 72, 60] {
             let mut out = Cursor::new(Vec::new());
             let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality);
@@ -421,6 +480,7 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
                     jpeg,
                     width,
                     height,
+                    animated: animated(bytes),
                 });
             }
         }
@@ -428,10 +488,223 @@ pub fn photo_upload(bytes: &[u8]) -> Result<PreparedPhoto, ImageError> {
     Err(ImageError::CannotShrink(MAX_IMAGE_BLOB_BYTES))
 }
 
+/// Whether a GIF or WebP holds more than one frame, read from its
+/// structure without decoding any: a WebP says so in its VP8X flags, and
+/// a GIF's image descriptors are counted, stepping over every block.
+fn animated(bytes: &[u8]) -> bool {
+    if bytes.starts_with(b"RIFF") && bytes.get(8..16) == Some(b"WEBPVP8X") {
+        return bytes.get(20).is_some_and(|flags| flags & 0x02 != 0);
+    }
+    if !bytes.starts_with(b"GIF8") {
+        return false;
+    }
+    // A colour table's size from a packed field: 3 × 2^(n + 1) bytes.
+    let table = |packed: u8| {
+        if packed & 0x80 == 0 {
+            0
+        } else {
+            3 << ((packed & 7) + 1)
+        }
+    };
+    // Past a run of data sub-blocks, `None` if the file stops in it.
+    let past_blocks = |mut i: usize| loop {
+        let len = usize::from(*bytes.get(i)?);
+        i += 1;
+        if len == 0 {
+            return Some(i);
+        }
+        i += len;
+    };
+    let Some(&screen) = bytes.get(10) else {
+        return false;
+    };
+    let mut i = 13 + table(screen);
+    let mut frames = 0;
+    loop {
+        let next = match bytes.get(i) {
+            Some(0x21) => past_blocks(i + 2),
+            Some(0x2C) => {
+                frames += 1;
+                if frames > 1 {
+                    return true;
+                }
+                bytes
+                    .get(i + 9)
+                    .and_then(|&packed| past_blocks(i + 11 + table(packed)))
+            }
+            _ => None,
+        };
+        let Some(next) = next else {
+            return false;
+        };
+        i = next;
+    }
+}
+
+/// At most this many photos are prepared at once, whoever sent them: a
+/// 48 MP photo holds a few hundred megabytes while it is decoded and
+/// shrunk, so the server's memory is bounded by this, not by how many
+/// uploads arrive together.
+static PREPARING: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+
+/// [`photo_upload`] on a blocking thread, waiting its turn among
+/// [`PREPARING`]. The turn is held by the work itself, so a request
+/// that goes away mid-decode does not let another start beside it.
+pub async fn prepare_photo(
+    bytes: impl AsRef<[u8]> + Send + 'static,
+) -> Result<Result<PreparedPhoto, ImageError>, tokio::task::JoinError> {
+    let turn = PREPARING.acquire().await.ok();
+    tokio::task::spawn_blocking(move || {
+        let _turn = turn;
+        photo_upload(bytes.as_ref())
+    })
+    .await
+}
+
+/// The image with its transparency flattened (see [`flatten`]), taking
+/// it by value so the original is let go as soon as it is replaced.
+fn opaque_owned(image: DynamicImage) -> DynamicImage {
+    if image.color().has_alpha() {
+        DynamicImage::ImageRgb8(flatten(&image))
+    } else {
+        image
+    }
+}
+
+/// A photo far larger than [`PHOTO_FIT_DIMENSION`] brought down to twice
+/// that by area averaging first, which needs no more memory than its
+/// result; Lanczos on a 48 MP original would hold a floating-point copy
+/// of a band of it, some two hundred megabytes. Lanczos then takes the
+/// last step, so the result is as sharp as before.
+fn shrink_cheaply(image: DynamicImage) -> DynamicImage {
+    let side = 2 * PHOTO_FIT_DIMENSION;
+    if image.width().max(image.height()) > side {
+        image.thumbnail(side, side)
+    } else {
+        image
+    }
+}
+
+/// How a JPEG ends, as far as its markers tell. Its decoder fills what
+/// is missing with grey and says nothing, so a file cut short in copying
+/// would be published with a grey band.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JpegEnd {
+    /// Its end marker follows its first scan, or it is not a JPEG (the
+    /// other formats' decoders refuse a short file themselves).
+    Whole,
+    /// A baseline JPEG with no end marker after its scan. Some cameras
+    /// and encoders write these whole, so the pixels decide: see
+    /// [`filled_grey`].
+    NoEndMarker,
+    /// It stops inside its headers, or it is progressive with no end
+    /// marker, where a missing refinement cannot be seen in the pixels.
+    CutShort,
+}
+
+/// Read a JPEG's markers to its first scan and look for the end after
+/// it. The scan's data never holds an end-of-image marker (a 0xFF byte
+/// in it is always escaped). The segments before the scan are stepped
+/// over by their lengths, so an embedded thumbnail's own markers are
+/// never seen.
+fn jpeg_end(bytes: &[u8]) -> JpegEnd {
+    if !bytes.starts_with(&[0xFF, 0xD8]) {
+        return JpegEnd::Whole;
+    }
+    let mut progressive = false;
+    let mut i = 2;
+    loop {
+        // Fill bytes may pad a marker.
+        while bytes.get(i) == Some(&0xFF) && bytes.get(i + 1) == Some(&0xFF) {
+            i += 1;
+        }
+        match (bytes.get(i), bytes.get(i + 1)) {
+            (Some(0xFF), Some(&marker)) => {
+                i += 2;
+                match marker {
+                    // Markers without a segment.
+                    0x01 | 0xD0..=0xD8 => continue,
+                    // An end before any scan: no image to cut short.
+                    0xD9 => return JpegEnd::Whole,
+                    0xC2 | 0xC6 | 0xCA | 0xCE => progressive = true,
+                    _ => {}
+                }
+                let Some(len) = bytes
+                    .get(i..i + 2)
+                    .map(|b| usize::from(u16::from_be_bytes([b[0], b[1]])))
+                else {
+                    return JpegEnd::CutShort;
+                };
+                i += len;
+                if marker == 0xDA {
+                    let ended = bytes
+                        .get(i..)
+                        .is_some_and(|scan| scan.windows(2).any(|w| w == [0xFF, 0xD9]));
+                    return match (ended, progressive) {
+                        (true, _) => JpegEnd::Whole,
+                        (false, false) => JpegEnd::NoEndMarker,
+                        (false, true) => JpegEnd::CutShort,
+                    };
+                }
+            }
+            (Some(0xFF), None) | (None, _) => return JpegEnd::CutShort,
+            (Some(_), _) => return JpegEnd::Whole,
+        }
+    }
+}
+
+/// Whether a picture decoded from a baseline JPEG with no end marker was
+/// cut short: its decoder fills every block row after the one where the
+/// data ran out with flat mid-grey, so the last 8 × 8 block is exactly
+/// that. Orientation may have turned it to any corner. A file cut inside
+/// its last block row is not caught: at most that row is spoiled.
+fn filled_grey(image: &DynamicImage) -> bool {
+    let (w, h) = image.dimensions();
+    if w < 8 || h < 8 {
+        return false;
+    }
+    [(0, 0), (w - 8, 0), (0, h - 8), (w - 8, h - 8)]
+        .into_iter()
+        .any(|(x0, y0)| {
+            (0..8).all(|dy| {
+                (0..8).all(|dx| {
+                    let pixel = image.get_pixel(x0 + dx, y0 + dy).0;
+                    pixel[..3].iter().all(|c| c.abs_diff(128) <= 2)
+                })
+            })
+        })
+}
+
+/// Whether a decoder's refusal is a file that stops early: an end of
+/// file where more was expected, or a WebP shorter than its RIFF header
+/// says (its decoder calls that a corrupt bitstream).
+fn cut_short(bytes: &[u8], err: &image::ImageError) -> bool {
+    if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+        let declared = bytes
+            .get(4..8)
+            .map_or(0, |b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
+        if usize::try_from(declared).is_ok_and(|d| bytes.len() < d.saturating_add(8)) {
+            return true;
+        }
+    }
+    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(err);
+    while let Some(e) = source {
+        if e.downcast_ref::<std::io::Error>()
+            .is_some_and(|io| io.kind() == std::io::ErrorKind::UnexpectedEof)
+            || e.to_string().to_ascii_lowercase().contains("end of file")
+        {
+            return true;
+        }
+        source = e.source();
+    }
+    false
+}
+
 /// A photo at `size`: a centre-cropped square thumbnail, the full
 /// rendition fitted to its long side, or the card's 3:2 crop, none of
 /// them upscaled.
 pub fn encode_photo(image: &DynamicImage, size: PhotoSize) -> Result<Vec<u8>, ImageError> {
+    let image = &*opaque(image);
     let framed = match size {
         PhotoSize::Thumb => image.resize_to_fill(THUMB_SIDE, THUMB_SIDE, FilterType::Lanczos3),
         PhotoSize::Full => {
@@ -449,7 +722,7 @@ pub fn encode_photo(image: &DynamicImage, size: PhotoSize) -> Result<Vec<u8>, Im
     };
     let mut out = Cursor::new(Vec::new());
     let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY);
-    framed.to_rgb8().write_with_encoder(encoder)?;
+    flatten(&framed).write_with_encoder(encoder)?;
     Ok(out.into_inner())
 }
 
@@ -468,9 +741,10 @@ fn card_dimensions((w, h): (u32, u32)) -> (u32, u32) {
 }
 
 /// Decode with format sniffed from the bytes (never from the declared
-/// type), dimensions checked before pixels are allocated, and the EXIF
-/// orientation applied so a phone photo comes out the way up it was
-/// taken.
+/// type), dimensions checked before pixels are allocated, the pixels
+/// converted to sRGB when the file embeds another RGB colour profile
+/// (see [`to_srgb`]), and the EXIF orientation applied so a phone photo
+/// comes out the way up it was taken.
 pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     let reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
     let format = reader.format().ok_or(ImageError::Format)?;
@@ -480,14 +754,17 @@ pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     ) {
         return Err(ImageError::Format);
     }
-    let mut reader = reader;
-    let mut limits = image::Limits::default();
-    limits.max_image_width = Some(MAX_SOURCE_DIMENSION);
-    limits.max_image_height = Some(MAX_SOURCE_DIMENSION);
-    limits.max_alloc = Some(MAX_DECODE_BYTES);
-    reader.limits(limits);
+    // The dimensions are read from the header first, with no limit on
+    // them, so a picture over ours is refused as too large, by name,
+    // rather than as a decoding error.
     let (w, h) = reader.into_dimensions()?;
-    if w > MAX_SOURCE_DIMENSION || h > MAX_SOURCE_DIMENSION || w == 0 || h == 0 {
+    if w == 0 || h == 0 {
+        return Err(ImageError::Format);
+    }
+    if w > MAX_SOURCE_DIMENSION
+        || h > MAX_SOURCE_DIMENSION
+        || u64::from(w) * u64::from(h) > MAX_SOURCE_MEGAPIXELS * 1_000_000
+    {
         return Err(ImageError::TooLarge(w, h));
     }
     let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
@@ -497,14 +774,121 @@ pub fn decode(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
     limits.max_alloc = Some(MAX_DECODE_BYTES);
     reader.limits(limits);
     let mut decoder = reader.into_decoder()?;
+    // `from_decoder` allocates the pixels without asking the limits set
+    // above (only `ImageReader::decode` does), so the budget is checked
+    // here against what the decoder says it needs: a 16-bit picture
+    // inside the side and pixel limits can still need more than it.
+    if decoder.total_bytes() > MAX_DECODE_BYTES {
+        return Err(ImageError::TooLarge(w, h));
+    }
     let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
-    let mut image = DynamicImage::from_decoder(decoder)?;
+    let icc = decoder.icc_profile().ok().flatten();
+    let mut image = DynamicImage::from_decoder(decoder).map_err(|err| match err {
+        image::ImageError::Limits(_) => ImageError::TooLarge(w, h),
+        other if cut_short(bytes, &other) => ImageError::Truncated,
+        other => ImageError::Image(other),
+    })?;
+    if let Some(icc) = icc {
+        image = to_srgb(image, &icc);
+    }
     image.apply_orientation(orientation);
     Ok(image)
 }
 
+/// The image's pixels converted from the colour profile `icc` to sRGB.
+///
+/// Everything we write is a profile-free JPEG, which every viewer reads
+/// as sRGB, so a Display P3 (every iPhone) or Adobe RGB photo whose
+/// numbers were copied across as they were would look duller than it
+/// is. Only RGB profiles that are not sRGB already are converted: a
+/// CMYK JPEG reaches us already turned into RGB by the decoder, and a
+/// grey image has nothing to shift. An unreadable profile, or one the
+/// colour engine cannot handle, leaves the pixels as they are: a photo
+/// is never refused over its profile.
+fn to_srgb(image: DynamicImage, icc: &[u8]) -> DynamicImage {
+    match convert_to_srgb(&image, icc) {
+        Ok(Some(converted)) => converted,
+        Ok(None) => image,
+        Err(err) => {
+            tracing::debug!(%err, "colour profile not applied; pixels used as they are");
+            image
+        }
+    }
+}
+
+/// [`to_srgb`]'s work: `None` when no conversion is needed. The result is
+/// 8-bit (RGB, or RGBA to keep transparency for [`flatten`]), which is
+/// all a JPEG holds anyway.
+fn convert_to_srgb(
+    image: &DynamicImage,
+    icc: &[u8],
+) -> Result<Option<DynamicImage>, moxcms::CmsError> {
+    let profile = ColorProfile::new_from_slice(icc)?;
+    if profile.color_space != DataColorSpace::Rgb || !image.color().has_color() || is_srgb(&profile)
+    {
+        return Ok(None);
+    }
+    let srgb = ColorProfile::new_srgb();
+    let options = TransformOptions::default();
+    let (width, height) = image.dimensions();
+    if image.color().has_alpha() {
+        let transform =
+            profile.create_transform_8bit(Layout::Rgba, &srgb, Layout::Rgba, options)?;
+        let src = image.to_rgba8();
+        let mut dst = vec![0; src.len()];
+        transform.transform(&src, &mut dst)?;
+        Ok(RgbaImage::from_raw(width, height, dst).map(DynamicImage::ImageRgba8))
+    } else {
+        let transform = profile.create_transform_8bit(Layout::Rgb, &srgb, Layout::Rgb, options)?;
+        let src = image.to_rgb8();
+        let mut dst = vec![0; src.len()];
+        transform.transform(&src, &mut dst)?;
+        Ok(RgbImage::from_raw(width, height, dst).map(DynamicImage::ImageRgb8))
+    }
+}
+
+/// Whether an RGB profile is sRGB in all but name: sRGB's primaries, and
+/// a tone curve that sends every 8-bit value back to itself. Most
+/// Android phones and cameras tag their JPEGs this way; converting would
+/// cost time and only nudge values by rounding.
+fn is_srgb(profile: &ColorProfile) -> bool {
+    let srgb = ColorProfile::new_srgb();
+    let close = |a: Xyzd, b: Xyzd| {
+        (a.x - b.x).abs() < 2e-3 && (a.y - b.y).abs() < 2e-3 && (a.z - b.z).abs() < 2e-3
+    };
+    if !profile.is_matrix_shaper()
+        || !close(profile.red_colorant, srgb.red_colorant)
+        || !close(profile.green_colorant, srgb.green_colorant)
+        || !close(profile.blue_colorant, srgb.blue_colorant)
+    {
+        return false;
+    }
+    let Some(Ok(encode)) = srgb
+        .red_trc
+        .as_ref()
+        .map(moxcms::ToneReprCurve::make_gamma_evaluator)
+    else {
+        return false;
+    };
+    [&profile.red_trc, &profile.green_trc, &profile.blue_trc]
+        .into_iter()
+        .all(|trc| {
+            let Some(Ok(decode)) = trc
+                .as_ref()
+                .map(moxcms::ToneReprCurve::make_linear_evaluator)
+            else {
+                return false;
+            };
+            (0..=255u8).all(|code| {
+                let v = f32::from(code) / 255.0;
+                (encode.evaluate_value(decode.evaluate_value(v)) - v).abs() * 255.0 < 0.5
+            })
+        })
+}
+
 /// Fit the image to `size` and encode it as JPEG.
 pub fn encode(image: &DynamicImage, size: Size) -> Result<Vec<u8>, ImageError> {
+    let image = &*opaque(image);
     let framed = match size {
         Size::Card => {
             let (w, h) = image.dimensions();
@@ -518,8 +902,40 @@ pub fn encode(image: &DynamicImage, size: Size) -> Result<Vec<u8>, ImageError> {
     };
     let mut out = Cursor::new(Vec::new());
     let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY);
-    framed.to_rgb8().write_with_encoder(encoder)?;
+    flatten(&framed).write_with_encoder(encoder)?;
     Ok(out.into_inner())
+}
+
+/// The image as 8-bit RGB, with any transparency composited over white.
+/// JPEG has no alpha channel, and dropping it would publish whatever
+/// colour sits under a transparent pixel (black, often, or magenta)
+/// instead of what every viewer shows.
+fn flatten(image: &DynamicImage) -> RgbImage {
+    if !image.color().has_alpha() {
+        return image.to_rgb8();
+    }
+    let rgba = image.to_rgba8();
+    RgbImage::from_fn(rgba.width(), rgba.height(), |x, y| {
+        let [r, g, b, a] = rgba.get_pixel(x, y).0;
+        let a = u16::from(a);
+        // c·a + 255·(1 − a), rounded: at most 255·255 + 127, and the
+        // quotient is at most 255.
+        let over = |c: u8| {
+            u8::try_from((u16::from(c) * a + 255 * (255 - a) + 127) / 255).unwrap_or(u8::MAX)
+        };
+        Rgb([over(r), over(g), over(b)])
+    })
+}
+
+/// The image unchanged when it has no alpha channel, else [`flatten`]ed.
+/// Flattening before resizing keeps the colour under transparent pixels
+/// from bleeding into the edges of what is visible.
+fn opaque(image: &DynamicImage) -> Cow<'_, DynamicImage> {
+    if image.color().has_alpha() {
+        Cow::Owned(DynamicImage::ImageRgb8(flatten(image)))
+    } else {
+        Cow::Borrowed(image)
+    }
 }
 
 /// Centre the image on a 1200×630 canvas filled with its average color.
@@ -531,7 +947,7 @@ fn frame_for_og(image: &DynamicImage) -> DynamicImage {
     let (fw, fh) = fitted.dimensions();
     let x = i64::from((W - fw) / 2);
     let y = i64::from((H - fh) / 2);
-    image::imageops::overlay(&mut canvas, &fitted.to_rgb8(), x, y);
+    image::imageops::overlay(&mut canvas, &flatten(&fitted), x, y);
     DynamicImage::ImageRgb8(canvas)
 }
 
@@ -619,6 +1035,103 @@ fn hsl_to_rgb(hue: f64, saturation: f64, lightness: f64) -> Rgb<u8> {
 mod tests {
     use super::*;
 
+    fn crc32(bytes: &[u8]) -> u32 {
+        let mut c = !0u32;
+        for &b in bytes {
+            c ^= u32::from(b);
+            for _ in 0..8 {
+                c = if c & 1 == 0 {
+                    c >> 1
+                } else {
+                    (c >> 1) ^ 0xEDB8_8320
+                };
+            }
+        }
+        !c
+    }
+
+    /// A PNG whose header claims `w`×`h` over a 1×1 image, its IHDR CRC
+    /// recomputed so the header reads as valid.
+    fn png_claiming(w: u32, h: u32) -> Vec<u8> {
+        let mut bytes = png(1, 1);
+        // IHDR: length at 8..12, type at 12..16, width/height at 16..24,
+        // the rest of its data to 29, then its CRC over type and data.
+        bytes[16..20].copy_from_slice(&w.to_be_bytes());
+        bytes[20..24].copy_from_slice(&h.to_be_bytes());
+        let crc = crc32(&bytes[12..29]);
+        bytes[29..33].copy_from_slice(&crc.to_be_bytes());
+        bytes
+    }
+
+    /// A valid, black `w`×`h` PNG in RGBA at 16 bits a channel. Its
+    /// pixel data is compressed by hand (one zero, then copies of it 258
+    /// bytes at a time), so a picture that decodes to hundreds of
+    /// megabytes is a megabyte or two here and costs the test nothing
+    /// like its decoded size.
+    fn png_rgba16_black(w: u32, h: u32) -> Vec<u8> {
+        #[derive(Default)]
+        struct Bits {
+            out: Vec<u8>,
+            used: u32,
+        }
+        impl Bits {
+            fn push(&mut self, bit: u32) {
+                if self.used.is_multiple_of(8) {
+                    self.out.push(0);
+                }
+                if bit & 1 == 1 {
+                    *self.out.last_mut().unwrap() |= 1 << (self.used % 8);
+                }
+                self.used += 1;
+            }
+            /// A Huffman code, most significant bit first.
+            fn code(&mut self, code: u32, len: u32) {
+                for i in (0..len).rev() {
+                    self.push(code >> i);
+                }
+            }
+        }
+        fn chunk(png: &mut Vec<u8>, kind: &[u8], data: &[u8]) {
+            png.extend(u32::try_from(data.len()).unwrap().to_be_bytes());
+            let start = png.len();
+            png.extend(kind);
+            png.extend(data);
+            let crc = crc32(&png[start..]);
+            png.extend(crc.to_be_bytes());
+        }
+        // Every row is filter type 0 and zero samples: all zeros.
+        let n = u64::from(h) * (1 + u64::from(w) * 8);
+        let mut bits = Bits::default();
+        bits.push(1); // the final block,
+        bits.push(1); // with the fixed codes
+        bits.push(0);
+        bits.code(0x30, 8); // literal 0
+        let mut left = n - 1;
+        while left >= 258 {
+            bits.code(0b1100_0101, 8); // length 258,
+            bits.code(0, 5); // distance 1
+            left -= 258;
+        }
+        for _ in 0..left {
+            bits.code(0x30, 8);
+        }
+        bits.code(0, 7); // end of block
+        let mut zlib = vec![0x78, 0x01];
+        zlib.extend(bits.out);
+        // Adler-32 of n zero bytes: a stays 1, b counts to n.
+        let adler = u32::try_from(n % 65_521).unwrap() << 16 | 1;
+        zlib.extend(adler.to_be_bytes());
+        let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+        let mut ihdr = Vec::new();
+        ihdr.extend(w.to_be_bytes());
+        ihdr.extend(h.to_be_bytes());
+        ihdr.extend([16, 6, 0, 0, 0]); // 16-bit, RGBA, deflate, adaptive, not interlaced
+        chunk(&mut png, b"IHDR", &ihdr);
+        chunk(&mut png, b"IDAT", &zlib);
+        chunk(&mut png, b"IEND", &[]);
+        png
+    }
+
     fn png(w: u32, h: u32) -> Vec<u8> {
         let img = RgbImage::from_fn(w, h, |x, y| {
             let channel = |v: u32| u8::try_from(v % 256).unwrap_or(0);
@@ -697,6 +1210,111 @@ mod tests {
     }
 
     #[test]
+    fn transparency_is_flattened_onto_white() {
+        // Left: opaque red. Right: fully transparent, black under the top
+        // and magenta under the bottom. A band of 50% transparent black
+        // across the middle of the left half.
+        let img = image::RgbaImage::from_fn(64, 64, |x, y| {
+            if x >= 32 {
+                if y < 32 {
+                    image::Rgba([0, 0, 0, 0])
+                } else {
+                    image::Rgba([255, 0, 255, 0])
+                }
+            } else if (24..40).contains(&y) {
+                image::Rgba([0, 0, 0, 128])
+            } else {
+                image::Rgba([200, 30, 30, 255])
+            }
+        });
+        let mut png = Cursor::new(Vec::new());
+        DynamicImage::ImageRgba8(img)
+            .write_to(&mut png, ImageFormat::Png)
+            .unwrap();
+        let near =
+            |got: Rgb<u8>, want: [u8; 3]| got.0.iter().zip(want).all(|(g, w)| g.abs_diff(w) <= 6);
+        let photo = photo_upload(&png.into_inner()).unwrap();
+        let back = decode(&photo.jpeg).unwrap().to_rgb8();
+        for (x, y, want) in [
+            (48, 12, [255, 255, 255]),
+            (48, 52, [255, 255, 255]),
+            (12, 32, [127, 127, 127]),
+            (12, 8, [200, 30, 30]),
+        ] {
+            let got = *back.get_pixel(x, y);
+            assert!(near(got, want), "({x},{y}) is {got:?}, want {want:?}");
+        }
+        // The renditions and the cover flatten too.
+        let rgba = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            50,
+            50,
+            image::Rgba([0, 0, 0, 0]),
+        ));
+        let full = decode(&encode_photo(&rgba, PhotoSize::Full).unwrap())
+            .unwrap()
+            .to_rgb8();
+        assert!(near(*full.get_pixel(25, 25), [255, 255, 255]));
+        let og = decode(&encode(&rgba, Size::Og).unwrap()).unwrap().to_rgb8();
+        assert!(near(*og.get_pixel(0, 0), [255, 255, 255]), "OG background");
+        assert!(near(*og.get_pixel(600, 315), [255, 255, 255]));
+        assert_eq!(flatten(&rgba).get_pixel(0, 0).0, [255, 255, 255]);
+        let half = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            1,
+            1,
+            image::Rgba([0, 0, 0, 128]),
+        ));
+        assert_eq!(flatten(&half).get_pixel(0, 0).0, [127, 127, 127]);
+    }
+
+    /// A PNG of `image` carrying the ICC profile `icc`.
+    fn png_with_profile(image: &DynamicImage, icc: Vec<u8>) -> Vec<u8> {
+        use image::ImageEncoder;
+        let mut out = Cursor::new(Vec::new());
+        let mut encoder = image::codecs::png::PngEncoder::new(&mut out);
+        encoder.set_icc_profile(icc).unwrap();
+        encoder
+            .write_image(
+                image.as_bytes(),
+                image.width(),
+                image.height(),
+                image.color().into(),
+            )
+            .unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn wide_gamut_photos_are_converted_to_srgb() {
+        let red = DynamicImage::ImageRgb8(RgbImage::from_pixel(8, 8, Rgb([230, 40, 40])));
+        let p3 = ColorProfile::new_display_p3().encode().unwrap();
+        let converted = decode(&png_with_profile(&red, p3.clone()))
+            .unwrap()
+            .to_rgb8();
+        let [r, g, b] = converted.get_pixel(4, 4).0;
+        // P3 red is redder than sRGB's (ColorSync gives 251, 0, 18).
+        assert!(r >= 246 && g <= 8 && (10..=26).contains(&b), "{r},{g},{b}");
+
+        // Transparency survives the conversion, for flattening.
+        let clear =
+            DynamicImage::ImageRgba8(RgbaImage::from_pixel(8, 8, image::Rgba([230, 40, 40, 0])));
+        let converted = decode(&png_with_profile(&clear, p3)).unwrap();
+        assert!(converted.color().has_alpha());
+        assert_eq!(converted.to_rgba8().get_pixel(4, 4).0[3], 0);
+
+        // An sRGB profile, a grey profile on grey pixels, and a profile
+        // that cannot be read all leave the pixels alone.
+        let srgb = ColorProfile::new_srgb().encode().unwrap();
+        let same = decode(&png_with_profile(&red, srgb)).unwrap();
+        assert_eq!(same.to_rgb8().get_pixel(4, 4).0, [230, 40, 40]);
+        let grey = DynamicImage::ImageLuma8(image::GrayImage::from_pixel(8, 8, image::Luma([90])));
+        let gray_profile = ColorProfile::new_gray_with_gamma(2.2).encode().unwrap();
+        let same = decode(&png_with_profile(&grey, gray_profile)).unwrap();
+        assert_eq!(same.to_luma8().get_pixel(4, 4).0, [90]);
+        assert!(convert_to_srgb(&red, b"not a profile").is_err());
+        assert_eq!(to_srgb(red.clone(), b"not a profile"), red);
+    }
+
+    #[test]
     fn photo_renditions_are_a_square_thumb_and_a_fitted_full() {
         let image = decode(&png(1200, 600)).unwrap();
         let thumb = decode(&encode_photo(&image, PhotoSize::Thumb).unwrap()).unwrap();
@@ -730,6 +1348,53 @@ mod tests {
     }
 
     #[test]
+    fn a_photo_cut_short_is_refused_in_every_format() {
+        let image = decode(&png(320, 240)).unwrap();
+        let jpeg = encode_photo(&image, PhotoSize::Full).unwrap();
+        assert_eq!(jpeg_end(&jpeg), JpegEnd::Whole);
+        assert!(photo_upload(&jpeg).is_ok());
+        // With an EXIF thumbnail ahead of the scan, whose own end marker
+        // must not count, and with bytes after the end.
+        let wrapped = jpeg_with_orientation_6(&image.to_rgb8());
+        assert_eq!(jpeg_end(&wrapped), JpegEnd::Whole);
+        let mut thumb_app1 = vec![0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x06, 0xFF, 0xD8, 0xFF, 0xD9];
+        thumb_app1.extend(&jpeg[2..jpeg.len() - 2]);
+        assert_eq!(
+            jpeg_end(&thumb_app1),
+            JpegEnd::NoEndMarker,
+            "the thumbnail's end is not the photo's"
+        );
+        let mut trailing = jpeg.clone();
+        trailing.extend([0, 0, 0]);
+        assert_eq!(jpeg_end(&trailing), JpegEnd::Whole);
+
+        // Missing only its end marker, the photo is whole and goes in;
+        // cut anywhere before that, it is refused as incomplete.
+        assert!(photo_upload(&jpeg[..jpeg.len() - 2]).is_ok());
+        for cut in [jpeg.len() / 2, jpeg.len() * 3 / 4, 3, 40] {
+            assert!(
+                matches!(photo_upload(&jpeg[..cut]), Err(ImageError::Truncated)),
+                "JPEG cut at {cut}"
+            );
+        }
+        for format in [ImageFormat::Png, ImageFormat::Gif, ImageFormat::WebP] {
+            let mut out = Cursor::new(Vec::new());
+            DynamicImage::ImageRgb8(image.to_rgb8())
+                .write_to(&mut out, format)
+                .unwrap();
+            let bytes = out.into_inner();
+            assert!(photo_upload(&bytes).is_ok(), "{format:?}");
+            assert!(
+                matches!(
+                    photo_upload(&bytes[..bytes.len() / 2]),
+                    Err(ImageError::Truncated)
+                ),
+                "{format:?} cut in half is incomplete, not unusable"
+            );
+        }
+    }
+
+    #[test]
     fn decodes_png_and_rejects_svg_and_garbage() {
         assert!(decode(&png(10, 10)).is_ok());
         let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>"#;
@@ -742,15 +1407,82 @@ mod tests {
 
     #[test]
     fn oversized_dimensions_are_rejected_before_decode() {
-        // A PNG header claiming 7000×7000 with no real pixel data.
-        let mut bytes = png(1, 1);
-        // IHDR width/height live at bytes 16..24 (big-endian u32s).
-        bytes[16..20].copy_from_slice(&7000u32.to_be_bytes());
-        bytes[20..24].copy_from_slice(&7000u32.to_be_bytes());
-        assert!(matches!(
-            decode(&bytes),
-            Err(ImageError::TooLarge(7000, 7000) | ImageError::Image(_))
-        ));
+        // PNG headers claiming more than we take, with no real pixel
+        // data: too long a side, and too many pixels in all.
+        for (w, h) in [(9000, 100), (100, 9000), (8000, 7000)] {
+            let bytes = png_claiming(w, h);
+            assert!(
+                matches!(decode(&bytes), Err(ImageError::TooLarge(a, b)) if (a, b) == (w, h)),
+                "{w}x{h}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_deep_picture_inside_the_pixel_limits_is_refused_before_its_pixels() {
+        // The builder makes a real 16-bit PNG: a small one decodes.
+        let small = decode(&png_rgba16_black(64, 48)).unwrap();
+        assert_eq!(small.dimensions(), (64, 48));
+        assert_eq!(small.color(), image::ColorType::Rgba16);
+        // 7000 × 6000 is inside both limits, but at eight bytes a pixel
+        // it would decode to 336 MB, over the 256 MiB budget. It is
+        // refused by name, before the buffer is allocated.
+        let (w, h) = (7000, 6000);
+        let deep = png_rgba16_black(w, h);
+        assert!(deep.len() < 4 * 1024 * 1024, "{} bytes", deep.len());
+        assert!(u64::from(w) * u64::from(h) <= MAX_SOURCE_MEGAPIXELS * 1_000_000);
+        assert!(
+            matches!(decode(&deep), Err(ImageError::TooLarge(a, b)) if (a, b) == (w, h)),
+            "a 16-bit 42 MP PNG must not be decoded"
+        );
+        assert!(matches!(photo_upload(&deep), Err(ImageError::TooLarge(..))));
+    }
+
+    #[test]
+    fn an_animation_is_known_by_its_frames() {
+        use image::codecs::gif::GifEncoder;
+        use image::{Delay, Frame, RgbaImage};
+        let gif = |frames: u8| {
+            let mut out = Vec::new();
+            {
+                let mut encoder = GifEncoder::new(&mut out);
+                for f in 0..frames {
+                    let pixels = RgbaImage::from_pixel(8, 6, image::Rgba([f * 90, 20, 30, 255]));
+                    encoder
+                        .encode_frame(Frame::from_parts(
+                            pixels,
+                            0,
+                            0,
+                            Delay::from_numer_denom_ms(100, 1),
+                        ))
+                        .unwrap();
+                }
+            }
+            out
+        };
+        assert!(!animated(&gif(1)));
+        assert!(animated(&gif(2)));
+        let prepared = photo_upload(&gif(3)).unwrap();
+        assert!(
+            prepared.animated,
+            "the first frame is kept, and that is said"
+        );
+        assert!(!photo_upload(&png(8, 6)).unwrap().animated);
+        // A WebP says so in its VP8X flags.
+        let mut webp = b"RIFF\0\0\0\0WEBPVP8X\x0a\0\0\0".to_vec();
+        webp.extend([0x02, 0, 0, 0]);
+        assert!(animated(&webp));
+        webp[20] = 0x10;
+        assert!(!animated(&webp));
+    }
+
+    #[test]
+    fn a_huge_photo_is_brought_to_twice_the_fit_before_lanczos() {
+        let wide = DynamicImage::ImageRgb8(RgbImage::new(5000, 100));
+        let shrunk = shrink_cheaply(wide);
+        assert_eq!(shrunk.width(), 2 * PHOTO_FIT_DIMENSION);
+        let small = DynamicImage::ImageRgb8(RgbImage::new(3000, 2000));
+        assert_eq!(shrink_cheaply(small).dimensions(), (3000, 2000));
     }
 
     #[test]

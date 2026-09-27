@@ -1,7 +1,7 @@
 //! `GET /` — signed out, the pitch and the two ways in, each one button
 //! that becomes a handle field (plan 09); signed in, the author's home:
-//! one primary "Write a new visit", their publication with its recent
-//! write-ups and a way to find one, and settings last (plan 11). Both
+//! one primary "Write a new digest", their feed with its recent
+//! digests and a way to find one, and settings last (plan 11). Both
 //! states end on the same quiet line, which is where the about page
 //! (and with it the credits) is reached from.
 
@@ -47,8 +47,9 @@ pub async fn landing(
     // The handle island calls the AppView from the browser (plan 10),
     // which this page's policy alone allows.
     let appview = state.appview_origin();
-    let mut response = signed_out(&nonce, &appview).into_response();
-    security::allow_connect(&mut response, &nonce, &appview);
+    let origin = state.absolute("");
+    let mut response = signed_out(&nonce, &appview, &origin).into_response();
+    security::allow_connect_and_post(&mut response, &nonce, &appview, &origin);
     Ok(response)
 }
 
@@ -56,7 +57,7 @@ pub async fn landing(
 /// handle field, and beneath a hairline the same treatment for reading
 /// without signing in: a line, then one secondary button that becomes a
 /// field for someone else's handle.
-fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
+fn signed_out(nonce: &Nonce, appview: &str, origin: &str) -> Markup {
     layout::render(&Page {
         title: &[],
         masthead: Masthead::Logotype,
@@ -78,6 +79,7 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
             }
             (connect(&Connect {
                 appview,
+                origin,
                 way: ConnectWay::Write,
                 intro: None,
                 label: "Connect to start writing",
@@ -85,6 +87,7 @@ fn signed_out(nonce: &Nonce, appview: &str) -> Markup {
             hr.landing-divider;
             (connect(&Connect {
                 appview,
+                origin,
                 way: ConnectWay::Read,
                 intro: Some("Oh, so you're one of the demanding public, eh?"),
                 label: "Look up a friend",
@@ -139,7 +142,7 @@ async fn signed_in(
                 h1 { "Where did you eat?" }
             }
             div.actions.landing-actions {
-                a.button href="/write" { "Write a new visit" }
+                a.button href="/write" { "Write a new digest" }
             }
             (section)
             div.meta.tertiary {
@@ -223,7 +226,7 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
     let finding = !own.query.is_empty();
     html! {
         section.own-publication aria-labelledby="own-heading" {
-            p.kicker #own-heading { "Your publication" }
+            p.kicker #own-heading { "Your feed" }
             div.own-nameplate {
                 p.own-name { a href=(front) { (own.publication.value.name) } }
                 p.meta.own-address {
@@ -232,7 +235,7 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
                 }
             }
             form.lookup.find action="/" method="get" {
-                label.kicker.lookup-label for="q" { "Find a write-up" }
+                label.kicker.lookup-label for="q" { "Find a digest" }
                 div.lookup-row {
                     input #q name="q" type="search" value=(own.query) autocomplete="off"
                         placeholder="A place, a title, a street";
@@ -245,7 +248,7 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
             div.find-results aria-live="polite" {
                 div.list-head {
                     p.kicker {
-                        @if finding { "Matching “" (own.query) "”" } @else { "Recent write-ups" }
+                        @if finding { "Matching “" (own.query) "”" } @else { "Recent digests" }
                     }
                     @if finding {
                         a.button-link href="/" { "Clear" }
@@ -253,19 +256,19 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
                 }
                 @if own.items.is_empty() {
                     @if finding {
-                        p.empty { "Nothing called “" (own.query) "” among your write-ups." }
+                        p.empty { "Nothing called “" (own.query) "” among your digests." }
                     } @else {
-                        p.empty { "No write-ups yet." }
+                        p.empty { "No digests yet." }
                     }
                 } @else {
                     (listing(&own.items))
                 }
                 @if own.truncated {
-                    p.notice { "Showing recent write-ups; this publication also has many other documents." }
+                    p.notice { "Showing recent digests; this feed also has many other documents." }
                 }
                 @if own.more && !finding {
                     div.actions {
-                        a.button-link href=(front) { "All write-ups →" }
+                        a.button-link href=(front) { "All digests →" }
                     }
                 }
             }
@@ -285,9 +288,9 @@ fn not_yet(state: &AppState, identity: &Identity) -> Markup {
     };
     html! {
         section.own-publication.own-none aria-labelledby="own-heading" {
-            p.kicker #own-heading { "Your publication" }
+            p.kicker #own-heading { "Your feed" }
             p.lede {
-                "Your publication is made when you publish your first write-up. "
+                "Your feed is made when you publish your first digest. "
                 "It will be called " (spec.name) ", " (address) "; "
                 a href="/settings" { "change that in settings" } "."
             }

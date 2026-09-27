@@ -1,13 +1,9 @@
-/* Filed under (the tags): the comma list becomes chips. The text field
-   the server reads stays, hidden, as the carrier of the list, and a
-   slot takes its place that holds one tag at a time: Return or a comma
-   files it as a chip, a chip is a button that takes itself out, and
-   Backspace in the empty slot takes the last chip back. Return in an
-   empty slot still sends the form. The carrier keeps the field's name
-   so the draft island saves it; changes are announced on it, and the
-   draft's restore announces itself the same way, so the chips follow.
-   Tags match as the server matches them: case and runs of space aside,
-   keeping the spelling typed first. */
+/* Filed under: the comma list becomes chips. The server's field stays,
+   hidden, as the carrier; a slot takes one tag at a time. Return or a
+   comma files it, a chip takes itself out when pressed, Backspace in
+   the empty slot takes the last back, and Return there sends the form.
+   Changes are announced on the carrier, and a restored draft's too.
+   Tags match as the server's do: case and runs of space aside. */
 (function () {
   "use strict";
   var input = document.querySelector("form.editor input[name=\"tags\"]");
@@ -47,11 +43,17 @@
     input.placeholder = tags.length ? "another tag" : "a tag";
   }
   function announce() { carrier.dispatchEvent(new Event("input", { bubbles: true })); }
+  // A chip filed from the keyboard strikes through only once the pointer moves.
+  function still() {
+    chips.classList.add("still");
+    document.addEventListener("pointermove", function () { chips.classList.remove("still"); }, { once: true });
+  }
   function add(t) {
     t = clean(t);
     if (!t || has(t)) return;
     tags.push(t);
     render();
+    still();
     announce();
   }
   function remove(t) {

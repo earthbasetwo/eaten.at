@@ -28,6 +28,7 @@ axum.workspace = true
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 jiff = "0.2"
 maud = { version = "0.27", features = ["axum"] }
+moxcms = "0.8"
 quick-xml = "0.42"
 rand = "0.10"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "http2"] }

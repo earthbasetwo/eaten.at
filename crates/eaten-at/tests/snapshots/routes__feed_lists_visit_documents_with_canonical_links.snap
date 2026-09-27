@@ -16,7 +16,7 @@ expression: body
       <guid isPermaLink="true">https://ross.eaten.at/2026/09/third-post</guid>
       <description>A write-up of Third Place.</description>
       <pubDate>Mon, 07 Sep 2026 12:00:00 +0000</pubDate>
-      <enclosure url="https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d3?size=og" type="image/jpeg" length="0"/>
+      <enclosure url="https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d3?size=og&amp;v=bafycid" type="image/jpeg" length="30683"/>
     </item>
     <item>
       <title>First Post</title>
@@ -24,7 +24,7 @@ expression: body
       <guid isPermaLink="true">https://ross.eaten.at/2026/09/first-post</guid>
       <description>A write-up of First Place.</description>
       <pubDate>Mon, 07 Sep 2026 12:00:00 +0000</pubDate>
-      <enclosure url="https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d1?size=og" type="image/jpeg" length="0"/>
+      <enclosure url="https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d1?size=og&amp;v=bafycid" type="image/jpeg" length="31489"/>
     </item>
   </channel>
 </rss>

@@ -739,6 +739,7 @@ dependencies = [
  "jiff",
  "maud",
  "maxminddb",
+ "moxcms",
  "quick-xml",
  "rand 0.10.2",
  "regex-lite",

@@ -1,12 +1,8 @@
-/* Choosing the place (plan 12, the Write Pages handoff). Suggestions
-   open under the place's name as it is typed, from this site's own
-   suggest endpoint through the combobox. Picking one fills the name and
-   the address and remembers which suggestion it was, so Start writing
-   sends the pick and the server reads the place from the same cached
-   search it suggested from; type over either line and it is a place by
-   hand again. Clearing the name clears the address with it, so an
-   address from an earlier pick is never left behind. Without this, the
-   two lines are typed and Start writing takes them as written. */
+/* Choosing the place (plan 12). Suggestions open under the name as it
+   is typed, from this site's suggest endpoint. A pick fills name and
+   address and is sent as the pick, read back from the same cached
+   search; typing over either line makes it a place by hand again, and
+   clearing the name clears the address. Without this, both are typed. */
 (function () {
   "use strict";
   var name = document.querySelector("form.editor-choosing input[name=\"place_name\"]");
@@ -17,8 +13,7 @@
   var start = form.querySelector("#start-writing");
   var picked = null;
 
-  /* Where field-sizing is not understood, an inline field is measured
-     against a mirror of its text. */
+  // Measured against a mirror where field-sizing is not understood.
   (function () {
     if (window.CSS && CSS.supports && CSS.supports("field-sizing", "content")) return;
     var mirror = document.createElement("span");
@@ -41,8 +36,7 @@
   function matchesPick() {
     return picked !== null && name.value === picked.name && address.value === picked.address;
   }
-  /* Start writing appears once there is a name, and says whether it is
-     the pick or what was typed. */
+  // Start writing shows once there is a name, as the pick or by hand.
   function arm() {
     if (start) {
       start.hidden = !name.value.trim();
@@ -91,12 +85,16 @@
       }
     });
   }
-  /* Return with nothing highlighted keeps what was typed and leaves the
-     field; the combobox has already taken a highlighted row. Start
-     writing is a press away either way. */
+  // Return with nothing highlighted leaves the field as typed.
   name.addEventListener("keydown", function (e) {
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter") { e.preventDefault(); name.blur(); }
   });
   arm();
+  // On arrival, typing replaces the current restaurant. Do this once,
+  // so later clicks can still position the caret for a small correction.
+  if (name.value) {
+    name.focus();
+    name.select();
+  }
 })();

@@ -764,11 +764,11 @@ async fn link_card(
     record: &Record<Document>,
 ) -> Result<LinkCard, PublishError> {
     let site = AtUri::parse(&record.value.site)
-        .map_err(|_| AppError::BadRequest("the document names no publication".to_owned()))?;
+        .map_err(|_| AppError::BadRequest("the document names no feed".to_owned()))?;
     let publication = state
         .publication(identity, site.rkey())
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("publication {} not found", site.rkey())))?;
+        .ok_or_else(|| AppError::NotFound(format!("feed {} not found", site.rkey())))?;
     let visit_doc = VisitDocument::from_record(record.clone());
     let title = record.value.title.clone();
     let description = match &visit_doc {
@@ -830,7 +830,9 @@ async fn taken_paths(
     Ok(taken)
 }
 
-/// The document and every listing that might have shown it.
+/// The document, every listing that might have shown it, and the
+/// images drawn from it: the cover (card and OpenGraph) follows the
+/// first photo, so it must not outlive a change to the photos.
 async fn forget_document(state: &AppState, did: &Did, rkey: &str) {
     let cache = state.cache();
     cache
@@ -838,6 +840,9 @@ async fn forget_document(state: &AppState, did: &Did, rkey: &str) {
         .await;
     cache
         .evict_prefix(Namespace::DocumentList, &format!("{did}:"))
+        .await;
+    cache
+        .evict_prefix(Namespace::Image, &format!("{did}/{rkey}/"))
         .await;
 }
 

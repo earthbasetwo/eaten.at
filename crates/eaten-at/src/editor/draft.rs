@@ -10,8 +10,8 @@ use eaten_at_atproto::lexicon::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::form::{EditorForm, PlaceMode};
-use super::photos::{MAX_ALT_BYTES, MAX_ALT_GRAPHEMES};
+use super::form::{EditorForm, PlaceMode, MAX_PHOTO_ROWS};
+use super::photos::caption_problem;
 use super::{MAX_BODY_BYTES, MAX_LINKS, MAX_TAGS};
 use crate::publish::MAX_POST_GRAPHEMES;
 use crate::tags;
@@ -90,11 +90,13 @@ pub struct Context<'a> {
 pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, FieldErrors> {
     let mut errors = FieldErrors::default();
 
-    let title = form.title.trim();
+    // The title is one line: a line break typed into it is a space.
+    let title = form.title.replace(['\r', '\n'], " ");
+    let title = title.trim();
     if graphemes(title) > MAX_TITLE_GRAPHEMES {
         errors.add(
             "title",
-            format!("Keep the title under {MAX_TITLE_GRAPHEMES} characters."),
+            format!("Keep the title to {MAX_TITLE_GRAPHEMES} characters or fewer."),
         );
     }
 
@@ -102,14 +104,14 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     if markdown.trim().is_empty() {
         errors.add("body", "Write something.");
     } else if markdown.len() > MAX_BODY_BYTES {
-        errors.add("body", "That's longer than a write-up can be.");
+        errors.add("body", "That's longer than a digest can be.");
     }
 
     let description = form.description.trim();
     if graphemes(description) > MAX_DESCRIPTION_GRAPHEMES {
         errors.add(
             "description",
-            format!("Keep the excerpt under {MAX_DESCRIPTION_GRAPHEMES} characters."),
+            format!("Keep the teaser to {MAX_DESCRIPTION_GRAPHEMES} characters or fewer."),
         );
     }
 
@@ -121,7 +123,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     } else if graphemes(place_name) > MAX_PLACE_NAME_GRAPHEMES {
         errors.add(
             "place_name",
-            format!("Keep the place's name under {MAX_PLACE_NAME_GRAPHEMES} characters."),
+            format!("Keep the place's name to {MAX_PLACE_NAME_GRAPHEMES} characters or fewer."),
         );
     }
 
@@ -129,7 +131,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     if graphemes(address) > MAX_ADDRESS_GRAPHEMES {
         errors.add(
             "place_address",
-            format!("Keep the address under {MAX_ADDRESS_GRAPHEMES} characters."),
+            format!("Keep the address to {MAX_ADDRESS_GRAPHEMES} characters or fewer."),
         );
     }
 
@@ -151,8 +153,15 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         }
         raw => {
             let date = VisitDate::parse(raw).ok();
-            if date.is_none() {
-                errors.add("visited_on", "Use a date like 2026-09-12.");
+            match &date {
+                None => errors.add("visited_on", "Use a date like 2026-09-12."),
+                // A visit is never dated ahead. The line is drawn at
+                // tomorrow in the server's zone, so a writer whose day
+                // began before the server's is not refused today.
+                Some(d) if d.date() > latest_visit_day() => {
+                    errors.add("visited_on", "That day hasn't come yet.");
+                }
+                Some(_) => {}
             }
             date
         }
@@ -184,7 +193,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
         if graphemes(&text) > MAX_POST_GRAPHEMES {
             errors.add(
                 "post_text",
-                format!("Keep the post under {MAX_POST_GRAPHEMES} characters."),
+                format!("Keep the post to {MAX_POST_GRAPHEMES} characters or fewer."),
             );
         }
         text
@@ -231,7 +240,7 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
                 if graphemes(label) > MAX_LABEL_GRAPHEMES {
                     errors.add(
                         format!("link_label_{i}"),
-                        format!("Keep the label under {MAX_LABEL_GRAPHEMES} characters."),
+                        format!("Keep the label to {MAX_LABEL_GRAPHEMES} characters or fewer."),
                     );
                 }
                 let service = link.service_value();
@@ -279,11 +288,8 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
             continue;
         };
         let alt = field.alt.trim();
-        if graphemes(alt) > MAX_ALT_GRAPHEMES || alt.len() > MAX_ALT_BYTES {
-            errors.add(
-                format!("photo_alt_{i}"),
-                format!("Keep a caption under {MAX_ALT_GRAPHEMES} characters."),
-            );
+        if let Some(message) = caption_problem(i + 1, alt) {
+            errors.add(format!("photo_alt_{i}"), message);
         }
         let mime = field.mime.trim();
         let aspect_ratio = match (
@@ -313,8 +319,24 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
             extra: serde_json::Map::new(),
         });
     }
-    if photos.len() > MAX_PHOTOS {
-        errors.add("photos", format!("At most {MAX_PHOTOS} photos on a visit."));
+    let unread = form.photos_unread;
+    if photos.len() + unread > MAX_PHOTOS {
+        let over = photos.len().saturating_sub(MAX_PHOTOS);
+        let unread_note = if unread > 0 {
+            format!(
+                " {unread} more, past the first {MAX_PHOTO_ROWS}, {} not read.",
+                if unread == 1 { "was" } else { "were" }
+            )
+        } else {
+            String::new()
+        };
+        errors.add(
+            "photos",
+            format!(
+                "At most {MAX_PHOTOS} photos on a digest; remove {over} {}.{unread_note}",
+                if over == 1 { "photo" } else { "photos" }
+            ),
+        );
     }
 
     let tags = match parse_tags(&form.tags) {
@@ -442,6 +464,12 @@ pub fn parse_tags(raw: &str) -> Result<Vec<String>, String> {
     Ok(tags)
 }
 
+/// The last day a visit may be dated: tomorrow, in the server's zone.
+fn latest_visit_day() -> jiff::civil::Date {
+    let today = VisitDate::today().date();
+    today.tomorrow().unwrap_or(today)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -457,6 +485,9 @@ mod tests {
             place_address: " 1 Example St ".into(),
             place_price: "2".into(),
             place_mode: PlaceMode::Picked,
+            draft_id: None,
+            changing_place: false,
+            photos_unread: 0,
             place_query: String::new(),
             gers_id: " 08f2a5b6c7d8e9f0a1b2c3d4e5f60718 ".into(),
             lat_e6: "40688838".into(),
@@ -486,6 +517,20 @@ mod tests {
 
     fn ctx() -> Context<'static> {
         Context { original: None }
+    }
+
+    #[test]
+    fn a_visit_is_not_dated_past_tomorrow() {
+        let mut form = good_form();
+        let tomorrow = latest_visit_day();
+        form.visited_on = VisitDate::from_date(tomorrow).as_string();
+        assert!(
+            validate(&form, &ctx()).is_ok(),
+            "tomorrow passes, for time zones"
+        );
+        form.visited_on = VisitDate::from_date(tomorrow.tomorrow().unwrap()).as_string();
+        let errors = validate(&form, &ctx()).unwrap_err();
+        assert_eq!(errors.get("visited_on"), Some("That day hasn't come yet."));
     }
 
     #[test]
@@ -559,7 +604,7 @@ mod tests {
             ("rating", "Choose a rating from the scale."),
             ("gers_id", "An id has no spaces in it."),
             ("link_url_0", "Links must be https."),
-            ("link_label_1", "Keep the label under 64 characters."),
+            ("link_label_1", "Keep the label to 64 characters or fewer."),
         ];
         for (field, message) in expected {
             assert_eq!(errors.get(field), Some(message), "{field}: {errors:?}");
@@ -667,6 +712,31 @@ mod tests {
         assert!(errors.get("photo_alt_0").unwrap().contains("1000"));
         assert!(errors.get("photo_cid_1").is_some(), "{errors:?}");
         assert!(errors.get("photo_cid_2").is_some(), "{errors:?}");
+    }
+
+    #[test]
+    fn more_photos_than_a_digest_holds_says_how_many_to_remove() {
+        use crate::editor::form::PhotoField;
+        let mut form = good_form();
+        form.photos = (0..27)
+            .map(|i| PhotoField {
+                cid: format!("bafy{i}"),
+                size: "10".into(),
+                ..PhotoField::default()
+            })
+            .collect();
+        let errors = validate(&form, &ctx()).unwrap_err();
+        assert_eq!(
+            errors.get("photos"),
+            Some("At most 24 photos on a digest; remove 3 photos.")
+        );
+        // A form past the rows it is read with says what it dropped.
+        form.photos_unread = 12;
+        let errors = validate(&form, &ctx()).unwrap_err();
+        assert_eq!(
+            errors.get("photos"),
+            Some("At most 24 photos on a digest; remove 3 photos. 12 more, past the first 48, were not read.")
+        );
     }
 
     #[test]

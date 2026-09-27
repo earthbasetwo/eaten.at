@@ -110,9 +110,13 @@ pub fn photo_grid(photos: &[PhotoView]) -> Markup {
                 ul.photo-grid {
                     @for photo in photos {
                         li {
-                            a href=(photo.full_src) {
-                                img src=(photo.thumb_src) alt=(photo.alt)
-                                    width=(THUMB_SIDE) height=(THUMB_SIDE) loading="lazy";
+                            a href=(photo.full_src) aria-label=[photo.alt.is_empty().then_some("View photo")] {
+                                figure {
+                                    // The visible caption names the link without repeating the image description.
+                                    img src=(photo.thumb_src) alt=""
+                                        width=(THUMB_SIDE) height=(THUMB_SIDE) loading="lazy";
+                                    @if !photo.alt.is_empty() { figcaption { (photo.alt) } }
+                                }
                             }
                         }
                     }
@@ -249,7 +253,7 @@ impl Default for LookupForm<'_> {
         Self {
             value: "",
             error: None,
-            label: "Read someone's write-ups by handle",
+            label: "Read someone's feed by handle",
             button: "Go",
             primary: true,
             typeahead: None,
@@ -366,6 +370,10 @@ impl ConnectWay {
 pub struct Connect<'a> {
     /// The `AppView` origin the handle field suggests from (D42).
     pub appview: &'a str,
+    /// The site's bare origin, which a sign-in posts to wherever the
+    /// page was served: sign-in only completes there, and a redirect
+    /// from a form post to another origin is blocked without a word.
+    pub origin: &'a str,
     /// Which way in this one opens.
     pub way: ConnectWay,
     /// A line above the button, in the lede's voice, for a block whose
@@ -396,6 +404,11 @@ pub struct Connect<'a> {
 /// submission, so it holds with the island's script and without it.
 pub fn connect(connect: &Connect<'_>) -> Markup {
     let way = connect.way;
+    let action = if way.method() == "post" {
+        format!("{}{}", connect.origin, way.action())
+    } else {
+        way.action().to_owned()
+    };
     html! {
         @if let Some(intro) = connect.intro {
             p.lede.connect-intro { (intro) }
@@ -404,7 +417,7 @@ pub fn connect(connect: &Connect<'_>) -> Markup {
             div.actions.landing-actions.connect-idle {
                 a class=(way.button_class()) href=(way.action()) { (connect.label) }
             }
-            form.lookup.connect-form action=(way.action()) method=(way.method()) hidden {
+            form.lookup.connect-form action=(action) method=(way.method()) hidden {
                 label.visually-hidden for=(way.field_id()) { (way.field_label()) }
                 div.lookup-row {
                     span.return-rule {
@@ -425,7 +438,7 @@ pub fn connect(connect: &Connect<'_>) -> Markup {
 pub fn tag_links(tags: &[Link], scope_note: Option<&str>) -> Markup {
     html! {
         @if !tags.is_empty() {
-            nav.tags aria-label="Tags in this publication" {
+            nav.tags aria-label="Tags in this feed" {
                 ul.tag-list {
                     @for tag in tags {
                         li { a.tag href=(tag.href) { (tag.label) } }
@@ -680,7 +693,7 @@ mod tests {
             "{out}"
         );
         assert!(
-            out.contains("<a href=\"/img/d/r/c?size=full\"><img src=\"/img/d/r/c?size=thumb\" alt=\"The &lt;room&gt;\" width=\"400\" height=\"400\" loading=\"lazy\"></a>"),
+            out.contains("<a href=\"/img/d/r/c?size=full\"><figure><img src=\"/img/d/r/c?size=thumb\" alt=\"\" width=\"400\" height=\"400\" loading=\"lazy\"><figcaption>The &lt;room&gt;</figcaption></figure></a>"),
             "{out}"
         );
     }
@@ -705,10 +718,7 @@ mod tests {
     fn tags_name_their_scope() {
         assert_eq!(tag_links(&[], Some("note")).into_string(), "");
         let out = tag_links(&[link("mpb", "/t/mpb")], None).into_string();
-        assert!(
-            out.contains("aria-label=\"Tags in this publication\""),
-            "{out}"
-        );
+        assert!(out.contains("aria-label=\"Tags in this feed\""), "{out}");
         assert!(
             out.contains("<a class=\"tag\" href=\"/t/mpb\">mpb</a>"),
             "{out}"
