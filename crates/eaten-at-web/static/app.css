@@ -575,12 +575,14 @@
   }
   /* Compact rows (S7), the author's home: a square thumbnail on the
      small-thumb size when the visit has a photo, the title, one mono
-     line with the verdict first (S8), the excerpt. No badge. The column
-     stays on a row without a photo, so every title starts on the same
-     line. The front page keeps the full card. */
+     line with the verdict first (S8), the excerpt. No badge. The front
+     page keeps the full card. */
   .listing-compact .listing-item article { grid-template-columns: var(--thumb-small) minmax(0, 1fr); gap: var(--card-gap); align-items: start; }
   .listing-thumb { display: block; inline-size: var(--thumb-small); aspect-ratio: 1; background: var(--color-paper-bright); }
   .listing-thumb img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+  /* A row without a photo keeps the square, recessed and empty (S15's
+     first step), so every row is anchored the same way. */
+  .listing-thumb-blank { background: var(--color-recessed); }
   .listing-compact .listing-body { grid-column: 2; }
   .listing-compact .listing-meta .rating { font-size: inherit; line-height: inherit; }
   .listing-compact .listing-excerpt { margin-block-start: var(--space-s); }
