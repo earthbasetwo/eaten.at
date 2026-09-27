@@ -76,7 +76,9 @@ pub enum Namespace {
     BlueskyThread,
     /// Re-encoded cover images served by the proxy.
     Image,
-    /// Place search results from Open Places, by query and point.
+    /// Place search results from Open Places, by query and point. A day
+    /// (PL10): Overture's data changes monthly, and every re-read of a
+    /// search that is not cached spends quota.
     PlaceSearch,
 }
 
@@ -87,8 +89,8 @@ impl Namespace {
         const HOUR: u64 = 60 * MINUTE;
         const DAY: u64 = 24 * HOUR;
         Duration::from_secs(match self {
-            Self::Identity => DAY,
-            Self::Handle | Self::Document | Self::PlaceSearch => HOUR,
+            Self::Identity | Self::PlaceSearch => DAY,
+            Self::Handle | Self::Document => HOUR,
             Self::Publication => 15 * MINUTE,
             Self::DocumentList | Self::BlueskyThread => 5 * MINUTE,
             Self::Image => 6 * HOUR,
