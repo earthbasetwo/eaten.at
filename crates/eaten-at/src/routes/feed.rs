@@ -7,6 +7,7 @@ use axum::http::{header, HeaderValue, Response};
 use super::{require_publication, resolve_repo};
 use crate::error::AppError;
 use crate::feed::{self, Channel, Item};
+use crate::img::Size;
 use crate::paths;
 use crate::state::AppState;
 use crate::view;
@@ -19,10 +20,27 @@ pub async fn feed(
     let publication = require_publication(&state, &identity, &pub_rkey).await?;
     let page = state.visit_listing(&identity, &publication, None).await?;
 
+    // An enclosure says how long it is, so each cover is rendered (or
+    // read from the image cache), all at once.
+    let mut covers = tokio::task::JoinSet::new();
+    for (i, visit_doc) in page.items.iter().enumerate() {
+        let (state, identity, visit_doc) = (state.clone(), identity.clone(), visit_doc.clone());
+        covers.spawn(async move {
+            let cover = state.cover_rendition(&identity, &visit_doc, Size::Og).await;
+            (i, cover.jpeg.len())
+        });
+    }
+    let mut lengths = vec![0; page.items.len()];
+    while let Some(done) = covers.join_next().await {
+        if let Ok((i, length)) = done {
+            lengths[i] = length;
+        }
+    }
     let items = page
         .items
         .iter()
-        .map(|visit_doc| Item {
+        .zip(lengths)
+        .map(|(visit_doc, image_length)| Item {
             title: visit_doc.document().title.clone(),
             link: view::canonical_url(
                 &state,
@@ -33,7 +51,12 @@ pub async fn feed(
             ),
             description: view::summary(visit_doc),
             published: visit_doc.document().published_at.timestamp(),
-            image: state.absolute(&paths::cover_og(&did, visit_doc.rkey())),
+            image: state.absolute(&paths::cover_og(
+                &did,
+                visit_doc.rkey(),
+                &visit_doc.record.cid,
+            )),
+            image_length,
         })
         .collect();
     let channel = Channel {

@@ -1,8 +1,6 @@
-/* Live find on the author's home (plan 11): after a pause in typing,
-   the same GET the form would make is fetched and its results section
-   swapped in, with the address bar kept in step so the find stays
-   shareable. The form still submits as a form; this only saves the
-   reload. */
+/* Live find on the author's home (plan 11): after a pause, the form's
+   own GET is fetched and its results swapped in, the address kept in
+   step. The form still works as a form. */
 (function () {
   "use strict";
   var form = document.querySelector("form.find");

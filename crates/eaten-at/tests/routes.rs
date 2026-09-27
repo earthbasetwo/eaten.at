@@ -307,7 +307,7 @@ async fn landing_page_draws_both_ways_in_as_connect_blocks() {
     // The form it becomes is served hidden, posts where the sign-in page
     // does, suggests handles, and does not share the lookup field's id.
     let form =
-        body.find("<form class=\"lookup connect-form\" action=\"/login\" method=\"post\" hidden>");
+        body.find("<form class=\"lookup connect-form\" action=\"https://eaten.at/login\" method=\"post\" hidden>");
     assert!(form.is_some(), "{body}");
     assert!(
         body.contains("<input id=\"connect-handle\" name=\"handle\" type=\"text\" inputmode=\"url\" autocomplete=\"username\""),
@@ -391,7 +391,7 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
     // One primary, and it writes.
     assert_eq!(body.matches("class=\"button\"").count(), 1, "{body}");
     assert!(
-        body.contains("<a class=\"button\" href=\"/write\">Write a new visit</a>"),
+        body.contains("<a class=\"button\" href=\"/write\">Write a new digest</a>"),
         "{body}"
     );
     assert!(body.contains("<h1>Where did you eat?</h1>"), "{body}");
@@ -421,7 +421,7 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
     assert!(!body.contains("Visit 1<"), "the ninth is not shown: {body}");
     assert!(
         body.contains(&format!(
-            "<a class=\"button-link\" href=\"/at/{DID}/pub1/\">All write-ups →</a>"
+            "<a class=\"button-link\" href=\"/at/{DID}/pub1/\">All digests →</a>"
         )),
         "{body}"
     );
@@ -464,10 +464,10 @@ async fn the_home_page_finds_write_ups_and_says_what_a_first_publish_makes() {
         body.contains("<a class=\"button-link\" href=\"/\">Clear</a>"),
         "{body}"
     );
-    assert!(!body.contains("All write-ups"), "{body}");
+    assert!(!body.contains("All digests"), "{body}");
     let (_, _, body) = get_signed(&state, "/?q=zzz", &cookie).await;
     assert!(
-        body.contains("Nothing called “zzz” among your write-ups."),
+        body.contains("Nothing called “zzz” among your digests."),
         "{body}"
     );
     assert!(!body.contains("listing-item"), "{body}");
@@ -501,7 +501,7 @@ async fn the_home_page_finds_write_ups_and_says_what_a_first_publish_makes() {
         "{body}"
     );
     assert!(
-        body.contains("href=\"/write\">Write a new visit</a>"),
+        body.contains("href=\"/write\">Write a new digest</a>"),
         "{body}"
     );
 }
@@ -616,7 +616,7 @@ async fn lookup_form_redirects_to_handle_route_or_rejects_garbage() {
     let (status, location, body) = get(&state, "/lookup").await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(location, None);
-    assert!(body.contains("<h1>Whose write-ups?</h1>"), "{body}");
+    assert!(body.contains("<h1>Whose digests?</h1>"), "{body}");
     assert!(!body.contains("role=\"alert\""), "{body}");
     assert!(body.contains("id=\"handle\" name=\"handle\""), "{body}");
     let (status, _, body) = get(&state, "/lookup?handle=%20%20").await;
@@ -710,7 +710,7 @@ async fn repo_without_publications_says_so() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.contains("no publications"), "{body}");
+    assert!(body.contains("no feeds"), "{body}");
 }
 
 #[tokio::test]
@@ -1107,6 +1107,33 @@ fn png_bytes(w: u32, h: u32) -> Vec<u8> {
     out.into_inner()
 }
 
+/// A PNG whose header claims `w`×`h` over a 1×1 image, its IHDR CRC
+/// recomputed so the header reads as valid.
+fn png_claiming(w: u32, h: u32) -> Vec<u8> {
+    fn crc32(bytes: &[u8]) -> u32 {
+        let mut c = !0u32;
+        for &b in bytes {
+            c ^= u32::from(b);
+            for _ in 0..8 {
+                c = if c & 1 == 0 {
+                    c >> 1
+                } else {
+                    (c >> 1) ^ 0xEDB8_8320
+                };
+            }
+        }
+        !c
+    }
+    let mut bytes = png_bytes(1, 1);
+    // IHDR: length at 8..12, type at 12..16, width/height at 16..24,
+    // the rest of its data to 29, then its CRC over type and data.
+    bytes[16..20].copy_from_slice(&w.to_be_bytes());
+    bytes[20..24].copy_from_slice(&h.to_be_bytes());
+    let crc = crc32(&bytes[12..29]);
+    bytes[29..33].copy_from_slice(&crc.to_be_bytes());
+    bytes
+}
+
 fn visit_doc_with_cover(pub_rkey: &str, mime: &str) -> Value {
     let mut doc = visit_doc(pub_rkey, "Covered", "Covered Place", &[]);
     doc["coverImage"] =
@@ -1195,16 +1222,27 @@ async fn cover_proxy_serves_blob_as_jpeg_with_safe_headers() {
         .contains("sandbox"));
     assert_eq!(jpeg_dimensions(&body), (800, 800));
 
-    let (status, _, og) = get_image(&state, &format!("/img/{DID}/cov?size=og")).await;
+    let (status, headers, og) =
+        get_image(&state, &format!("/img/{DID}/cov?size=og&v=bafycid")).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(jpeg_dimensions(&og), (1200, 630));
+    // At the document's revision the cover may be cached like a photo;
+    // at none, or an older one, every cache must ask again (PH9).
+    assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
+    for stale in ["", "&v=bafyold"] {
+        let (status, headers, again) =
+            get_image(&state, &format!("/img/{DID}/cov?size=og{stale}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(again, og, "the current cover, whatever the revision");
+        assert_eq!(headers[header::CACHE_CONTROL], "public, no-cache");
+    }
 
-    // The page points unfurlers at the proxy, never at the PDS; it shows
-    // no image itself (D32).
+    // The page points unfurlers at the proxy, at the document's revision,
+    // never at the PDS; it shows no image itself (D32).
     let (_, _, page) = get(&state, &format!("/at/{DID}/pub1/cov")).await;
     assert!(
         page.contains(&format!(
-            "content=\"https://eaten.at/img/{DID}/cov?size=og\""
+            "content=\"https://eaten.at/img/{DID}/cov?size=og&amp;v=bafycid\""
         )),
         "{page}"
     );
@@ -1300,7 +1338,7 @@ async fn tag_pages_filter_within_the_publication_and_match_loosely() {
         body.contains("Tagged “Longform”"),
         "display form from the first match: {body}"
     );
-    assert!(body.contains("in this publication only"), "{body}");
+    assert!(body.contains("in this feed only"), "{body}");
 
     let (status, _, body) = get(&state, &format!("/at/{DID}/pub1/tagged/long%20%20read")).await;
     assert_eq!(status, StatusCode::OK);
@@ -1315,10 +1353,7 @@ async fn tag_pages_filter_within_the_publication_and_match_loosely() {
         StatusCode::OK,
         "unknown tag is an empty state, not a 404"
     );
-    assert!(
-        body.contains("Nothing in this publication is tagged"),
-        "{body}"
-    );
+    assert!(body.contains("Nothing in this feed is tagged"), "{body}");
 
     let (status, _, body) = get(&state, &format!("/at/{DID}/pub1/tagged/%23longform")).await;
     assert_eq!(status, StatusCode::OK);
@@ -1350,7 +1385,7 @@ async fn tag_links_appear_on_document_and_publication_pages() {
         doc.contains(&format!("/at/{DID}/pub1/tagged/long%20read")),
         "{doc}"
     );
-    assert!(doc.contains("in this publication"), "{doc}");
+    assert!(doc.contains("in this feed"), "{doc}");
     let (_, _, pub_page) = get(&state, &format!("/at/{DID}/pub1/")).await;
     assert_eq!(
         pub_page.matches("class=\"tag\"").count(),
@@ -1414,7 +1449,7 @@ async fn document_head_byo_domain_points_canonical_away_and_derives_description(
         "derived excerpt: {head}"
     );
     assert!(!head.contains("modified_time"), "{head}");
-    assert!(head.contains("<meta property=\"og:image\" content=\"https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d3?size=og\">"), "{head}");
+    assert!(head.contains("<meta property=\"og:image\" content=\"https://eaten.at/img/did:plc:re3ebnp5v7ffagz6rb6xfei4/d3?size=og&amp;v=bafycid\">"), "{head}");
     assert!(
         head.contains("<meta property=\"og:title\" content=\"Third Post\">"),
         "{head}"
@@ -1456,15 +1491,26 @@ async fn publication_head_and_icon() {
     );
     assert!(
         head.contains(&format!(
-            "content=\"https://eaten.at/img/{DID}/pub1?kind=icon\""
+            "content=\"https://eaten.at/img/{DID}/pub1?kind=icon&amp;v=bafycid\""
         )),
         "{head}"
     );
     insta::assert_snapshot!(head);
-    let (status, headers, bytes) = get_image(&state, &format!("/img/{DID}/pub1?kind=icon")).await;
+    let (status, headers, bytes) =
+        get_image(&state, &format!("/img/{DID}/pub1?kind=icon&v=bafycid")).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers[header::CONTENT_TYPE], "image/jpeg");
     assert_eq!(jpeg_dimensions(&bytes), (1200, 630));
+    // At the publication's revision the icon may be cached like a photo;
+    // at none, or an older one, every cache must ask again (PH28).
+    assert_eq!(headers[header::CACHE_CONTROL], "public, max-age=3600");
+    for stale in ["", "&v=bafyold"] {
+        let (status, headers, again) =
+            get_image(&state, &format!("/img/{DID}/pub1?kind=icon{stale}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(again, bytes, "the current icon, whatever the revision");
+        assert_eq!(headers[header::CACHE_CONTROL], "public, no-cache");
+    }
 }
 
 #[tokio::test]
@@ -1510,9 +1556,20 @@ async fn feed_lists_visit_documents_with_canonical_links() {
         "{body}"
     );
     assert!(
-        body.contains(&format!("url=\"https://eaten.at/img/{DID}/d3?size=og\"")),
+        body.contains(&format!(
+            "url=\"https://eaten.at/img/{DID}/d3?size=og&amp;v=bafycid\""
+        )),
         "{body}"
     );
+    // The enclosure says how long the cover is (PH19): the bytes the
+    // proxy serves for it.
+    let (_, _, cover) = get_image(&state, &format!("/img/{DID}/d3?size=og&v=bafycid")).await;
+    assert!(!cover.is_empty());
+    assert!(
+        body.contains(&format!("type=\"image/jpeg\" length=\"{}\"", cover.len())),
+        "{body}"
+    );
+    assert!(!body.contains("length=\"0\""), "{body}");
     assert!(
         body.contains(&format!(
             "href=\"https://eaten.at/at/{DID}/pub1/feed.xml\" rel=\"self\""
@@ -1905,11 +1962,11 @@ async fn editor_requires_sign_in_and_starts_by_choosing_a_place() {
     assert!(!body.contains("<h1>"), "{body}");
     assert!(!body.contains("class=\"kicker\""), "{body}");
     assert!(
-        body.contains("<input class=\"headline\" id=\"place_name\" name=\"place_name\" type=\"text\" value=\"\" placeholder=\"St. John\" autocomplete=\"off\" autofocus aria-label=\"Name of the place\" data-suggest=\"/write/suggest\">"),
+        body.contains("<input class=\"headline\" id=\"place_name\" name=\"place_name\" type=\"text\" value=\"\" placeholder=\"St. John Bread and Wine\" autocomplete=\"off\" autofocus aria-label=\"Name of the place\" data-suggest=\"/write/suggest\">"),
         "{body}"
     );
     assert!(
-        body.contains("placeholder=\"26 St John Street, London\""),
+        body.contains("placeholder=\"94–96 Commercial Street\""),
         "{body}"
     );
     assert!(
@@ -1999,7 +2056,7 @@ async fn a_picked_suggestion_fills_the_place_from_the_cached_search() {
     // address is the line under it, and the listing's facts are carried.
     assert!(!body.contains("<h1>"), "{body}");
     assert!(
-        body.contains("name=\"title\" type=\"text\" value=\"\" placeholder=\"Devocion\""),
+        body.contains("class=\"headline\" id=\"title\" name=\"title\" rows=\"1\" placeholder=\""),
         "{body}"
     );
     assert!(
@@ -2011,7 +2068,7 @@ async fn a_picked_suggestion_fills_the_place_from_the_cached_search() {
         "{body}"
     );
     assert!(
-        body.contains("<span class=\"place-name-slot\" hidden>"),
+        body.contains("<div class=\"place-head\">"),
         "the name is the title, so the line is the address alone: {body}"
     );
     assert!(body.contains("value=\"Devocion\""), "{body}");
@@ -2069,7 +2126,7 @@ async fn suggestions_look_near_the_last_visit_and_are_not_offered_without_a_poin
     let fields = [("place_query", "Devocion"), ("action", "pick:0")];
     let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("placeholder=\"Devocion\""), "{body}");
+    assert!(body.contains("value=\"Devocion\""), "{body}");
     let request = server
         .received_requests()
         .await
@@ -2194,7 +2251,7 @@ async fn a_place_by_hand_needs_a_name_and_a_place_can_be_changed() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("id=\"place_name\""), "{body}");
+    assert!(body.contains("id=\"change_restaurant\""), "{body}");
     assert!(
         body.contains("name=\"place_mode\" value=\"manual\""),
         "{body}"
@@ -2205,7 +2262,7 @@ async fn a_place_by_hand_needs_a_name_and_a_place_can_be_changed() {
     // Photos are offered before there is a record (D37 amended): the
     // island uploads and the form carries the references.
     assert!(body.contains("data-upload=\"/write/upload\""), "{body}");
-    assert!(body.contains("Nothing to look at yet."), "{body}");
+    assert!(body.contains("Add photos"), "{body}");
     assert!(!body.contains("href=\"/write/photos\""), "{body}");
 
     // Changing the place goes back to choosing with the name and the
@@ -2299,12 +2356,12 @@ async fn editor_reports_problems_beside_fields_and_keeps_a_good_draft() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(!body.contains("class=\"field-error\""), "{body}");
     assert!(
-        body.contains("value=\"A room with the lights off\""),
+        body.contains(">A room with the lights off</textarea>"),
         "{body}"
     );
     assert!(
-        body.contains("<span class=\"place-name-slot\">"),
-        "a title of the author's own brings the place's name onto the line: {body}"
+        body.contains("<div class=\"place-head\">"),
+        "the restaurant remains its own headline: {body}"
     );
     assert!(body.contains("value=\"3\" checked"), "{body}");
     assert!(
@@ -2340,7 +2397,7 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
 
     let (status, _, body) = get_signed(&state, "/write/d9", &cookie).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("value=\"Foreign Post\""), "{body}");
+    assert!(body.contains(">Foreign Post</textarea>"), "{body}");
     assert!(body.contains("value=\"Foreign Place\""), "{body}");
     assert!(body.contains("value=\"2026-09-06\""), "{body}");
     // Foreign values are shown as their own selected option, as written,
@@ -2365,7 +2422,7 @@ async fn editing_prefills_from_the_document_and_keeps_foreign_values() {
     // Delete, which confirms in place and posts to the delete route.
     assert!(
         body.contains(
-            "name=\"title\" type=\"text\" value=\"Foreign Post\" placeholder=\"Foreign Place\""
+            "name=\"title\" rows=\"1\" placeholder=\"Foreign Place\" autocomplete=\"off\">Foreign Post</textarea>"
         ),
         "{body}"
     );
@@ -2594,6 +2651,60 @@ async fn first_publish_creates_the_publication_and_preferences_then_the_document
 }
 
 #[tokio::test]
+async fn expired_publishing_authorization_keeps_the_draft_and_allows_reconnection() {
+    let server = mount(&one_publication()).await;
+    let state = state_for(&server, dns_for_handle());
+    // The browser is signed in, but there is no PDS authorization.
+    let cookie = signed_in(&state).await;
+    let mut fields = good_fields();
+    fields.retain(|(key, _)| *key != "action");
+    fields.push(("action", "publish"));
+    for path in ["/write", "/write/d3"] {
+        let (status, location, body) = post_form(&state, path, &cookie, &fields).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert!(location.is_none());
+        assert!(body.contains("Your publishing connection has expired."));
+        assert!(body.contains("Forty-six *minutes*."));
+        assert!(body.contains("A room with the lights off"));
+        assert!(body.contains("/login?reauth=true&amp;return_to=%2Flogin%2Freconnected"));
+        let (status, location, login) = get_signed(
+            &state,
+            &format!("/login?reauth=true&return_to={path}"),
+            &cookie,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(location.is_none());
+        assert!(login.contains("Sign in with your AT Protocol account"));
+        assert!(login.contains(&format!("name=\"return_to\" value=\"{path}\"")));
+    }
+    assert!(repo_writes(&server).await.is_empty());
+    let (status, location, _) = get_signed(&state, "/login", &cookie).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(location.as_deref(), Some("/"));
+}
+
+#[tokio::test]
+async fn reconnect_confirmation_keeps_the_writer_out_of_the_place_chooser() {
+    let server = mount(&one_publication()).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let (status, location, _) = get_signed(&state, "/login/reconnected", &cookie).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(
+        location.as_deref(),
+        Some("/login?reauth=true&return_to=%2Flogin%2Freconnected")
+    );
+    let cookie = author_session(&state, &server).await;
+    let (status, location, body) = get_signed(&state, "/login/reconnected", &cookie).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(location.is_none());
+    assert!(body.contains("Publishing reconnected."));
+    assert!(body.contains("Return to the tab with your draft"));
+    assert!(!body.contains("Start writing"));
+}
+
+#[tokio::test]
 async fn publishing_to_an_existing_publication_writes_only_the_document() {
     let mut repo = one_publication();
     repo.publications
@@ -2655,8 +2766,12 @@ async fn editing_replaces_the_record_and_deleting_removes_it() {
         ),
         ("action", "publish"),
     ];
-    let (status, body) = post_editor(&state, "/write/d3", &cookie, &fields).await;
+    let (status, location, body) = post_form(&state, "/write/d3", &cookie, &fields).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
+    assert_eq!(
+        location.as_deref(),
+        Some(format!("/at/{DID}/pub1/d3?after=saved").as_str())
+    );
     let writes = repo_writes(&server).await;
     assert_eq!(writes.len(), 1);
     let (name, put) = &writes[0];
@@ -2800,7 +2915,7 @@ async fn the_photos_page_captions_reorders_and_removes_with_one_write_each() {
         "the first cannot move up: {body}"
     );
     assert!(body.contains("enctype=\"multipart/form-data\""), "{body}");
-    assert!(body.contains("← Back to the write-up"), "{body}");
+    assert!(body.contains("← Back to the digest"), "{body}");
 
     // Alt text: written to the photo, the cover derived, updatedAt set.
     let (status, _, body) = post_photos(
@@ -2851,21 +2966,60 @@ async fn the_photos_page_captions_reorders_and_removes_with_one_write_each() {
     assert!(record["content"].get("photos").is_none());
     assert!(record.get("coverImage").is_none());
     assert!(body.contains("No photos yet."), "{body}");
+}
 
-    // Too long an alt text is refused before anything is written.
+#[tokio::test]
+async fn a_caption_too_long_is_named_and_every_caption_comes_back_as_typed() {
+    let mut repo = one_publication();
+    repo.documents.insert(
+        0,
+        (
+            "ph".into(),
+            visit_doc_with_photos("pub1", &["bafkcover", "bafytwo"]),
+        ),
+    );
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    // Too long a caption is refused before anything is written, named
+    // by its photo, and every caption comes back as typed (PH15, PH17).
     let writes_before = repo_writes(&server).await.len();
     let long = "x".repeat(1001);
     let (status, _, body) = post_photos(
         &state,
         "/write/ph/photos",
         &cookie,
-        &[("alt_1", long.as_str()), ("action", "save")],
+        &[
+            ("alt_0", "Kept as typed"),
+            ("alt_1", long.as_str()),
+            ("action", "save"),
+        ],
         &[],
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
-    assert!(body.contains("under 1000 characters"), "{body}");
+    assert!(
+        body.contains("Photo 2&#39;s caption is too long; keep it to 1000 characters or fewer.")
+            || body.contains("Photo 2's caption is too long; keep it to 1000 characters or fewer."),
+        "{body}"
+    );
+    assert!(!body.contains("alt text"), "{body}");
+    assert!(body.contains("Kept as typed"), "{body}");
+    assert!(body.contains(&long), "{body}");
     assert_eq!(repo_writes(&server).await.len(), writes_before);
+    // Short to the eye, too long to store: said so.
+    let emoji = "👨\u{200d}👩\u{200d}👧\u{200d}👦".repeat(150);
+    let (status, _, body) = post_photos(
+        &state,
+        "/write/ph/photos",
+        &cookie,
+        &[("alt_0", emoji.as_str()), ("action", "save")],
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(body.contains("too long to store: emoji"), "{body}");
 }
 
 #[tokio::test]
@@ -2962,7 +3116,7 @@ async fn the_editor_manages_photos_through_the_same_endpoint_as_json() {
         json["problems"][0]
             .as_str()
             .unwrap()
-            .contains("under 1000 characters"),
+            .contains("Photo 1's caption is too long; keep it to 1000 characters or fewer."),
         "{json}"
     );
 
@@ -2990,6 +3144,8 @@ async fn adding_photos_uploads_each_good_file_and_names_the_bad_ones() {
     let cookie = author_session(&state, &server).await;
 
     let png = png_bytes(4, 6);
+    // A PNG whose header claims more pixels than we take.
+    let huge = png_claiming(9000, 1);
     let (status, _, body) = post_photos(
         &state,
         "/write/ph0/photos",
@@ -2998,12 +3154,19 @@ async fn adding_photos_uploads_each_good_file_and_names_the_bad_ones() {
         &[
             ("one.png", &png),
             ("junk.txt", b"not an image"),
+            ("huge.png", &huge),
             ("two.png", &png),
         ],
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("junk.txt isn't an image"), "{body}");
+    assert!(
+        body.contains(
+            "huge.png is 9000 × 1 pixels; photos can be at most 8192 on a side and 50 megapixels."
+        ),
+        "{body}"
+    );
     let requests = server.received_requests().await.unwrap();
     let uploads: Vec<_> = requests
         .iter()
@@ -3042,15 +3205,385 @@ async fn adding_photos_uploads_each_good_file_and_names_the_bad_ones() {
 }
 
 #[tokio::test]
+async fn a_request_over_the_size_cap_is_refused_in_words() {
+    let mut repo = one_publication();
+    repo.documents
+        .insert(0, ("ph0".into(), visit_doc_with_photos("pub1", &[])));
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+
+    let big = vec![0u8; eaten_at::editor::photos::MAX_REQUEST_BYTES + 1];
+    let (status, _, body) = post_photos(
+        &state,
+        "/write/ph0/photos",
+        &cookie,
+        &[("action", "add")],
+        &[("big.jpg", &big)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "{body}");
+    assert!(
+        body.contains("These photos add up to more than 128 MB. Choose fewer at a time."),
+        "the photos page again, with the reason: {body}"
+    );
+    assert!(
+        body.contains("Up to 6 at a time, 20 MB and 50 megapixels each, 24 on a digest."),
+        "the hint states limits that add up: {body}"
+    );
+
+    let (content_type, multipart) = multipart_body(&[], &[("big.jpg", &big)]);
+    let response = router(state.clone())
+        .oneshot(
+            Request::post("/write/upload")
+                .header(header::COOKIE, &cookie)
+                .header(header::ACCEPT, "application/json")
+                .header(header::CONTENT_TYPE, content_type)
+                .body(Body::from(multipart))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    let body: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(
+        body["problems"][0],
+        "These photos add up to more than 128 MB. Choose fewer at a time."
+    );
+    let uploads = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/xrpc/com.atproto.repo.uploadBlob")
+        .count();
+    assert_eq!(uploads, 0);
+}
+
+#[tokio::test]
+async fn an_upload_counts_the_photos_already_in_the_form() {
+    let server = mount(&one_publication()).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let png = png_bytes(4, 6);
+    let upload = |existing: &'static str| {
+        let (content_type, body) = multipart_body(
+            &[("existing", existing)],
+            &[("one.png", &png), ("two.png", &png), ("three.png", &png)],
+        );
+        router(state.clone()).oneshot(
+            Request::post("/write/upload")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, content_type)
+                .header(header::ACCEPT, "application/json")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+    };
+    // 22 on the page: two fit, the third is named.
+    let response = upload("22").await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let json: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(json["photos"].as_array().unwrap().len(), 2, "{json}");
+    assert_eq!(
+        json["problems"][0],
+        "At most 24 photos on a digest; the last 1 was not added."
+    );
+    // A refused file takes no room (PH22): at 23, [not an image, good,
+    // good] adds the first good one and names the refusal and the rest.
+    let (content_type, body) = multipart_body(
+        &[("existing", "23")],
+        &[
+            ("words.png", b"plain words"),
+            ("one.png", &png),
+            ("two.png", &png),
+        ],
+    );
+    let response = router(state.clone())
+        .oneshot(
+            Request::post("/write/upload")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, content_type)
+                .header(header::ACCEPT, "application/json")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let json: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(json["photos"].as_array().unwrap().len(), 1, "{json}");
+    assert_eq!(
+        json["problems"],
+        json!([
+            "words.png isn't an image we can use. JPEG, PNG, GIF, or WebP, please.",
+            "At most 24 photos on a digest; the last 1 was not added."
+        ])
+    );
+    // Past six at a time, the files left out are named (PH24).
+    let names = [
+        "1.png", "2.png", "3.png", "4.png", "5.png", "6.png", "7.png", "8.png",
+    ];
+    let files: Vec<(&str, &[u8])> = names.iter().map(|n| (*n, png.as_slice())).collect();
+    let (content_type, body) = multipart_body(&[("existing", "0")], &files);
+    let response = router(state.clone())
+        .oneshot(
+            Request::post("/write/upload")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, content_type)
+                .header(header::ACCEPT, "application/json")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let json: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(json["photos"].as_array().unwrap().len(), 6, "{json}");
+    assert_eq!(
+        json["problems"],
+        json!(["At most 6 photos at a time; 7.png and 8.png were not added."])
+    );
+    // Full: nothing is sent to the repository.
+    let before = server.received_requests().await.unwrap().len();
+    let response = upload("24").await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let json: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(
+        json["problems"][0],
+        "At most 24 photos on a digest; remove some first."
+    );
+    let uploads = server.received_requests().await.unwrap()[before..]
+        .iter()
+        .filter(|r| r.url.path() == "/xrpc/com.atproto.repo.uploadBlob")
+        .count();
+    assert_eq!(uploads, 0);
+}
+
+/// A POST of files to `/write/upload`, as the island sends it when
+/// `json`, with the session cookie when there is one.
+async fn upload_files(
+    state: &AppState,
+    cookie: Option<&str>,
+    json: bool,
+    files: &[(&str, &[u8])],
+) -> (StatusCode, Option<String>, Value) {
+    let (content_type, body) = multipart_body(&[("existing", "0")], files);
+    let mut request = Request::post("/write/upload").header(header::CONTENT_TYPE, content_type);
+    if let Some(cookie) = cookie {
+        request = request.header(header::COOKIE, cookie);
+    }
+    if json {
+        request = request.header(header::ACCEPT, "application/json");
+    }
+    let response = router(state.clone())
+        .oneshot(request.body(Body::from(body)).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .map(|v| v.to_str().unwrap().to_owned());
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (
+        status,
+        location,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+/// A JPEG of `w`×`h`, whole.
+fn jpeg_bytes(w: u32, h: u32) -> Vec<u8> {
+    use image::{DynamicImage, ImageFormat, RgbImage};
+    let img = RgbImage::from_fn(w, h, |x, y| {
+        image::Rgb([
+            u8::try_from(x % 256).unwrap(),
+            u8::try_from(y % 256).unwrap(),
+            90,
+        ])
+    });
+    let mut out = std::io::Cursor::new(Vec::new());
+    DynamicImage::ImageRgb8(img)
+        .write_to(&mut out, ImageFormat::Jpeg)
+        .unwrap();
+    out.into_inner()
+}
+
+#[tokio::test]
+async fn empty_and_cut_short_files_are_named_not_dropped() {
+    let mut repo = one_publication();
+    repo.documents
+        .insert(0, ("ph0".into(), visit_doc_with_photos("pub1", &[])));
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let jpeg = jpeg_bytes(64, 48);
+    let cut = &jpeg[..jpeg.len() / 2];
+
+    // The photos page: each is named, and "choose one" is not said of
+    // files that were chosen.
+    let (status, _, body) = post_photos(
+        &state,
+        "/write/ph0/photos",
+        &cookie,
+        &[("action", "add")],
+        &[("empty.jpg", b""), ("cut.jpg", cut)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(body.contains("empty.jpg is empty."), "{body}");
+    assert!(
+        body.contains("cut.jpg is incomplete; the file ends partway through the photo."),
+        "{body}"
+    );
+    assert!(!body.contains("Choose at least one photo."), "{body}");
+
+    // The island's upload: the good one goes in beside the empty one.
+    let (status, _, json) = upload_files(
+        &state,
+        Some(&cookie),
+        true,
+        &[("empty.jpg", b""), ("whole.jpg", &jpeg)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["photos"].as_array().unwrap().len(), 1, "{json}");
+    assert_eq!(json["problems"], json!(["empty.jpg is empty."]));
+    let (status, _, json) = upload_files(&state, Some(&cookie), true, &[("empty.jpg", b"")]).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(json["problems"], json!(["empty.jpg is empty."]));
+}
+
+#[tokio::test]
+async fn an_upload_says_so_when_the_sign_in_has_run_out() {
+    let server = mount(&one_publication()).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let png = png_bytes(4, 6);
+    let expired =
+        "Your sign-in has expired. Sign in again in another tab, then add the missing photos.";
+
+    // A browser session whose OAuth tokens are gone, and no session at
+    // all: the island is told in words, not sent to a page it cannot read.
+    let cookie = signed_in(&state).await;
+    for cookie in [Some(cookie.as_str()), None] {
+        let (status, location, json) =
+            upload_files(&state, cookie, true, &[("one.png", &png)]).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{json}");
+        assert_eq!(location, None);
+        assert_eq!(json["problems"], json!([expired]));
+        assert_eq!(json["photos"], json!([]));
+    }
+    // Anything but the island goes to the sign-in page, and back to the editor.
+    let (status, location, _) = upload_files(&state, None, false, &[("one.png", &png)]).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(location.as_deref(), Some("/login?return_to=%2Fwrite"));
+    // The photos page answers the same way, signed out (PH23).
+    for (json, expected) in [
+        (true, StatusCode::UNAUTHORIZED),
+        (false, StatusCode::SEE_OTHER),
+    ] {
+        let (content_type, body) = multipart_body(&[("action", "save")], &[]);
+        let mut request =
+            Request::post("/write/d1/photos").header(header::CONTENT_TYPE, content_type);
+        if json {
+            request = request.header(header::ACCEPT, "application/json");
+        }
+        let response = router(state.clone())
+            .oneshot(request.body(Body::from(body)).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+        if !json {
+            assert_eq!(
+                response.headers()[header::LOCATION],
+                "/login?return_to=%2Fwrite%2Fd1%2Fphotos"
+            );
+        }
+    }
+    let uploads = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/xrpc/com.atproto.repo.uploadBlob")
+        .count();
+    assert_eq!(uploads, 0);
+}
+
+async fn assert_private_upload_previews(state: &AppState, server: &MockServer, cookie: &str) {
+    // The author's own blob draws the tile, whether or not a record
+    // lists it yet.
+    let (status, headers, body) =
+        get_image_signed(state, "/write/photo/bafyblob?size=thumb", cookie).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers["content-type"], "image/jpeg");
+    assert_eq!(headers["cache-control"], "private, max-age=3600");
+    assert_eq!(headers["vary"], "Cookie");
+    assert_eq!(&body[..2], &[0xff, 0xd8]);
+    for size in ["full", "card"] {
+        let (status, _, bytes) =
+            get_image_signed(state, &format!("/write/photo/bafyblob?size={size}"), cookie).await;
+        assert_eq!(status, StatusCode::OK, "{size}");
+        assert!(
+            image::load_from_memory(&bytes).is_ok(),
+            "{size} must be a usable image"
+        );
+    }
+    let blob_reads = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|request| request.url.path() == "/xrpc/com.atproto.sync.getBlob")
+        .count();
+    assert_eq!(
+        blob_reads, 1,
+        "only the pre-upload miss should reach the PDS"
+    );
+    let (status, _, _) = get(state, "/write/photo/bafyblob?size=thumb").await;
+    assert_eq!(
+        status,
+        StatusCode::SEE_OTHER,
+        "cached previews still require sign-in"
+    );
+    let mut other = state
+        .require_identity(&eaten_at_atproto::identity::Did::parse(DID).unwrap())
+        .await
+        .unwrap();
+    other.did = eaten_at_atproto::identity::Did::parse(OTHER_DID).unwrap();
+    assert!(
+        state
+            .own_photo_rendition(&other, "bafyblob", eaten_at::img::PhotoSize::Thumb)
+            .await
+            .is_none(),
+        "an unpublished preview must not be visible to another author"
+    );
+    let (status, _, _) = get_image_signed(state, "/write/photo/not%20a%20cid", cookie).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn photos_are_uploaded_as_picked_and_written_with_the_record() {
     let server = mount(&one_publication()).await;
     mount_writes(&server).await;
     mount_new_document(&server).await;
-    // The repository serves the blob it was just given, by its CID.
+    // Like a real PDS, the repository does not serve an unreferenced blob.
     Mock::given(method("GET"))
         .and(path("/xrpc/com.atproto.sync.getBlob"))
         .and(query_param("cid", "bafyblob"))
-        .respond_with(ResponseTemplate::new(200).set_body_raw(png_bytes(40, 60), "image/png"))
+        .respond_with(
+            ResponseTemplate::new(400)
+                .set_body_json(json!({"error": "InvalidRequest", "message": "Blob not found"})),
+        )
         .mount(&server)
         .await;
     let state = state_for(&server, dns_for_handle());
@@ -3060,6 +3593,11 @@ async fn photos_are_uploaded_as_picked_and_written_with_the_record() {
     let (status, location, _) = get(&state, "/write/photo/bafyblob").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert!(location.unwrap().starts_with("/login"));
+
+    // A prior failed preview must not poison the successful upload's cache.
+    let (status, _, _) =
+        get_image_signed(&state, "/write/photo/bafyblob?size=thumb", &cookie).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
     // Picking files uploads them at once and answers with what the form
     // will carry; the record is not touched.
@@ -3097,16 +3635,7 @@ async fn photos_are_uploaded_as_picked_and_written_with_the_record() {
     assert_eq!(writes.len(), 1, "one upload, no record: {writes:?}");
     assert_eq!(writes[0].0, "com.atproto.repo.uploadBlob");
 
-    // The author's own blob draws the tile, whether or not a record
-    // lists it yet.
-    let (status, headers, body) =
-        get_image_signed(&state, "/write/photo/bafyblob?size=thumb", &cookie).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(headers["content-type"], "image/jpeg");
-    assert_eq!(headers["cache-control"], "private, max-age=3600");
-    assert_eq!(&body[..2], &[0xff, 0xd8]);
-    let (status, _, _) = get_image_signed(&state, "/write/photo/not%20a%20cid", &cookie).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_private_upload_previews(&state, &server, &cookie).await;
 
     // Publishing writes the photos with the record, the first as the cover.
     let mut fields = good_fields();
@@ -3163,6 +3692,7 @@ async fn a_first_publish_lands_on_the_write_up_and_removing_every_photo_drops_th
     let mut fields = good_fields();
     fields.retain(|(k, _)| *k != "action");
     fields.push(("action", "publish"));
+    fields.push(("draft_id", "12345"));
     let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
     let response = router(state.clone())
@@ -3193,12 +3723,23 @@ async fn a_first_publish_lands_on_the_write_up_and_removing_every_photo_drops_th
         .to_owned();
     assert_eq!(
         location,
-        format!("/at/{DID}/pub1/newdoc"),
+        format!("/at/{DID}/pub1/newdoc?after=published&draft=12345"),
         "no photos stop on the way"
     );
 
     // Editing the photo post opens with its photo carried; saving with
-    // the row gone removes the photo and the cover it derived.
+    // the row gone removes the photo and the cover it derived, and the
+    // cover drawn from that photo is not served from the cache again.
+    for size in ["card", "og"] {
+        state
+            .cache()
+            .put_bytes(
+                eaten_at::cache::Namespace::Image,
+                &format!("{DID}/ph/{size}"),
+                b"the old cover",
+            )
+            .await;
+    }
     let (_, _, page) = get_signed(&state, "/write/ph", &cookie).await;
     assert!(
         page.contains("name=\"photo_cid_0\" value=\"bafkcover\""),
@@ -3221,6 +3762,18 @@ async fn a_first_publish_lands_on_the_write_up_and_removing_every_photo_drops_th
     let record = last_put(&repo_writes(&server).await);
     assert!(record["content"].get("photos").is_none(), "{record}");
     assert!(record.get("coverImage").is_none(), "{record}");
+    for size in ["card", "og"] {
+        let cached = state
+            .cache()
+            .get_or_fetch_bytes::<(), _, _>(
+                eaten_at::cache::Namespace::Image,
+                &format!("{DID}/ph/{size}"),
+                || async { Ok(Some(b"drawn again".to_vec())) },
+            )
+            .await
+            .unwrap();
+        assert_eq!(cached.as_deref(), Some(&b"drawn again"[..]), "{size}");
+    }
 }
 
 #[tokio::test]
@@ -3262,7 +3815,7 @@ async fn the_photo_proxy_serves_listed_photos_only_and_pages_show_them() {
     );
     assert!(
         page.contains(&format!(
-            "<a href=\"/img/{DID}/ph/bafkcover?size=full\"><img src=\"/img/{DID}/ph/bafkcover?size=thumb\" alt=\"\""
+            "<a href=\"/img/{DID}/ph/bafkcover?size=full\" aria-label=\"View photo\"><figure><img src=\"/img/{DID}/ph/bafkcover?size=thumb\" alt=\"\""
         )),
         "{page}"
     );
@@ -3313,6 +3866,34 @@ async fn the_author_sees_an_edit_link_on_their_document() {
     assert!(mine.contains("<a href=\"/write/d3\">edit</a>"), "{mine}");
 }
 
+#[tokio::test]
+async fn publication_confirmation_is_only_shown_to_the_author_after_saving() {
+    let server = mount(&one_publication()).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let path = format!("/at/{DID}/pub1/d3");
+    for (outcome, message) in [
+        ("published", "Your digest is published."),
+        ("saved", "Changes saved."),
+    ] {
+        let url = format!("{path}?after={outcome}");
+        let (_, _, anonymous) = get(&state, &url).await;
+        assert!(!anonymous.contains("publish-confirmation"));
+        let (_, _, mine) = get_signed(&state, &url, &cookie).await;
+        assert!(mine.contains(message), "{mine}");
+        assert!(mine.contains("https://bsky.app/intent/compose?text="));
+        assert!(
+            mine.contains("class=\"permalink\" href=\"https://ross.eaten.at/2026/09/third-post\""),
+            "{mine}"
+        );
+        assert!(mine.contains("Share on Bluesky"));
+    }
+    for url in [path.clone(), format!("{path}?after=unknown")] {
+        let (_, _, mine) = get_signed(&state, &url, &cookie).await;
+        assert!(!mine.contains("publish-confirmation"));
+    }
+}
+
 // ---- the tags field (C3.4) ----
 
 #[tokio::test]
@@ -3352,7 +3933,7 @@ async fn each_editor_state_carries_its_own_nonced_scripts_and_nothing_else_chang
     let inlined =
         |nonce: &str, script: &str| format!("<script nonce=\"{nonce}\">{script}</script>");
 
-    // Choosing: the combobox and the place chooser, in that order.
+    // Choosing: the combobox, the place chooser, and the drafts (CB8).
     let response = router(state.clone())
         .oneshot(
             Request::get("/write")
@@ -3365,11 +3946,10 @@ async fn each_editor_state_carries_its_own_nonced_scripts_and_nothing_else_chang
     let (nonce, body) = nonce_and_body(response).await;
     let combobox = inlined(&nonce, eaten_at_web::assets::COMBOBOX_SCRIPT);
     let suggest = inlined(&nonce, eaten_at_web::assets::CHOOSE_PLACE_SCRIPT);
-    assert_eq!(body.matches("<script").count(), 2, "{body}");
-    assert!(
-        body.contains(&combobox) && body.contains(&suggest),
-        "{body}"
-    );
+    let drafts = inlined(&nonce, eaten_at_web::assets::EDITOR_SCRIPT);
+    assert_eq!(body.matches("<script").count(), 3, "{body}");
+    let scripts = [&combobox, &suggest, &drafts];
+    assert!(scripts.iter().all(|s| body.contains(s.as_str())));
     assert!(
         body.find(&combobox) < body.find(&suggest),
         "the combobox comes first"
@@ -3378,7 +3958,9 @@ async fn each_editor_state_carries_its_own_nonced_scripts_and_nothing_else_chang
         !body.contains("navigator.geolocation"),
         "no location island (D44): {body}"
     );
-    let without = body.replace(&combobox, "").replace(&suggest, "");
+    let without = scripts
+        .iter()
+        .fold(body.clone(), |b, s| b.replace(s.as_str(), ""));
     assert!(!without.contains("<script"));
     assert!(
         without.contains("<form class=\"editor editor-choosing\""),
@@ -3510,7 +4092,7 @@ async fn suggestions_come_from_the_same_search_a_pick_reads() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("placeholder=\"Devocion Flatiron\""), "{body}");
+    assert!(body.contains("value=\"Devocion Flatiron\""), "{body}");
     let searches = server
         .received_requests()
         .await
@@ -3600,6 +4182,42 @@ async fn suggestions_say_when_search_is_off_and_never_fail_loudly() {
 
 // ---- settings and hosted subdomains (C3.6) ----
 
+#[tokio::test]
+async fn a_sign_in_posted_under_another_host_moves_to_the_bare_origin_with_its_handle() {
+    let repo = one_publication();
+    let server = mount(&repo).await;
+    let state = state_for(&server, dns_for_handle());
+    // A form post answered with a redirect to another origin is blocked
+    // by `form-action 'self'` with nothing shown, so the answer is a
+    // page that navigates there instead, the handle filled in.
+    let response = router(state.clone())
+        .oneshot(
+            Request::post("/login")
+                .header(header::HOST, "localhost:3000")
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from("handle=alice.test&return_to=%2Fwrite"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(response.headers().get(header::LOCATION).is_none());
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = String::from_utf8(body.to_vec()).unwrap();
+    assert!(
+        body.contains(
+            "content=\"0;url=https://eaten.at/login?handle=alice.test&amp;return_to=%2Fwrite\""
+        ),
+        "{body}"
+    );
+    assert!(body.contains("Continuing to eaten.at"), "{body}");
+
+    // The bare origin's form then has the handle in it.
+    let (status, _, body) = get_host(&state, "eaten.at", "/login?handle=alice.test").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains("value=\"alice.test\""), "{body}");
+}
+
 async fn get_host(state: &AppState, host: &str, uri: &str) -> (StatusCode, Option<String>, String) {
     let response = router(state.clone())
         .oneshot(
@@ -3661,7 +4279,7 @@ async fn settings_claims_a_subdomain_and_rewrites_the_publication_url() {
 
     let (status, _, body) = get_signed(&state, "/settings", &cookie).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(body.contains("<h1>Your publication</h1>"), "{body}");
+    assert!(body.contains("<h1>Your feed</h1>"), "{body}");
     assert!(body.contains("Served by you at ross.eaten.at"), "{body}");
     assert!(body.contains("action=\"/settings\""), "{body}");
     assert!(
@@ -3687,7 +4305,7 @@ async fn settings_claims_a_subdomain_and_rewrites_the_publication_url() {
         ("name=Ross+Writes&mode=", "Choose where"),
         (
             "name=+&mode=own&url=https://ross.eaten.at",
-            "Name the publication.",
+            "Name the feed.",
         ),
     ] {
         let (status, _, body) = post_form_signed(&state, "/settings", &cookie, form).await;
@@ -4543,7 +5161,7 @@ async fn retry_after_a_failed_post_creates_exactly_one() {
 }
 
 #[tokio::test]
-async fn crosspost_toggle_defaults_from_preferences() {
+async fn composer_does_not_offer_or_carry_crossposting() {
     let server = mount(&Repo {
         preferences: Some(
             json!({"crosspostToBluesky": true, "createdAt": "2026-09-01T00:00:00.000Z"}),
@@ -4554,11 +5172,9 @@ async fn crosspost_toggle_defaults_from_preferences() {
     mount_writes(&server).await;
     let state = state_for(&server, dns_for_handle());
     let cookie = posting_author_session(&state, &server).await;
-    // The choosing state carries the default hidden; the form shows it
-    // ticked once there is a place.
     let (status, _, page) = get_signed(&state, "/write", &cookie).await;
     assert_eq!(status, StatusCode::OK);
-    assert!(page.contains("name=\"crosspost\" value=\"1\""), "{page}");
+    assert!(!page.contains("name=\"crosspost\""), "{page}");
     let (status, page) = post_editor(
         &state,
         "/write",
@@ -4571,44 +5187,8 @@ async fn crosspost_toggle_defaults_from_preferences() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(
-        page.contains("name=\"crosspost\" type=\"checkbox\" value=\"1\" checked"),
-        "{page}"
-    );
-    assert!(
-        page.contains("placeholder=\"Cart\""),
-        "the post text defaults to the place: {page}"
-    );
-
-    let server = mount(&one_publication()).await;
-    mount_writes(&server).await;
-    let state = state_for(&server, dns_for_handle());
-    let cookie = posting_author_session(&state, &server).await;
-    let (_, page) = post_editor(&state, "/write", &cookie, &by_hand()).await;
-    assert!(
-        page.contains("name=\"crosspost\" type=\"checkbox\" value=\"1\">"),
-        "{page}"
-    );
-    // A document that already names a post shows the link, not the toggle.
-    let mut doc = visit_doc("pub1", "Third Post", "Third Place", &[]);
-    doc["bskyPostRef"] =
-        json!({"uri": format!("at://{DID}/app.bsky.feed.post/3kpost"), "cid": "bafy"});
-    let server = mount(&Repo {
-        documents: vec![("d3".into(), doc)],
-        ..one_publication()
-    })
-    .await;
-    mount_writes(&server).await;
-    let state = state_for(&server, dns_for_handle());
-    let cookie = posting_author_session(&state, &server).await;
-    let (_, _, page) = get_signed(&state, "/write/d3", &cookie).await;
     assert!(!page.contains("name=\"crosspost\""), "{page}");
-    assert!(
-        page.contains(&format!(
-            "<span class=\"soft\">Bluesky:</span> <a class=\"quiet-link\" href=\"https://bsky.app/profile/{DID}/post/3kpost\" rel=\"noopener\">see the thread</a>"
-        )),
-        "{page}"
-    );
+    assert!(!page.contains("name=\"post_text\""), "{page}");
 }
 
 /// Percent-decode a form-urlencoded value.
@@ -4654,7 +5234,7 @@ async fn without_permission_publish_hands_over_to_the_crosspost_page_which_asks(
     // The sign-in grant only.
     let cookie = author_session(&state, &server).await;
     let (_, editor) = post_editor(&state, "/write", &cookie, &by_hand()).await;
-    assert!(editor.contains("ask you to allow posting"), "{editor}");
+    assert!(!editor.contains("name=\"crosspost\""), "{editor}");
 
     let (status, body) = post_editor(
         &state,

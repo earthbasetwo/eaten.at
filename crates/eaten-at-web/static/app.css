@@ -593,6 +593,15 @@
     background: var(--color-paper-bright); border: var(--rule-hairline);
   }
   .notice { margin-block-start: var(--space-l); }
+  .publish-confirmation {
+    padding-block: var(--space-l);
+    margin-block-end: var(--space-xl);
+    border-block-end: var(--rule-double);
+  }
+  .publish-message { font-size: var(--text-card); }
+  .publish-confirmation .actions { margin-block-start: var(--space-s); }
+  .copy-status { font-size: var(--text-small); color: var(--color-ink-soft); }
+  .copy-status:empty { display: none; }
   .form-error {
     font-size: var(--text-small); line-height: 1.6; color: var(--color-ink);
     padding: var(--space-sm) var(--space-m);
@@ -783,7 +792,12 @@
     transition: box-shadow var(--ease);
   }
   input[type="file"]::file-selector-button:hover { box-shadow: inset 0 -2px var(--color-ink); }
-  .restore { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); align-items: baseline; margin-block-end: var(--space-l); }
+  /* The draft's offer, then its two actions on a line of their own, at
+     every width, so neither is left alone on a line. */
+  .restore { margin-block-end: var(--space-l); }
+  .restore > span { display: block; margin-block-end: var(--space-xs); }
+  .restore .link-button { white-space: nowrap; }
+  .restore .link-button + .link-button { margin-inline-start: var(--space-m); }
 
   /* ================================================================
      The editor (the Write Pages handoff, docs/design-handoff/write-pages/):
@@ -797,7 +811,6 @@
   /* The prose connectives ("at", "From a visit on") and the stone of an
      absence or a hint. */
   .editor .soft { font-style: italic; color: var(--color-ink-soft); }
-  .editor .soft-stone { font-style: italic; color: var(--color-stone); }
   .prose-line { margin: 0; font-size: 1.0625rem; line-height: 1.55; color: var(--color-ink); }
   .editor .form-error { margin-block-end: var(--space-l); }
   .editor .field-error { margin-block-start: var(--space-xs); }
@@ -861,7 +874,12 @@
   .editor .chip::after, .editor .tile-remove::after, .editor .photo-add::after, .editor button.photo-empty::after,
   .editor .confirm-yes::after, .editor .confirm-no::after, .photo-detail button::after,
   .editor button.hint-action::before, .editor .mark::before, .editor .date-button::before, .editor .note-button::before,
-  .editor .confirm-yes::before, .editor .confirm-no::before { content: none; }
+  .editor .confirm-yes::before, .editor .confirm-no::before, .editor .note-option::before, .editor .date-nav::before,
+  .editor .date-day::before, .editor .photo-add::before, .editor button.photo-empty::before { content: none; }
+  /* A button that keeps the phone's touch halo must be the halo's
+     containing block; left static, the halo is laid out against the
+     page and takes every tap on it. */
+  .editor .link-word, .editor .chip, .photo-detail button { position: relative; }
   .editor button.hint-action:hover, .editor .mark:hover, .editor .date-button:hover, .editor .note-button:hover,
   .editor .link-word:hover, .editor .chip:hover, .editor .confirm-yes:hover, .editor .confirm-no:hover { box-shadow: none; text-decoration-line: underline; }
   .hint {
@@ -879,7 +897,7 @@
     transition: opacity 150ms ease-out; vertical-align: middle;
   }
   .editor .mark svg { display: block; }
-  .title-row:hover .mark, .place-line:hover .mark, .editor .mark:focus-visible { opacity: 0.7; }
+  .place-line:hover .mark, .editor .mark:focus-visible { opacity: 0.7; }
   .editor .mark:hover { opacity: 1; }
   @media (hover: none) { .editor .mark { opacity: 0.7; } }
   /* A word on a hairline that the pointer turns vermilion: the date, the
@@ -894,6 +912,8 @@
   .editor .note-button { font-variant-numeric: tabular-nums; }
   /* A tag struck through under the pointer takes itself out. */
   .editor .chip:hover { color: var(--color-vermilion); text-decoration-line: line-through; text-decoration-color: var(--color-vermilion); }
+  /* Not while a chip has just been filed under a resting pointer. */
+  .editor .tag-chips.still .chip:hover { color: inherit; text-decoration-line: none; }
 
   /* Popovers: small paper cards under their word, one at a time. */
   .editor .paper, .photo-detail {
@@ -914,15 +934,16 @@
   .editor-choosing .start-writing { margin-block-start: 3rem; }
 
   /* ---- Screen 2: edit a write-up ---- */
-  .title-row { display: flex; align-items: center; gap: var(--space-sm); min-inline-size: 0; }
-  .title-row .headline { min-inline-size: 0; }
   .editor-write .place-line { margin-block-start: var(--space-xs); }
+  .editor-write .place-line .change-place, .place-change { white-space: nowrap; }
+  .place-where[hidden] + .place-change .place-dash { display: none; }
   .place-line .mark { margin-inline-start: var(--space-s); vertical-align: -2px; padding: 0; }
   .visit-row {
-    margin-block-start: var(--space-l);
+    margin-block-start: var(--space-xs);
     display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-s) 2rem;
   }
-  .date-line { flex: none; }
+  .date-line { min-inline-size: 0; }
+  .date-line .note-popover { inset-inline-start: 0; inset-inline-end: auto; }
   .date-field { position: relative; display: inline; }
   .date-field input[type="date"] { display: inline-block; inline-size: auto; padding: 0; box-shadow: inset 0 -1px var(--color-hairline); }
   .date-field input[type="date"]:hover { box-shadow: inset 0 -1px var(--color-ink); }
@@ -931,6 +952,7 @@
   .date-head { display: flex; align-items: baseline; justify-content: space-between; margin-block-end: 10px; }
   .editor .date-nav { padding: 2px 6px; font-size: 0.9375rem; color: var(--color-ink-soft); }
   .editor .date-nav:hover { color: var(--color-vermilion); }
+  .editor .date-nav:disabled, .editor .date-nav:disabled:hover { color: var(--color-disabled); cursor: default; }
   .date-month { font-style: italic; font-size: 0.9375rem; color: var(--color-ink); }
   .date-grid { display: grid; grid-template-columns: repeat(7, 34px); gap: 1px; justify-content: center; }
   .date-dow { display: block; text-align: center; font-style: italic; font-size: 0.75rem; color: var(--color-stone); padding-block-end: 4px; }
@@ -940,11 +962,12 @@
     transition: background-color var(--ease);
   }
   .editor .date-day:hover { background: var(--color-recessed); }
+  .editor .date-day:disabled, .editor .date-day:disabled:hover { color: var(--color-disabled); background: none; cursor: default; }
   .editor .date-day.today { text-decoration: underline; text-underline-offset: 0.14em; text-decoration-color: var(--color-vermilion); }
   .editor .date-day.selected, .editor .date-day.selected:hover { background: var(--color-ink); color: var(--color-ink-fg); }
-  /* Filed under: right-aligned, the tags as words with commas, the
+  /* Filed under: full-width below photos, the tags as words with commas, the
      blank taking the next one. */
-  .tags-line { flex: 1 1 280px; text-align: end; }
+  .tags-line { margin-block-start: var(--space-l); inline-size: 100%; text-align: start; overflow-wrap: anywhere; }
   .tags-sentence { margin: 0; font-size: 1.0625rem; line-height: 1.55; color: var(--color-ink); }
   .tags-sentence > label { font-style: italic; color: var(--color-ink-soft); }
   .tag-field, .tag-chips { display: inline; }
@@ -954,34 +977,50 @@
   @supports not (field-sizing: content) { .tag-field input { inline-size: 8ch; } }
   .field-invalid .tag-field input { text-decoration-color: var(--color-vermilion); }
 
-  /* The digest: the write-up under its kicker, on the bright surface
-     inside an ink rule that goes vermilion while it is being written. */
-  .digest { margin-block-start: var(--space-l); }
-  .digest > .kicker, .photos-block > .kicker { color: var(--color-ink-soft); margin-block-end: var(--space-xs); }
-  .photos-block > .kicker { margin-block-end: var(--space-s); }
+  /* The digest is a writing surface on the page: the text between two
+     faint rules, under the visit's facts. */
+  /* One step (16px) on every side of the rules: facts to rule, rule to
+     text, text to rule, rule to teaser. */
+  /* The digest is a field, so its two rules take a field's colours
+     together: hairlines at rest, ink under the pointer, vermilion while
+     the writing has focus, never thicker than a hairline. */
+  .digest {
+    margin-block-start: var(--space-m); border-block: var(--rule-hairline); padding-block-end: var(--space-m);
+    transition: border-color var(--ease);
+  }
+  .digest:hover { border-color: var(--color-ink); }
+  .digest:focus-within { border-color: var(--color-vermilion); }
+  .editor-write .place-head .headline { display: block; inline-size: 100%; resize: none; }
+  /* The text starts a step below the meal line's rule, as the title did. */
+  .digest > .editor-body, .digest > .digest-editor { margin-block-start: var(--space-m); }
   .editor-body {
-    display: block; inline-size: 100%; min-block-size: 24rem; resize: vertical;
-    padding: 16px 18px; background: var(--color-paper-bright); border: var(--rule-ink); box-shadow: none;
+    display: block; inline-size: 100%; min-block-size: 12.8em; resize: vertical;
+    padding: 0; background: transparent; border: 0; box-shadow: none;
     font-size: var(--text-prose); line-height: 1.6; color: var(--color-ink);
   }
-  .editor-body:hover { box-shadow: none; }
-  .editor-body:focus-visible { box-shadow: none; border-color: var(--color-vermilion); }
+  .editor-body:hover, .editor-body:focus-visible { box-shadow: none; }
+  .editor-body::placeholder { font-style: italic; color: var(--color-stone); }
   .digest-editor {
-    inline-size: 100%; min-block-size: 24rem; padding: 16px 18px; cursor: text;
-    background: var(--color-paper-bright); border: var(--rule-ink);
-    font-size: var(--text-prose); line-height: 1.6; color: var(--color-ink);
-    transition: border-color 150ms ease-out;
+    position: relative; inline-size: 100%; min-block-size: 12.8em; padding: 0; cursor: text;
+    background: transparent; font-size: var(--text-prose); line-height: 1.6; color: var(--color-ink);
   }
-  .digest-editor.active { border-color: var(--color-vermilion); }
-  .digest-editor:focus-visible { outline: var(--focus-ring); outline-offset: 3px; }
+  .digest-ghost { position: absolute; inset: 0 auto auto 0; inline-size: 100%; color: var(--color-stone); font-style: italic; pointer-events: none; user-select: none; }
+  .digest-ghost .md-tok { font-style: normal; }
+  /* Emphasis inside the italic prompt is set upright, as it is in print. */
+  .digest-ghost em { font-style: normal; }
+  .digest-editor:focus-visible { outline: none; }
   .md-line { white-space: pre-wrap; overflow-wrap: break-word; outline: none; min-block-size: 1.6em; caret-color: var(--color-vermilion); }
-  .md-h1 { font-size: 1.5625rem; font-weight: 500; line-height: 1.3; }
+  /* Headings are drawn at the sizes they publish at: the page shifts
+     them down a level (`#` is the prose h2, `##` h3, `###` h4). */
+  .md-h1 { font-size: var(--text-heading); font-weight: 500; line-height: 1.3; }
   .md-h1.md-after { padding-block-start: 8px; }
-  .md-h2 { font-size: 1.25rem; font-weight: 500; line-height: 1.4; }
+  .md-h2 { font-size: var(--text-card); font-weight: 500; line-height: 1.4; }
   .md-h2.md-after { padding-block-start: 6px; }
-  .md-h3 { font-weight: 600; }
+  .md-h3 { font-weight: 500; }
   .md-li, .md-ol { padding-inline-start: 20px; text-indent: -20px; }
-  .md-q { border-inline-start: 2px solid var(--color-hairline); padding-inline-start: 14px; font-style: italic; color: var(--color-ink-soft); }
+  /* Prose right under an item or a quote is published inside it. */
+  .md-in-li { padding-inline-start: 20px; }
+  .md-q, .md-in-q { border-inline-start: 2px solid var(--color-hairline); padding-inline-start: 14px; font-style: italic; color: var(--color-ink-soft); }
   .md-tok { color: var(--color-disabled); }
   .md-bullet { color: var(--color-vermilion); }
   .md-line strong { font-weight: 600; }
@@ -989,23 +1028,28 @@
   .md-link { color: var(--color-vermilion); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em; }
 
   /* The teaser: one folded line while the first lines stand in. */
-  .teaser { margin-block-start: var(--space-l); }
+  .teaser { margin-block-start: var(--space-m); }
   .teaser > summary { list-style: none; cursor: pointer; }
   .teaser > summary::-webkit-details-marker { display: none; }
   .teaser[open] > summary { display: none; }
   .teaser > summary .hint-action:hover { color: var(--color-ink-soft); text-decoration-color: var(--color-ink-soft); }
   .teaser-hint { margin-block-end: var(--space-xs); }
+  /* The teaser sits on a hairline, like the digest's rules at rest, that
+     goes to ink under the pointer and vermilion with focus without
+     thickening: the full field rule was too heavy under a folded aside. */
   .teaser-text {
-    display: block; inline-size: 100%; padding: 0; background: transparent; border: 0; box-shadow: none; resize: none;
+    display: block; inline-size: 100%; padding: 0 0 0.375rem; background: transparent; border: 0; resize: none;
     font-size: 0.9375rem; line-height: 1.6; color: var(--color-ink);
+    box-shadow: inset 0 -1px var(--color-hairline);
   }
-  .teaser-text:hover, .teaser-text:focus-visible { box-shadow: none; }
+  .teaser-text:hover { box-shadow: inset 0 -1px var(--color-ink); }
+  .teaser-text:focus-visible { box-shadow: inset 0 -1px var(--color-vermilion); }
   .teaser-text::placeholder { font-style: normal; color: var(--color-stone); }
   .teaser-note { margin-block-start: 6px; font-size: 0.8125rem; }
 
   /* The rating and the notes on one line. */
   .verdict-row {
-    margin-block-start: 2rem;
+    margin-block-start: var(--space-l);
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-m) 2rem;
   }
   .rating-control { display: flex; align-items: center; gap: 14px; border: 0; padding: 0; margin: 0; min-inline-size: 0; }
@@ -1019,15 +1063,15 @@
   }
   .rating-clear:hover { border-color: var(--color-stone); }
   .rating-clear svg { display: block; }
-  .pluses { display: flex; flex-direction: row-reverse; align-items: center; gap: 10px; }
+  .pluses { display: flex; align-items: center; gap: 10px; }
   .plus {
     font-family: var(--font-mono); font-size: 1.625rem; line-height: 1; color: var(--color-disabled);
     cursor: pointer; user-select: none; transition: color 150ms ease-out;
   }
-  /* Set in reverse, so the checked step colours every lower one. */
-  .pluses input:checked ~ .plus { color: var(--color-vermilion); }
-  .pluses:hover .plus { color: var(--color-disabled); }
-  .pluses .plus:hover, .pluses .plus:hover ~ .plus { color: var(--color-vermilion); }
+  /* The checked step colours itself and every lower one, which come
+     before it; under the pointer, the step and those before it. */
+  .pluses:not(:hover) input:checked + .plus, .pluses:not(:hover) .plus:has(~ input:checked),
+  .pluses .plus:hover, .pluses .plus:has(~ .plus:hover) { color: var(--color-vermilion); }
   .rating-control input:focus-visible + label { outline: var(--focus-ring); outline-offset: 3px; }
   .rating-word {
     margin-inline-start: 6px; font-family: var(--font-mono); font-size: var(--text-label); letter-spacing: var(--tracking-rating);
@@ -1059,10 +1103,17 @@
 
   /* Photos: four square tiles to a row, the first the cover, an add
      tile last; or one dashed box that is the invitation. */
-  .photos-block { margin-block-start: 2rem; }
+  .photos-block { margin-block-start: var(--space-l); }
+  /* A batch's problems, one to a line. */
+  .photos-block > .field-error { white-space: pre-line; }
   .photo-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-  .photo-tiles.empty { display: block; }
-  .photo-tiles.busy { opacity: 0.6; pointer-events: none; }
+  .photo-tiles.photos-empty { display: block; }
+  /* Uploading: the tiles rest (a redraw would drop a drag) and dim; the
+     add tile still takes more. */
+  .photo-tiles.busy .photo-tile { opacity: 0.6; pointer-events: none; }
+  .editor .upload-wait { color: var(--color-ink-soft); }
+  /* Empty, it stays in the page for its announcement but out of the row. */
+  .editor .upload-wait:empty { position: absolute; }
   .photo-tile {
     position: relative; margin: 0; aspect-ratio: 1; background: var(--color-recessed); cursor: grab;
     transition: opacity 150ms ease-out;
@@ -1070,11 +1121,6 @@
   .photo-tile img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; pointer-events: none; }
   .photo-tile.dragging { opacity: 0.35; outline: 1px dashed var(--color-vermilion); }
   .photo-tile:focus-visible { outline: var(--focus-ring); outline-offset: 3px; }
-  .cover-badge {
-    position: absolute; inset-inline-start: 6px; inset-block-end: 6px; padding: 2px 6px;
-    font-family: var(--font-mono); font-size: 0.5625rem; letter-spacing: 0.12em; text-transform: uppercase;
-    background: var(--color-ink); color: var(--color-ink-fg);
-  }
   .editor .tile-remove {
     position: absolute; inset-block-start: 6px; inset-inline-end: 6px; inline-size: 22px; block-size: 22px;
     display: inline-flex; align-items: center; justify-content: center;
@@ -1099,8 +1145,6 @@
   }
   .editor .photo-empty:hover, .editor button.photo-empty:hover { border-color: var(--color-stone); color: var(--color-vermilion); text-decoration: none; }
   .editor .photo-empty-hover { display: none; }
-  .editor .photo-empty:hover .photo-empty-idle { display: none; }
-  .editor .photo-empty:hover .photo-empty-hover { display: inline; }
   .editor .photo-later { cursor: default; color: var(--color-stone); }
   .editor .photo-later:hover { border-color: var(--color-disabled); color: var(--color-stone); }
   .photo-hint { margin-block-start: var(--space-s); font-size: 0.8125rem; }
@@ -1108,23 +1152,29 @@
   .photo-hint a:hover { color: var(--color-ink-soft); }
   /* One photo, large, over a scrim. */
   .photo-scrim {
-    position: fixed; inset: 0; z-index: 30; padding: 32px;
+    --photo-gutter: clamp(16px, 4vw, 48px);
+    position: fixed; inset: 0; z-index: 30; padding: var(--photo-gutter);
     display: flex; align-items: center; justify-content: center;
     background: color-mix(in oklab, var(--color-ink) 35%, transparent);
   }
   body.has-scrim { overflow: hidden; }
-  .photo-detail { inline-size: 100%; max-inline-size: 560px; padding: 18px; box-shadow: 6px 6px 0 color-mix(in oklab, var(--color-ink) 20%, transparent); }
-  .photo-detail img { inline-size: 100%; max-block-size: 440px; object-fit: contain; display: block; background: var(--color-recessed); }
+  .photo-detail {
+    inline-size: 100%; max-inline-size: 960px;
+    max-block-size: calc(100dvh - var(--photo-gutter) - var(--photo-gutter));
+    overflow-y: auto; padding: 18px;
+    box-shadow: 6px 6px 0 color-mix(in oklab, var(--color-ink) 20%, transparent);
+  }
+  .photo-detail img { inline-size: 100%; max-block-size: min(70dvh, max(80px, calc(100dvh - var(--photo-gutter) - var(--photo-gutter) - 130px))); object-fit: contain; display: block; background: var(--color-recessed); }
   .photo-caption {
     display: block; inline-size: 100%; margin-block-start: 14px; text-align: center; field-sizing: initial;
     font-size: 1rem; line-height: 1.5;
   }
   .photo-detail-foot { display: flex; justify-content: space-between; gap: var(--space-m); margin-block-start: 12px; font-size: 0.8125rem; }
 
-  /* Links: Bluesky at the left, the place's links at the right. */
+  /* Links: separate, left-aligned sentences with room to wrap. */
   .links-row {
-    margin-block-start: var(--space-xl);
-    display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-m) var(--space-xl);
+    margin-block-start: var(--space-m);
+    display: flex; flex-direction: column; align-items: stretch; gap: var(--space-m);
   }
   .bluesky-line { flex: none; }
   .editor .quiet-link {
@@ -1133,15 +1183,14 @@
   }
   .editor .quiet-link:hover { color: var(--color-vermilion); text-decoration-color: var(--color-vermilion); }
   .editor .choice-inline { display: inline-flex; font-size: inherit; line-height: inherit; vertical-align: baseline; }
-  .elsewhere { flex: 1 1 320px; min-inline-size: 0; }
-  .elsewhere-line { text-align: end; }
-  .nowhere { font-style: italic; color: var(--color-stone); }
+  .elsewhere { min-inline-size: 0; overflow-wrap: anywhere; }
+  .elsewhere-line { text-align: start; }
   .add-link-slot { font-size: 0.875rem; transition: opacity var(--ease); }
   .elsewhere.has-links .add-link-slot { opacity: 0; }
   .elsewhere:hover .add-link-slot, .elsewhere:focus-within .add-link-slot { opacity: 1; }
   @media (hover: none) { .elsewhere.has-links .add-link-slot { opacity: 1; } }
   .editor button.add-link { font-size: 0.875rem; }
-  .link-cards { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-sm); }
+  .link-cards { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
   .link-card { margin-block-start: var(--space-sm); inline-size: 100%; max-inline-size: 420px; padding: 16px 18px; text-align: start; }
   .link-card .prose-line { font-size: 0.9375rem; line-height: 1.6; }
   .link-card .prose-line + .prose-line { margin-block-start: 6px; }
@@ -1159,7 +1208,7 @@
 
   /* Actions: Save changes, then Delete with its confirmation in the
      same slot. Yes is the one thing on the site in alert red. */
-  .editor-actions { margin-block-start: var(--space-xl); gap: var(--space-s) var(--space-l); }
+  .editor-actions { margin-block-start: var(--space-l); gap: var(--space-s) var(--space-l); }
   .delete-confirm { display: inline-flex; align-items: baseline; gap: var(--space-m); }
   .delete-confirm > summary { list-style: none; display: inline-block; }
   .delete-confirm > summary::-webkit-details-marker { display: none; }
@@ -1241,6 +1290,8 @@
     display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: var(--space-s);
   }
   .photo-grid a { display: block; }
+  .photo-grid figure { margin: 0; }
+  .photo-grid figcaption { margin-block-start: var(--space-xs); font-size: var(--text-small); color: var(--color-ink-soft); overflow-wrap: anywhere; }
   .photo-grid img {
     display: block; inline-size: 100%; block-size: auto; aspect-ratio: 1;
     object-fit: cover;

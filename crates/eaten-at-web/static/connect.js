@@ -1,22 +1,9 @@
-/* Connect (plan 09): each way in on the landing page is a link to the
-   page that would ask for the handle. With script, pressing it swaps
-   that handle field in where the button stood and puts the caret in it,
-   so signing in, or looking someone up, starts on the page the reader
-   is already on. A plain click is the only one taken; a modified click
-   or a middle click still opens the linked page as the link says.
-
-   The swap is drawn by one rule. The rule under the button is measured,
-   a rule of its own is laid over it, and that rule slides to where the
-   field's rule will be while the label fades out and the field fades
-   in; the block eases to the form's height meanwhile, so nothing below
-   jumps. It also grows and reddens on the way where the two ends
-   differ: the primary starts on its own 2px of vermilion, a secondary
-   on 1px of ink, and both land on the field's 2px of vermilion. When
-   the rule lands it is removed and the field's own focus rule, the same
-   2px in the same place, takes over. Both ends are measured and both
-   thicknesses are named by the stylesheet, so the stylesheet owns every
-   size; the script only carries the numbers across. Positions are
-   physical because the measurements are. */
+/* Connect (plan 09): each way in on the landing page links to the page
+   that asks for the handle; with script a plain click swaps that field
+   in where the button stood, caret in it. One rule draws the swap: a
+   rule laid over the button's slides, grows and reddens to where the
+   field's focus rule will be, then hands over to it, while the block
+   eases to the form's height. The stylesheet names every size. */
 (function () {
   "use strict";
   var SETTLE_AFTER = 400; /* past the longest transition, should its end never fire */
@@ -46,19 +33,14 @@
       if (live) return;
       live = true;
 
-      /* Where the rule starts, how thick it is at either end, and how
-         tall the block is, before anything changes. The block's corner
-         is the same in both states, so one origin serves both
-         measurements. */
+      // Measured before anything changes; one origin serves both ends.
       var origin = root.getBoundingClientRect();
       var from = button.getBoundingClientRect();
       var startHeight = root.offsetHeight;
       var thickFrom = rule(root, "--connect-rule-from");
       var thickTo = rule(root, "--connect-rule-to");
 
-      /* Lift the row out of the flow and bring the form in, then read
-         where the rule ends and how tall the block becomes. Nothing has
-         painted yet, so the reader sees none of this. */
+      // The form in, measured before anything paints.
       root.classList.add("connect-live");
       form.hidden = false;
       var to = input.getBoundingClientRect();
@@ -70,13 +52,10 @@
       moving.style.height = thickFrom + "px";
       root.style.height = startHeight + "px";
       root.appendChild(moving);
-      /* The block clips while it grows, so focus must not scroll the
-         field into view inside it: that would shift the form mid-flight.
-         The field stands where the button just was, so it is in view. */
+      // No scroll: the block clips while it grows, and the field is in view.
       input.focus({ preventScroll: true });
 
-      /* Commit the starting frame, then set the destination; the
-         stylesheet's transitions carry everything between. */
+      // Commit the start; the transitions carry the rest.
       void moving.offsetWidth;
       root.classList.add("connect-arriving");
       place(moving, origin, to, thickTo);
@@ -90,8 +69,7 @@
         moving.remove();
         idle.hidden = true;
         root.style.height = "";
-        /* The field's own rule must appear in the same frame the moving
-           one leaves, not ease in over the field's usual transition. */
+        // The field's rule appears the frame the moving one leaves.
         input.style.transition = "none";
         root.classList.remove("connect-live", "connect-arriving");
         void input.offsetWidth;

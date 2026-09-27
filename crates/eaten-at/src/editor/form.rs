@@ -11,6 +11,8 @@ use crate::places::Hit;
 /// Everything the editor form carries, exactly as posted or prefilled.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EditorForm {
+    /// Local draft version, echoed only after a successful write.
+    pub draft_id: Option<u64>,
     pub title: String,
     pub body: String,
     pub description: String,
@@ -20,6 +22,8 @@ pub struct EditorForm {
     pub place_price: String,
     /// Where the place came from, and so which state the editor is in.
     pub place_mode: PlaceMode,
+    /// Returning to an existing draft after choosing another restaurant.
+    pub changing_place: bool,
     /// The search box on the choosing state.
     pub place_query: String,
     /// The Overture GERS id of the picked place; blank by hand.
@@ -38,6 +42,9 @@ pub struct EditorForm {
     /// photos island uploaded or the record carried. Strings, so the
     /// form can carry them across its own re-renders (D37 amended).
     pub photos: Vec<PhotoField>,
+    /// Photos the form carried past [`MAX_PHOTO_ROWS`], which were not
+    /// read, so the page can say so.
+    pub photos_unread: usize,
     /// Comma-separated, as typed.
     pub tags: String,
     /// Whether to post to Bluesky on publish (plan §5.7).
@@ -124,17 +131,12 @@ pub struct LinkField {
 /// (no value written). A value outside the list is another client's
 /// vocabulary: the editor never offers one, but one already on a record
 /// is preserved as [`Choice::Foreign`] so it survives an edit (D31).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Choice<K: KnownValue> {
+    #[default]
     None,
     Known(K),
     Foreign(String),
-}
-
-impl<K: KnownValue> Default for Choice<K> {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 /// The link service select, for callers that name the type.
@@ -243,6 +245,10 @@ pub enum Action {
     /// lands here, so nothing typed is ever sent by accident.
     Keep,
     Publish,
+    /// Publish, then go to the photos page: without script, the way a
+    /// new digest gets its photos, since there is no record to add them
+    /// to before.
+    PublishPhotos,
 }
 
 impl Action {
@@ -251,6 +257,7 @@ impl Action {
         match value {
             "keep" => Some(Self::Keep),
             "publish" => Some(Self::Publish),
+            "publish_photos" => Some(Self::PublishPhotos),
             "manual" => Some(Self::Manual),
             "change_place" => Some(Self::ChangePlace),
             other => {
@@ -278,6 +285,7 @@ impl Action {
             Self::ChangePlace => "change_place".to_owned(),
             Self::Keep => "keep".to_owned(),
             Self::Publish => "publish".to_owned(),
+            Self::PublishPhotos => "publish_photos".to_owned(),
         }
     }
 }
@@ -322,6 +330,9 @@ impl EditorForm {
             } else {
                 PlaceMode::Manual
             },
+            draft_id: None,
+            changing_place: false,
+            photos_unread: 0,
             place_query: String::new(),
             gers_id: visit.place.gers_id.clone().unwrap_or_default(),
             lat_e6: visit
@@ -374,6 +385,8 @@ impl EditorForm {
                 "place_address" => form.place_address = value,
                 "place_price" => form.place_price = value,
                 "place_mode" => form.place_mode = PlaceMode::parse(&value),
+                "draft_id" => form.draft_id = value.parse().ok(),
+                "changing_place" => form.changing_place = value == "1",
                 "place_query" => form.place_query = value,
                 "gers_id" => form.gers_id = value,
                 "lat_e6" => form.lat_e6 = value,
@@ -394,13 +407,26 @@ impl EditorForm {
                                     Choice::from_value(&value);
                             }
                             "link_label" => row(&mut form.links, index, MAX_LINKS).label = value,
-                            "photo_cid" => row(&mut form.photos, index, MAX_PHOTOS).cid = value,
-                            "photo_mime" => row(&mut form.photos, index, MAX_PHOTOS).mime = value,
-                            "photo_size" => row(&mut form.photos, index, MAX_PHOTOS).size = value,
-                            "photo_alt" => row(&mut form.photos, index, MAX_PHOTOS).alt = value,
-                            "photo_width" => row(&mut form.photos, index, MAX_PHOTOS).width = value,
-                            "photo_height" => {
-                                row(&mut form.photos, index, MAX_PHOTOS).height = value;
+                            // Photos past the digest's limit are kept, up to a
+                            // hard bound, so the page can say how many to
+                            // remove and show every one; past the bound a
+                            // row is dropped rather than written over another.
+                            "photo_cid" if index >= MAX_PHOTO_ROWS && !value.trim().is_empty() => {
+                                form.photos_unread += 1;
+                            }
+                            "photo_cid" | "photo_mime" | "photo_size" | "photo_alt"
+                            | "photo_width" | "photo_height"
+                                if index < MAX_PHOTO_ROWS =>
+                            {
+                                let photo = row(&mut form.photos, index, MAX_PHOTO_ROWS);
+                                match prefix {
+                                    "photo_cid" => photo.cid = value,
+                                    "photo_mime" => photo.mime = value,
+                                    "photo_size" => photo.size = value,
+                                    "photo_alt" => photo.alt = value,
+                                    "photo_width" => photo.width = value,
+                                    _ => photo.height = value,
+                                }
                             }
                             _ => {}
                         }
@@ -426,7 +452,7 @@ impl EditorForm {
             },
             Action::ChangePlace => self.change_place(),
             Action::Manual => self.manual(),
-            Action::Pick(_) | Action::Keep | Action::Publish => {}
+            Action::Pick(_) | Action::Keep | Action::Publish | Action::PublishPhotos => {}
         }
         self.ensure_rows();
     }
@@ -434,6 +460,7 @@ impl EditorForm {
     /// Back to choosing: the id and position go, the name becomes the
     /// search, and everything else stays.
     pub fn change_place(&mut self) {
+        self.changing_place = true;
         self.place_mode = PlaceMode::Choosing;
         self.place_query = self.place_name.trim().to_owned();
         self.forget_listing();
@@ -497,6 +524,10 @@ fn remove_if_present<T>(rows: &mut Vec<T>, index: usize) {
     }
 }
 
+/// Most photo rows a posted form is read with: twice what a digest may
+/// hold, so a form over the limit comes back whole with the problem.
+pub const MAX_PHOTO_ROWS: usize = 2 * MAX_PHOTOS;
+
 /// `prefix_N` → `(prefix, N)`.
 fn indexed(name: &str) -> Option<(&str, usize)> {
     let (prefix, index) = name.rsplit_once('_')?;
@@ -533,6 +564,7 @@ mod tests {
         assert_eq!(Action::parse("add_thing"), None);
         assert_eq!(Action::parse("remove_thing:1"), None);
         assert_eq!(Action::parse("publish"), Some(Action::Publish));
+        assert_eq!(Action::parse("publish_photos"), Some(Action::PublishPhotos));
         assert_eq!(Action::parse("search"), None, "the plain search is gone");
         assert_eq!(Action::parse("preview"), None);
 
@@ -668,6 +700,24 @@ mod tests {
         );
         assert_eq!(form.photos[1].cid, "bafyb");
         assert_eq!(form.photos[1].alt, "The room");
+    }
+
+    #[test]
+    fn photo_rows_past_the_limit_are_kept_not_written_over() {
+        let pairs = (0..30).map(|i| (format!("photo_cid_{i}"), format!("bafy{i}")));
+        let (form, _) = EditorForm::from_pairs(pairs);
+        let cids: Vec<_> = form.photos.iter().map(|p| p.cid.as_str()).collect();
+        assert_eq!(cids.len(), 30, "every photo comes back, to choose from");
+        assert_eq!(cids[24], "bafy24");
+        assert_eq!(cids[29], "bafy29");
+        // Past the hard bound a row is dropped, never merged into another.
+        let (form, _) = EditorForm::from_pairs([
+            ("photo_cid_0".to_owned(), "bafya".to_owned()),
+            ("photo_cid_900".to_owned(), "bafyz".to_owned()),
+        ]);
+        assert_eq!(form.photos.len(), 1);
+        assert_eq!(form.photos[0].cid, "bafya");
+        assert_eq!(form.photos_unread, 1, "and counted, to be said");
     }
 
     #[test]

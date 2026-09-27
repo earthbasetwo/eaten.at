@@ -28,6 +28,8 @@ pub struct Item {
     pub published: jiff::Timestamp,
     /// Absolute URL of the cover JPEG.
     pub image: String,
+    /// The cover JPEG's length in bytes, which an enclosure states.
+    pub image_length: usize,
 }
 
 /// Format an instant the way RSS wants it: RFC 2822 in UTC.
@@ -71,11 +73,12 @@ pub fn render(channel: &Channel) -> String {
                             .write_text_content(BytesText::new(&item.link))?;
                         text(w, "description", &item.description)?;
                         text(w, "pubDate", &rfc2822(item.published))?;
+                        let length = item.image_length.to_string();
                         w.create_element("enclosure")
                             .with_attributes([
                                 ("url", item.image.as_str()),
                                 ("type", "image/jpeg"),
-                                ("length", "0"),
+                                ("length", length.as_str()),
                             ])
                             .write_empty()?;
                         Ok(())
@@ -117,6 +120,7 @@ mod tests {
             description: "First \"paragraph\".".into(),
             published: "2026-09-07T12:00:00Z".parse().unwrap(),
             image: "https://eaten.at/img/did:plc:x/d?size=og".into(),
+            image_length: 4321,
         }]));
         assert!(
             out.starts_with("<?xml version=\"1.0\" encoding=\"utf-8\"?>"),
@@ -134,6 +138,10 @@ mod tests {
         assert!(
             out.contains("<pubDate>Mon, 07 Sep 2026 12:00:00 +0000</pubDate>"),
             "{out}"
+        );
+        assert!(
+            out.contains("type=\"image/jpeg\" length=\"4321\"/>"),
+            "the enclosure's length is the cover's: {out}"
         );
         assert!(
             out.contains("<lastBuildDate>Mon, 07 Sep 2026 12:00:00 +0000</lastBuildDate>"),

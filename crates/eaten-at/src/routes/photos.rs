@@ -20,12 +20,16 @@ use eaten_at_atproto::lexicon::{AspectRatio, Photo, MAX_PHOTOS};
 use eaten_at_web::layout::{self, urlencoding, Page};
 use serde::{Deserialize, Serialize};
 
-use crate::auth::RequireUser;
+use crate::auth::{CurrentUser, RequireUser};
 use crate::editor::photos::{
-    self, AltError, PhotoRow, PhotosAction, PhotosForm, PhotosPage, MAX_FILES_PER_REQUEST,
+    self, AltError, FormError, PhotoRow, PhotosAction, PhotosForm, PhotosPage,
+    MAX_FILES_PER_REQUEST,
 };
 use crate::error::AppError;
-use crate::img::{self, ImageError, PhotoSize, MAX_PHOTO_UPLOAD_BYTES};
+use crate::img::{
+    self, ImageError, PhotoSize, MAX_PHOTO_UPLOAD_BYTES, MAX_SOURCE_DIMENSION,
+    MAX_SOURCE_MEGAPIXELS,
+};
 use crate::model::VisitDocument;
 use crate::paths;
 use crate::publish::{self, PublishError};
@@ -78,7 +82,7 @@ async fn load(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("document {rkey} not found")))?;
     let visit_doc = VisitDocument::from_record(record)
-        .ok_or_else(|| AppError::BadRequest("that document is not a visit".to_owned()))?;
+        .ok_or_else(|| AppError::BadRequest("that document is not a digest".to_owned()))?;
     Ok((identity, visit_doc))
 }
 
@@ -240,19 +244,46 @@ pub async fn photos_form(
 }
 
 /// `POST /write/{rkey}/photos`.
+#[allow(clippy::too_many_lines)]
 pub async fn photos_submit(
     State(state): State<AppState>,
-    RequireUser(did): RequireUser,
+    CurrentUser(user): CurrentUser,
     Path(rkey): Path<String>,
     Query(query): Query<PhotosQuery>,
     headers: HeaderMap,
     multipart: Multipart,
 ) -> Result<Response, AppError> {
     let wants = Wants::from_headers(&headers);
+    // Signed out, JSON is told so with a 401, as the upload is; a page
+    // goes to sign in and comes back.
+    let Some(did) = user else {
+        return Ok(signed_out(wants, &query.action_path(&rkey)));
+    };
     let (identity, visit_doc) = load(&state, &did, &rkey).await?;
-    let form = PhotosForm::from_multipart(multipart)
-        .await
-        .map_err(|e| AppError::BadRequest(format!("could not read the form: {e}")))?;
+    let form = match PhotosForm::from_multipart(multipart).await {
+        Ok(form) => form,
+        Err(FormError::TooLarge) => {
+            tracing::info!("photos refused: the request is over the size limit");
+            return Ok(render(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                wants,
+                &did,
+                &visit_doc,
+                &visit_doc.visit.photos,
+                &query,
+                &Outcome {
+                    problems: vec![FormError::too_large_message()],
+                    ..Outcome::default()
+                },
+            ));
+        }
+        Err(FormError::Unreadable(e)) => {
+            tracing::info!(error = %e, "photos refused: the form could not be read");
+            return Err(AppError::BadRequest(format!(
+                "could not read the form: {e}"
+            )));
+        }
+    };
     let current = visit_doc.visit.photos.clone();
     let action = form.action.clone().unwrap_or(PhotosAction::Add);
 
@@ -261,23 +292,25 @@ pub async fn photos_submit(
     let photos = match photos::with_alts(current.clone(), &form.alts) {
         Ok(photos) => photos,
         Err(alt_error) => {
+            // Every caption comes back as it was typed, the refused one
+            // too, so the author can shorten it rather than retype them.
             return Ok(render(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 wants,
                 &did,
                 &visit_doc,
-                &current,
+                &photos::as_typed(current, &form.alts),
                 &query,
                 &Outcome {
                     alt_error: Some(alt_error),
                     ..Outcome::default()
                 },
-            ))
+            ));
         }
     };
 
     let (photos, outcome) = match action {
-        PhotosAction::Add => match add(&state, &identity, photos, &form).await {
+        PhotosAction::Add => match add(&state, &identity, photos, form).await {
             Ok((photos, problems)) => (
                 photos,
                 Outcome {
@@ -286,7 +319,7 @@ pub async fn photos_submit(
                 },
             ),
             Err(Refused::Session) => {
-                return Ok(login_redirect(&query.action_path(&rkey)));
+                return Ok(signed_out(wants, &query.action_path(&rkey)));
             }
             Err(Refused::Repo(problems)) => {
                 return Ok(render(
@@ -330,7 +363,7 @@ pub async fn photos_submit(
             &query,
             &outcome,
         )),
-        Err(PublishError::SessionExpired) => Ok(login_redirect(&query.action_path(&rkey))),
+        Err(PublishError::SessionExpired) => Ok(signed_out(wants, &query.action_path(&rkey))),
         Err(PublishError::App(err)) => Err(err),
         Err(PublishError::Home(message)) => Err(AppError::Upstream(message)),
         Err(PublishError::Repo(err)) => {
@@ -354,6 +387,11 @@ pub async fn photos_submit(
 const WRITE_REFUSED: &str =
     "Your server did not accept the change. Nothing was changed; try again in a moment.";
 
+/// What the island says when the sign-in has run out mid-upload. The
+/// editor's page, and its draft, stay where they are.
+const SIGNED_OUT: &str =
+    "Your sign-in has expired. Sign in again in another tab, then add the missing photos.";
+
 /// `POST /write/upload` — the editor's photos island sends the files it
 /// was given; each good one is prepared, uploaded to the author's
 /// repository, and answered as the reference the form will carry. The
@@ -361,24 +399,49 @@ const WRITE_REFUSED: &str =
 /// A blob nothing ever references is the repository's to forget.
 pub async fn upload(
     State(state): State<AppState>,
-    RequireUser(did): RequireUser,
+    CurrentUser(user): CurrentUser,
+    headers: HeaderMap,
     multipart: Multipart,
 ) -> Result<Response, AppError> {
+    let wants = Wants::from_headers(&headers);
+    let Some(did) = user else {
+        return Ok(signed_out(wants, "/write"));
+    };
     let identity = state.require_identity(&did).await?;
-    let form = PhotosForm::from_multipart(multipart)
-        .await
-        .map_err(|e| AppError::BadRequest(format!("could not read the form: {e}")))?;
-    let (photos, problems, status) = match add(&state, &identity, Vec::new(), &form).await {
+    let form = match PhotosForm::from_multipart(multipart).await {
+        Ok(form) => form,
+        Err(FormError::TooLarge) => {
+            tracing::info!("upload refused: the request is over the size limit");
+            return Ok(upload_json(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                &[],
+                vec![FormError::too_large_message()],
+            ));
+        }
+        Err(FormError::Unreadable(e)) => {
+            tracing::info!(error = %e, "photos refused: the form could not be read");
+            return Err(AppError::BadRequest(format!(
+                "could not read the form: {e}"
+            )));
+        }
+    };
+    let (photos, problems, status) = match add(&state, &identity, Vec::new(), form).await {
         Ok((photos, problems)) if photos.is_empty() => {
             (photos, problems, StatusCode::UNPROCESSABLE_ENTITY)
         }
         Ok((photos, problems)) => (photos, problems, StatusCode::OK),
-        Err(Refused::Session) => return Ok(login_redirect("/write")),
+        Err(Refused::Session) => return Ok(signed_out(wants, "/write")),
         Err(Refused::Repo(mut problems)) => {
             problems.push(WRITE_REFUSED.to_owned());
             (Vec::new(), problems, StatusCode::BAD_GATEWAY)
         }
     };
+    Ok(upload_json(status, &photos, problems))
+}
+
+/// The upload's answer: the photos taken, and the problems in the
+/// author's words.
+fn upload_json(status: StatusCode, photos: &[Photo], problems: Vec<String>) -> Response {
     let body = PhotosJson {
         photos: photos.iter().map(PhotoJson::own).collect(),
         problems,
@@ -389,7 +452,7 @@ pub async fn upload(
         header::CACHE_CONTROL,
         HeaderValue::from_static("private, no-store"),
     );
-    Ok(response)
+    response
 }
 
 impl PhotoJson {
@@ -452,6 +515,7 @@ pub async fn own_photo(
             header::CACHE_CONTROL,
             HeaderValue::from_static("private, max-age=3600"),
         )
+        .header(header::VARY, "Cookie")
         .header(header::CONTENT_LENGTH, rendition.jpeg.len())
         .body(Body::from(rendition.jpeg))
         .map_err(|e| AppError::Upstream(e.to_string()))?;
@@ -460,6 +524,26 @@ pub async fn own_photo(
 
 fn login_redirect(return_to: &str) -> Response {
     Redirect::to(&format!("/login?return_to={}", urlencoding(return_to))).into_response()
+}
+
+/// The sign-in has run out: the island is told so in words (401), since
+/// a redirect it followed would only read as a failed upload; a page
+/// goes to the sign-in page and comes back to `return_to`.
+fn signed_out(wants: Wants, return_to: &str) -> Response {
+    tracing::info!("photos refused: the sign-in has expired");
+    match wants {
+        Wants::Json => upload_json(StatusCode::UNAUTHORIZED, &[], vec![SIGNED_OUT.to_owned()]),
+        Wants::Page => login_redirect(return_to),
+    }
+}
+
+/// Whether a picture refused as too large is inside the stated side and
+/// pixel limits, and so was refused for its depth: a 16-bit PNG needs
+/// twice the memory of the same picture at 8 bits.
+fn within_pixel_limits(w: u32, h: u32) -> bool {
+    w <= MAX_SOURCE_DIMENSION
+        && h <= MAX_SOURCE_DIMENSION
+        && u64::from(w) * u64::from(h) <= MAX_SOURCE_MEGAPIXELS * 1_000_000
 }
 
 /// Why an add could not finish.
@@ -472,25 +556,56 @@ enum Refused {
 
 /// Prepare and upload the chosen files, appending each good one. Files
 /// that cannot be used are reported by name; the good ones still go in.
+/// Each file's bytes are let go once it is prepared, so a request holds
+/// one decode and the files still to come, not a copy of every one,
+/// and no more than two decodes run at once across every request.
+/// Every refusal is logged at INFO with its reason, never the file's
+/// name.
+#[allow(clippy::too_many_lines)]
 async fn add(
     state: &AppState,
     identity: &Identity,
     mut photos: Vec<Photo>,
-    form: &PhotosForm,
+    form: PhotosForm,
 ) -> Result<(Vec<Photo>, Vec<String>), Refused> {
     let mut problems = Vec::new();
-    if form.too_many {
+    if !form.too_many.is_empty() {
+        tracing::info!(
+            max = MAX_FILES_PER_REQUEST,
+            left = form.too_many.len(),
+            "photos refused: more files than one request takes"
+        );
         problems.push(format!(
-            "At most {MAX_FILES_PER_REQUEST} photos at a time; the rest were not added."
+            "At most {MAX_FILES_PER_REQUEST} photos at a time; {} {} not added.",
+            photos::listed(&form.too_many),
+            if form.too_many.len() == 1 {
+                "was"
+            } else {
+                "were"
+            }
         ));
     }
+    for name in &form.empty {
+        tracing::info!("photo refused: the file is empty");
+        problems.push(format!("{name} is empty."));
+    }
     if form.files.is_empty() {
-        problems.push("Choose at least one photo.".to_owned());
+        if form.empty.is_empty() {
+            problems.push("Choose at least one photo.".to_owned());
+        }
         return Ok((photos, problems));
     }
-    if photos.len() + form.files.len() > MAX_PHOTOS {
+    // Files are judged in turn and only a good one takes room, so a
+    // refused file never costs a good one its place; once the digest is
+    // full the rest are named by count, never decoded.
+    let room = |photos: &Vec<Photo>| MAX_PHOTOS.saturating_sub(photos.len() + form.existing);
+    if room(&photos) == 0 {
+        tracing::info!(
+            files = form.files.len(),
+            "photos refused: the digest has its {MAX_PHOTOS}"
+        );
         problems.push(format!(
-            "At most {MAX_PHOTOS} photos on a visit; remove some first."
+            "At most {MAX_PHOTOS} photos on a digest; remove some first."
         ));
         return Ok((photos, problems));
     }
@@ -501,22 +616,47 @@ async fn add(
                 _ => Refused::Repo(problems.clone()),
             }
         })?;
-    for upload in &form.files {
+    let total = form.files.len();
+    for (taken, upload) in form.files.into_iter().enumerate() {
+        if room(&photos) == 0 {
+            let left = total - taken;
+            tracing::info!(left, "photos refused: past the digest's {MAX_PHOTOS}");
+            problems.push(format!(
+                "At most {MAX_PHOTOS} photos on a digest; the last {left} {} not added.",
+                if left == 1 { "was" } else { "were" }
+            ));
+            break;
+        }
         let name = if upload.file_name.trim().is_empty() {
             "A file".to_owned()
         } else {
-            upload.file_name.clone()
+            upload.file_name
         };
-        let bytes = upload.bytes.clone();
-        let prepared = tokio::task::spawn_blocking(move || img::photo_upload(&bytes)).await;
+        let bytes = upload.bytes;
+        let size = bytes.len();
+        let prepared = img::prepare_photo(bytes).await;
         let prepared = match prepared {
             Ok(Ok(prepared)) => prepared,
             Ok(Err(err)) => {
-                tracing::debug!(%err, file = %name, "photo rejected");
+                tracing::info!(reason = %err, bytes = size, "photo refused");
                 problems.push(match err {
                     ImageError::TooBig(..) => format!(
                         "{name} is over {} MB.",
                         MAX_PHOTO_UPLOAD_BYTES / (1024 * 1024)
+                    ),
+                    ImageError::TooLarge(w, h) if within_pixel_limits(w, h) => format!(
+                        "{name} is {w} × {h} pixels in 16-bit colour, more than we can open; \
+                         a JPEG of it will go in."
+                    ),
+                    ImageError::TooLarge(w, h) => format!(
+                        "{name} is {w} × {h} pixels; photos can be at most \
+                         {MAX_SOURCE_DIMENSION} on a side and {MAX_SOURCE_MEGAPIXELS} megapixels."
+                    ),
+                    ImageError::Truncated => {
+                        format!("{name} is incomplete; the file ends partway through the photo.")
+                    }
+                    ImageError::CannotShrink(_) => format!(
+                        "{name} could not be made small enough to store, even at a smaller size."
                     ),
                     _ => format!(
                         "{name} isn't an image we can use. JPEG, PNG, GIF, or WebP, please."
@@ -530,7 +670,10 @@ async fn add(
                 continue;
             }
         };
-        let blob = match session.upload_blob(prepared.jpeg, "image/jpeg").await {
+        let blob = match session
+            .upload_blob(prepared.jpeg.clone(), "image/jpeg")
+            .await
+        {
             Ok(blob) => blob,
             Err(err) => {
                 return Err(match PublishError::from(err) {
@@ -542,6 +685,19 @@ async fn add(
                 })
             }
         };
+        if let Err(err) = state
+            .cache_uploaded_photo(identity, blob.cid(), prepared.jpeg)
+            .await
+        {
+            tracing::warn!(error = %err, "photo preview preparation failed");
+            problems.push(format!(
+                "{name} could not be prepared for preview. Please try again."
+            ));
+            return Err(Refused::Repo(problems));
+        }
+        if prepared.animated {
+            problems.push(format!("{name} is animated; only its first frame is kept."));
+        }
         photos.push(Photo {
             image: blob,
             alt: None,

@@ -1,13 +1,9 @@
-/* The digest: a live markdown editor over the write-up's textarea. The
-   text is shown formatted, one line of source per line on the page;
-   the line the caret is on shows its raw markdown, the syntax in faint
-   ink around the formatting it makes, and folds back when the caret
-   leaves. Headings to three levels, bullet and numbered lists, quotes,
-   bold, italic, code, and links are drawn; anything else stays as
-   written and the server renders it. The textarea stays the carrier:
-   every change is written back to it, so the draft island and the send
-   see the same text, and a restored draft comes back through it.
-   Without this the textarea is the editor. */
+/* The digest: a live markdown editor over the write-up's textarea, one
+   source line a line on the page, drawn formatted; the caret's line
+   shows its raw markdown with the marks faint. What is not drawn stays
+   as written for the server. The textarea stays the carrier, so the
+   draft and the send see the same text. The prompt is drawn as the
+   caret line would draw it. Without this the textarea is the editor. */
 (function () {
   "use strict";
   var ta = document.querySelector("form.editor-write textarea[name=\"body\"]");
@@ -19,6 +15,8 @@
   box.setAttribute("aria-multiline", "true");
   box.setAttribute("aria-labelledby", "body-label");
   box.tabIndex = 0;
+  var prompt = ta.placeholder;
+  box.setAttribute("aria-placeholder", prompt.replace(/\*/g, ""));
   ta.hidden = true;
   ta.parentNode.insertBefore(box, ta.nextSibling);
 
@@ -73,33 +71,58 @@
     });
     return html || "<br>";
   }
-  function lineClass(text, i) {
+  // Prose right under an item or a quote publishes inside it, and is
+  // drawn there; `was` is what the line before leaves open.
+  function context(text, was) {
+    var b = block(text), t = b.type;
+    return !text.trim() || t[0] === "h" ? "" : t === "p" ? was : text.slice(b.prefix.length).trim() ? (t === "q" ? "q" : "li") : "";
+  }
+  function lineClass(text, i, was) {
     var b = block(text);
     var c = "md-line md-" + b.type;
     if (i > 0 && (b.type === "h1" || b.type === "h2")) c += " md-after";
+    if (b.type === "p" && was && text.trim()) c += " md-in-" + was;
     return c;
   }
   function render() {
     box.textContent = "";
+    var was = "";
     lines.forEach(function (text, i) {
       var d = document.createElement("div");
       d.dataset.md = i;
-      d.className = lineClass(text, i);
+      d.dir = "auto";
+      d.className = lineClass(text, i, was);
+      was = context(text, was);
       d.innerHTML = lineHtml(text, i === active);
       if (i === active) {
         d.contentEditable = "true";
+        d.tabIndex = -1;
+        d.setAttribute("role", "textbox");
+        d.setAttribute("aria-labelledby", "body-label");
         d.classList.add("md-active");
       }
       box.appendChild(d);
     });
+    var empty = lines.join("\n").trim() === "";
+    box.classList.toggle("digest-empty", empty);
     box.classList.toggle("active", active !== null);
+    if (empty) addGhost();
     if (active !== null) {
       var el = box.children[active];
       el.focus({ preventScroll: true });
       setCaret(el, caret);
     }
   }
+  /* The prompt, drawn as the caret line draws its marks. */
+  function addGhost() {
+    var ghost = document.createElement("div");
+    ghost.className = "md-line digest-ghost";
+    ghost.setAttribute("aria-hidden", "true");
+    ghost.innerHTML = lineHtml(prompt, true);
+    box.appendChild(ghost);
+  }
   function sync() {
+    box.classList.toggle("digest-empty", lines.join("\n").trim() === "");
     ta.value = lines.join("\n");
     ta.dispatchEvent(new Event("input", { bubbles: true }));
   }
@@ -114,24 +137,18 @@
     pre.setEnd(r.endContainer, r.endOffset);
     return pre.toString().length;
   }
-  function setCaret(el, offset) {
-    var sel = window.getSelection();
-    if (!sel) return;
-    var r = document.createRange();
-    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    var node, seen = 0, placed = false;
+  // A text offset in a line as a DOM point; past the end, the line's end.
+  function point(el, offset) {
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), node, seen = 0;
     while ((node = walker.nextNode())) {
-      if (seen + node.length >= offset) {
-        r.setStart(node, Math.max(0, offset - seen));
-        placed = true;
-        break;
-      }
+      if (seen + node.length >= offset) return [node, Math.max(0, offset - seen)];
       seen += node.length;
     }
-    if (placed) r.collapse(true);
-    else { r.selectNodeContents(el); r.collapse(false); }
-    sel.removeAllRanges();
-    sel.addRange(r);
+    return [el, el.childNodes.length];
+  }
+  function setCaret(el, offset, end) {
+    var sel = window.getSelection(), a = point(el, offset), b = point(el, end == null ? offset : end);
+    if (sel) sel.setBaseAndExtent(a[0], a[1], b[0], b[1]);
   }
   function offsetAtPoint(el, x, y) {
     var node = null, off = 0;
@@ -148,8 +165,7 @@
     pre.setEnd(node, off);
     return pre.toString().length;
   }
-  /* A folded line shows less than its source; a click on it lands the
-     caret at the matching place in the source. */
+  // A click on a folded line lands at the same place in its source.
   function shownToRaw(text, shown) {
     var b = block(text);
     var raw = b.prefix.length, seen = 0;
@@ -166,6 +182,78 @@
     }
     return text.length;
   }
+
+  // A selection spans folded lines: its ends map back to the source.
+  function endpoint(node, offset) {
+    // An end outside the digest (Chrome moves a select-all's start to
+    // the label before it) is its first or last place.
+    if (!box.contains(node)) {
+      return box.compareDocumentPosition(node) & 2 ? { line: 0, offset: 0 }
+        : { line: lines.length - 1, offset: lines[lines.length - 1].length };
+    }
+    if (node === box) {
+      return offset >= lines.length ? { line: lines.length - 1, offset: lines[lines.length - 1].length }
+        : { line: offset, offset: 0 };
+    }
+    var el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    var line = el && el.closest("[data-md]");
+    if (!line || !box.contains(line)) return null;
+    var i = Number(line.dataset.md);
+    var r = document.createRange();
+    r.selectNodeContents(line);
+    r.setEnd(node, offset);
+    var shown = r.toString().length;
+    return { line: i, offset: i === active ? shown : shownToRaw(lines[i], shown) };
+  }
+  function selection() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return null;
+    var r = sel.getRangeAt(0);
+    if (!r.intersectsNode(box)) return null;
+    var start = endpoint(r.startContainer, r.startOffset);
+    var end = endpoint(r.endContainer, r.endOffset);
+    return start && end ? { start: start, end: end } : null;
+  }
+  function selectedText(range) {
+    var part = lines.slice(range.start.line, range.end.line + 1);
+    part[part.length - 1] = part[part.length - 1].slice(0, range.end.offset);
+    part[0] = part[0].slice(range.start.offset);
+    return part.join("\n");
+  }
+  function replaceSelection(text, range) {
+    remember(true);
+    var start = range.start, end = range.end;
+    var left = lines[start.line].slice(0, start.offset);
+    var right = lines[end.line].slice(end.offset);
+    var pieces = split(text);
+    var lastLength = pieces[pieces.length - 1].length;
+    pieces[0] = left + pieces[0];
+    pieces[pieces.length - 1] += right;
+    lines.splice.apply(lines, [start.line, end.line - start.line + 1].concat(pieces));
+    activate(start.line + pieces.length - 1, (pieces.length === 1 ? left.length : 0) + lastLength);
+    lastLine = null;
+    sync();
+  }
+  // The clipboard event can land on that label, so it is heard here.
+  function mine() { return active !== null && box.contains(document.activeElement); }
+  ["copy", "cut"].forEach(function (type) {
+    document.addEventListener(type, function (e) {
+      var range = mine() && selection();
+      if (!range || !e.clipboardData) return;
+      e.preventDefault();
+      e.clipboardData.setData("text/plain", selectedText(range));
+      if (type === "cut") replaceSelection("", range);
+    });
+  });
+  box.addEventListener("beforeinput", function (e) {
+    var range = selection();
+    if (!range || !e.cancelable) return;
+    if (e.inputType.indexOf("delete") === 0) {
+      e.preventDefault(); replaceSelection("", range);
+    } else if (e.inputType === "insertText" || e.inputType === "insertReplacementText") {
+      e.preventDefault(); replaceSelection(e.data || "", range);
+    }
+  });
 
   /* ---- history ---- */
   function remember(force) {
@@ -219,17 +307,26 @@
       i = lines.length - 1;
       offset = lines[i].length;
     }
+    opened = e.timeStamp;
     activate(i, offset);
   });
-  /* A click that no mousedown announced (a script's, or assistive
-     technology's) opens the line at its end. */
+  /* A double click on a folded line unfolds it under the pointer, which
+     would select a mark: it selects the word that was clicked (CB9). */
+  var opened = 0;
+  box.addEventListener("dblclick", function (e) {
+    if (active === null || e.timeStamp - opened > 800) return;
+    var t = lines[active], a = caret, b = caret, w = /[\p{L}\p{N}_'’-]/u;
+    while (a > 0 && w.test(t[a - 1])) a--;
+    while (b < t.length && w.test(t[b])) b++;
+    if (a < b) setCaret(box.children[active], a, b);
+  });
+  // A click no mousedown announced opens the line at its end.
   box.addEventListener("click", function (e) {
     var line = e.target.closest && e.target.closest("[data-md]");
     if (line && Number(line.dataset.md) !== active) activate(Number(line.dataset.md), lines[Number(line.dataset.md)].length);
     else if (!line && active === null) activate(lines.length - 1, lines[lines.length - 1].length);
   });
-  /* Reached by keyboard, the editor opens at its first line; leaving it
-     folds the line that was open. */
+  // Reached by keyboard, it opens at its first line.
   box.addEventListener("focus", function () {
     if (leaving) { leaving = false; return; }
     if (active === null) activate(0, 0);
@@ -241,7 +338,11 @@
     }, 0);
   });
 
-  box.addEventListener("compositionstart", function () { composing = true; });
+  box.addEventListener("compositionstart", function () {
+    var range = selection();
+    if (range) replaceSelection("", range);
+    composing = true;
+  });
   box.addEventListener("compositionend", function () { composing = false; edited(); });
   box.addEventListener("input", function () { if (!composing) edited(); });
   function edited() {
@@ -251,46 +352,62 @@
     caret = caretOffset(el);
     var text = el.textContent.replace(/\n/g, " ");
     lines[active] = text;
-    el.className = lineClass(text, active) + " md-active";
+    for (var j = 0, was = ""; j < active; j++) was = context(lines[j], was);
+    el.className = lineClass(text, active, was) + " md-active";
     el.innerHTML = lineHtml(text, true);
     setCaret(el, caret);
+    var ghost = box.querySelector(".digest-ghost");
+    var empty = lines.join("\n").trim() === "";
+    if (ghost && !empty) ghost.remove();
+    else if (!ghost && empty) addGhost();
     sync();
   }
 
-  box.addEventListener("paste", function (e) {
-    if (active === null) return;
+  document.addEventListener("paste", function (e) {
+    if (!mine()) return;
     e.preventDefault();
     var text = (e.clipboardData || window.clipboardData).getData("text/plain");
     if (!text) return;
-    remember(true);
-    var el = box.children[active];
-    var off = caretOffset(el);
-    var current = lines[active];
-    var pieces = split(text);
-    var left = current.slice(0, off), right = current.slice(off);
-    var inserted = pieces.map(function (piece, k) {
-      var line = piece;
-      if (k === 0) line = left + line;
-      if (k === pieces.length - 1) line = line + right;
-      return line;
-    });
-    lines.splice.apply(lines, [active, 1].concat(inserted));
-    var lastPiece = pieces[pieces.length - 1];
-    var end = (pieces.length === 1 ? left.length : 0) + lastPiece.length;
-    activate(active + pieces.length - 1, end);
-    sync();
+    var at = { line: active, offset: caretOffset(box.children[active]) };
+    replaceSelection(text, selection() || { start: at, end: at });
   });
 
   box.addEventListener("keydown", function (e) {
     if (active === null || composing || e.isComposing || e.keyCode === 229) return;
     var i = active, el = box.children[i], text = lines[i];
     var meta = e.metaKey || e.ctrlKey;
+    if (meta && e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      var all = document.createRange();
+      all.selectNodeContents(box);
+      var whole = window.getSelection();
+      whole.removeAllRanges();
+      whole.addRange(all);
+      return;
+    }
     if (meta && (e.key === "z" || e.key === "Z")) {
       e.preventDefault();
       if (e.shiftKey) restore(redo, undo); else restore(undo, redo);
       return;
     }
     if (meta && e.key === "y") { e.preventDefault(); restore(redo, undo); return; }
+    var selected = selection();
+    // Native arrows can leave a range across lines selected: collapse it.
+    if (selected && !e.shiftKey && /^(ArrowLeft|ArrowRight|ArrowUp|ArrowDown|Home|End)$/.test(e.key)) {
+      e.preventDefault();
+      var start = /^(ArrowLeft|ArrowUp|Home)$/.test(e.key);
+      var edge = start ? selected.start : selected.end;
+      var offset = e.key === "Home" ? 0 : e.key === "End" ? lines[edge.line].length : edge.offset;
+      activate(edge.line, offset);
+      return;
+    }
+    if (selected && !meta && !e.altKey) {
+      if (e.key === "Backspace" || e.key === "Delete" || e.key === "Enter" || e.key.length === 1) {
+        e.preventDefault();
+        replaceSelection(e.key === "Enter" ? "\n" : e.key.length === 1 ? e.key : "", selected);
+        return;
+      }
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       deactivate();
@@ -305,21 +422,18 @@
       var b = block(text);
       var left = text.slice(0, off), right = text.slice(off);
       var listy = b.type === "li" || b.type === "ol" || b.type === "q";
-      /* Return on an empty list or quote line ends the list. */
-      if (listy && left === b.prefix && !right) {
-        lines[i] = "";
-        activate(i, 0);
-        sync();
-        return;
-      }
+      // Keep the blank line CommonMark needs: Return in prose, or on an
+      // empty item, starts a paragraph (CB2).
+      var gap = b.type === "p" && left.trim() ? 1 : 0;
+      if (listy && left === b.prefix && !right) left = "";
       var next = 0;
-      if (listy && off >= b.prefix.length) {
+      if (listy && left && off >= b.prefix.length) {
         var prefix = b.type === "ol" ? (Number(b.prefix) + 1) + ". " : b.prefix;
         right = prefix + right;
         next = prefix.length;
       }
-      lines.splice(i, 1, left, right);
-      activate(i + 1, next);
+      lines.splice.apply(lines, [i, 1, left].concat(gap ? [""] : [], [right]));
+      activate(i + 1 + gap, next);
       sync();
       return;
     }
@@ -367,8 +481,7 @@
     }
   });
 
-  /* A restored draft, or anything else that sets the textarea, is read
-     back into the lines. */
+  // A restored draft, or anything that sets the textarea, is read back.
   ta.addEventListener("change", function () {
     lines = split(ta.value);
     active = null;

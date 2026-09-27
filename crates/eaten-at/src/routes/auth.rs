@@ -69,7 +69,7 @@ fn login_page(
                     "eaten.at, then send you back here."
                 }
             }
-            form.lookup action="/login" method="post" {
+            form.lookup action=(state.absolute("/login")) method="post" {
                 label.kicker.lookup-label for="handle" { "Your handle" }
                 div.lookup-row {
                     input #handle name="handle" type="text" inputmode="url" autocomplete="username"
@@ -102,7 +102,12 @@ fn login_response(
 ) -> Response {
     let page = login_page(state, nonce, handle, return_to, error);
     let mut response = (status, page).into_response();
-    security::allow_connect(&mut response, nonce, &state.appview_origin());
+    security::allow_connect_and_post(
+        &mut response,
+        nonce,
+        &state.appview_origin(),
+        &state.absolute(""),
+    );
     response
 }
 
@@ -130,6 +135,39 @@ fn continue_page(url: &Url) -> Markup {
     })
 }
 
+/// A page that moves a sign-in posted under another host to the bare
+/// origin's form, the handle filled in. Sign-in only completes on the
+/// bare origin: the session cookie and the OAuth callback live there.
+fn bounce_page(state: &AppState, form: &LoginForm) -> Response {
+    let mut url = Url::parse(&state.absolute("/login")).expect("the public URL is a URL");
+    {
+        let mut pairs = url.query_pairs_mut();
+        if !form.handle.trim().is_empty() {
+            pairs.append_pair("handle", form.handle.trim());
+        }
+        if let Some(return_to) = site_local(&form.return_to) {
+            pairs.append_pair("return_to", &return_to);
+        }
+    }
+    let host = state.public_host();
+    let page = layout::render(&Page {
+        title: &["Sign in"],
+        head: html! {
+            meta http-equiv="refresh" content=(format!("0;url={url}"));
+        },
+        main: html! {
+            div.page-head {
+                p.kicker { "Sign in" }
+                h1 { "Continuing to " (host) }
+                p.lede { "Signing in happens at " (host) ". Your handle comes along." }
+            }
+            p.actions { a.button href=(url.as_str()) { "Continue" } }
+        },
+        ..Page::default()
+    });
+    (StatusCode::OK, page).into_response()
+}
+
 /// A page for a sign-in that did not complete.
 fn failed_page(status: StatusCode, heading: &str, detail: &str) -> Response {
     let page = layout::render(&Page {
@@ -150,7 +188,12 @@ fn failed_page(status: StatusCode, heading: &str, detail: &str) -> Response {
 #[derive(Debug, Deserialize)]
 pub struct LoginQuery {
     #[serde(default)]
+    reauth: bool,
+    #[serde(default)]
     return_to: String,
+    /// A handle carried over from a form that posted under another host.
+    #[serde(default)]
+    handle: String,
 }
 
 /// `GET /login` — the form. A signed-in user is sent home.
@@ -164,14 +207,14 @@ pub async fn login_form(
     if !is_bare_origin(&state, &headers) {
         return to_bare_origin(&state, "/login");
     }
-    if user.is_some() {
+    if user.is_some() && !query.reauth {
         return Redirect::to("/").into_response();
     }
     login_response(
         &state,
         &nonce,
         StatusCode::OK,
-        "",
+        &query.handle,
         site_local(&query.return_to).as_deref().unwrap_or(""),
         None,
     )
@@ -193,7 +236,10 @@ pub async fn login_start(
     Form(form): Form<LoginForm>,
 ) -> Response {
     if !is_bare_origin(&state, &headers) {
-        return to_bare_origin(&state, "/login");
+        // A redirect from a form post to another origin is blocked by
+        // `form-action 'self'`, silently, so the post is answered with a
+        // page that navigates there, the handle along with it.
+        return bounce_page(&state, &form);
     }
     let return_to = site_local(&form.return_to);
     let scopes = scopes_for_sign_in(&state, &form.handle).await;
@@ -348,6 +394,30 @@ pub async fn callback(
         .headers_mut()
         .append(SET_COOKIE, state.cookie().set(&token));
     response
+}
+
+/// Recovery completes in the new tab, leaving the submitted draft open.
+pub async fn reconnected(State(state): State<AppState>, RequireUser(did): RequireUser) -> Response {
+    if state
+        .oauth()
+        .granted_scopes(&did)
+        .await
+        .unwrap_or_default()
+        .is_empty()
+    {
+        return Redirect::to("/login?reauth=true&return_to=%2Flogin%2Freconnected").into_response();
+    }
+    layout::render(&Page {
+        title: &["Publishing reconnected"],
+        main: html! {
+            div.page-head {
+                p.kicker { "Signed in" }
+                h1 { "Publishing reconnected." }
+                p.lede { "Return to the tab with your draft and try publishing again. You can close this tab." }
+            }
+        },
+        ..Page::default()
+    }).into_response()
 }
 
 /// `POST /logout` — end the browser session and drop the OAuth tokens.

@@ -28,7 +28,7 @@ pub async fn about() -> Markup {
                 p.kicker { "About" }
                 h1 { "About eaten.at" }
                 p.lede {
-                    "This site renders write-ups about places people have eaten at. "
+                    "This site renders digests about places people have eaten at. "
                     "It is a reader over other people's repositories, not a warehouse: "
                     "there is no global feed here, and nothing to scroll."
                 }
@@ -38,7 +38,7 @@ pub async fn about() -> Markup {
                 // is written.
                 h2 { "On the AT Protocol" }
                 p {
-                    "Every write-up here is a record in its author's own repository on the "
+                    "Every digest here is a record in its author's own repository on the "
                     a href="https://atproto.com/" rel="noopener" { "AT Protocol" }
                     ", the network Bluesky is built on. A handle is an identity on it, a "
                     "repository holds what its owner has written, and any app that speaks "

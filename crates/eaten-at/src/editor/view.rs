@@ -15,7 +15,7 @@ use eaten_at_web::markdown;
 use maud::{html, Markup};
 
 use super::form::{Action, Choice, EditorForm, PlaceMode, RowKind};
-use super::{default_post_text, FieldErrors};
+use super::FieldErrors;
 use crate::publish::MAX_POST_GRAPHEMES;
 
 /// How long the teaser the listings would draw themselves is shown as,
@@ -59,10 +59,9 @@ pub struct EditorPage<'a> {
     pub editing: bool,
     /// Why the last publish attempt failed, when it did.
     pub publish_error: Option<&'a str>,
+    pub reauthenticate: bool,
     /// Why a picked suggestion could not be taken, when it could not.
     pub pick_error: Option<&'a str>,
-    /// Whether the document can be, or has been, posted to Bluesky.
-    pub crosspost: CrosspostState,
     /// Whether the choosing screen suggests places as the author types:
     /// the site has a search and the request could be located.
     pub suggesting: bool,
@@ -79,31 +78,31 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
     }
     let form = page.form;
     let errors = page.errors;
-    let has_title = has_custom_title(form);
     html! {
-        form.editor.editor-write method="post" action=(page.action_path) novalidate {
+        // Back from the chooser: the draft island keeps this page as the
+        // draft at once rather than offer the one saved on the way out.
+        form.editor.editor-write method="post" action=(page.action_path) data-back=[form.changing_place.then_some("1")] novalidate {
+            input type="hidden" name="draft_id" value="";
             (alerts(page))
             // Return in a text field presses the form's first button;
             // this one only re-renders the page, so nothing typed is ever
             // sent by accident.
             button.visually-hidden type="submit" name="action" value=(Action::Keep.value()) tabindex="-1" aria-hidden="true" { "Keep editing" }
-            (title_and_place(form, errors, has_title))
+            (place_heading(form, errors))
             div.visit-row {
                 (date_line(form, errors))
-                (tags_line(form, errors))
             }
             (digest(form, errors))
             (teaser(form, errors))
             div.verdict-row {
                 (rating_control(form, errors))
                 div.notes-row {
-                    (meal_field(form, errors))
                     (price_field(form, errors))
                 }
             }
             (photos(page))
+            (tags_line(form, errors))
             div.links-row {
-                (bluesky_line(form, errors, &page.crosspost))
                 (elsewhere(form, errors))
             }
             div.actions.editor-actions {
@@ -118,49 +117,44 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
     }
 }
 
-/// Whether the title is the author's own rather than the place's name
-/// standing in (D29).
-fn has_custom_title(form: &EditorForm) -> bool {
-    let title = form.title.trim();
-    !title.is_empty() && title != form.place_name.trim()
-}
-
-/// The headline and the place line under it. The title input's
-/// placeholder is the place's name; while that stands in, the line
-/// under it is the address alone and the change-place mark sits after
-/// the headline. With a title of the author's own, the place's name
-/// joins the line (`at Noodle House, 12 Example Lane.`) and the mark
-/// moves down beside it. The reset mark is the island's to show.
-fn title_and_place(form: &EditorForm, errors: &FieldErrors, has_title: bool) -> Markup {
+/// The headline is the title, with the restaurant's name standing in
+/// until one is typed; the line under it is the place: `at [name,]
+/// [address] — somewhere else`, the name shown there once the title
+/// is something else. Changing the restaurant is the shrug at the end
+/// of that line, so the two jobs sit on two lines (C6, 2026-09-25).
+fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
+    let titled = !form.title.trim().is_empty();
+    let has_address = !form.place_address.trim().is_empty();
     html! {
-        div.title-row data-has-title[has_title] {
-            input #title.headline name="title" type="text" value=(form.title)
-                placeholder=(form.place_name.trim()) autocomplete="off"
-                aria-label="Title" aria-describedby=[described(errors, "title")];
-            button.mark.title-reset type="button" hidden title="Use the place's name as the title" aria-label="Use the place's name as the title" {
-                (cross_icon(13))
-            }
-            @if !has_title { (change_place_button()) }
+        div.place-head {
+            label.visually-hidden for="title" { "Title" }
+            // A textarea, so a long title, or a long name standing in,
+            // wraps rather than scrolling out of sight (CB10). A line
+            // break in it is taken as a space.
+            textarea #title.headline name="title" rows="1" placeholder=(form.place_name)
+                autocomplete="off" aria-describedby=[described(errors, "title")] { (form.title) }
+            (field_error(errors, "title"))
         }
         p.place-line {
-            span.soft { "at" } " "
-            span.place-name-slot hidden[!has_title] {
-                span.inline-field {
-                    input #place_name name="place_name" type="text" value=(form.place_name) required
-                        autocomplete="off" aria-label="Place"
-                        aria-describedby=[described(errors, "place_name")];
-                }
-                span.soft { "," } " "
+            span.place-where hidden[!titled && !has_address] {
+                span.soft { "at" } " "
+                span.place-name-text hidden[!titled] { (form.place_name) }
+                span.place-comma hidden[!titled || !has_address] { ", " }
+                span.place-address-text { (crate::view::display_address(&form.place_address)) }
             }
-            span.inline-field {
-                input #place_address name="place_address" type="text" value=(form.place_address)
-                    placeholder="somewhere" autocomplete="off" aria-label="Address"
-                    aria-describedby=[described(errors, "place_address")];
+            " "
+            // The dash and "somewhere else" never part at a line's end;
+            // the dash goes when there is nothing before it.
+            span.place-change {
+                span.soft.place-dash { "—\u{a0}" }
+                button #change_restaurant.hint-action.change-place type="submit" name="action" value=(Action::ChangePlace.value())
+                    aria-label=(format!("Change restaurant: {}", form.place_name))
+                    aria-describedby=[described(errors, "place_name")] formnovalidate { "somewhere else" }
             }
-            span.soft { "." }
-            @if has_title { (change_place_button()) }
         }
-        @for field in ["title", "place_name", "place_address", "gers_id"] {
+        input type="hidden" name="place_name" value=(form.place_name);
+        input type="hidden" name="place_address" value=(form.place_address);
+        @for field in ["place_name", "place_address", "gers_id"] {
             (field_error(errors, field))
         }
         input type="hidden" name="place_mode" value=(form.place_mode.value());
@@ -170,30 +164,23 @@ fn title_and_place(form: &EditorForm, errors: &FieldErrors, has_title: bool) -> 
     }
 }
 
-/// Back to choosing, as the folded-map mark. Revealed under the pointer
-/// by the stylesheet; a submit, so it works without script.
-fn change_place_button() -> Markup {
-    html! {
-        button.mark.change-place type="submit" name="action" value=(Action::ChangePlace.value())
-            title="Change place" aria-label="Change place" formnovalidate {
-            (map_icon())
-        }
-    }
-}
-
-/// `From a visit on [date].` The date input is the carrier; the island
-/// draws the calendar over it.
+/// `for [a meal] on [date]`, lowercase like the `at` line above it. The
+/// date input is the carrier; the island draws the calendar over it.
 fn date_line(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.date-line {
             p.prose-line {
-                span.soft { "From a visit on" } " "
+                span.soft { "for" } " "
+                (meal_field(form, errors))
+                " " span.soft { "on" } " "
                 span.date-field {
                     input #visited_on name="visited_on" type="date" value=(form.visited_on) required
+                        max=(eaten_at_atproto::lexicon::VisitDate::today().as_string())
                         aria-label="Date of the visit" aria-describedby=[described(errors, "visited_on")];
                 }
-                "."
+                span.soft { "." }
             }
+            (field_error(errors, "meal"))
             (field_error(errors, "visited_on"))
         }
     }
@@ -219,18 +206,30 @@ fn tags_line(form: &EditorForm, errors: &FieldErrors) -> Markup {
     }
 }
 
-/// The write-up, under its kicker. The textarea is the carrier; the
-/// island puts a live markdown editor in its place.
+/// The digest: the text between two faint rules. There is no kicker,
+/// because the whole post is the digest, and no title line, because
+/// the title is the page's headline. The visit's facts (title, place,
+/// meal and date) sit above the first rule.
+/// Markdown is discovered from the prompt, which is written in it. The
+/// textarea is the carrier; the island puts a live markdown editor in
+/// its place.
 fn digest(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         div.digest.field-invalid[errors.get("body").is_some()] {
-            p.kicker #body-label { "Digest" }
-            textarea #body.editor-body name="body" rows="18" required
+            p.visually-hidden #body-label { "Digest" }
+            textarea #body.editor-body name="body" rows="8" required placeholder=(BODY_PROMPT)
                 aria-labelledby="body-label" aria-describedby=[described(errors, "body")] { (form.body) }
             (field_error(errors, "body"))
         }
     }
 }
+
+/// The digest's prompt, in markdown: one emphasised word shows the marks
+/// in the place they are typed. The prompt is italic, so the island sets
+/// the word upright, as emphasis inside italic is set; without script the
+/// textarea shows it as written.
+pub const BODY_PROMPT: &str =
+    "What did you eat? Was it good? Describe it. Use *markdown* if you want.";
 
 /// The teaser (the record's `description`, D19): folded to one line
 /// while the first lines stand in, open once the author writes their
@@ -276,15 +275,18 @@ fn rating_control(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
         fieldset.rating-control.field-invalid[errors.get("rating").is_some()] {
             legend.visually-hidden { "Rating" }
-            input #rating_none.r0 name="rating" type="radio" value="" checked[current.is_empty()];
+            // Each radio is named by its verdict, and they run in the
+            // order they are seen, so the arrow keys go the way the
+            // pluses do; the stylesheet fills the lower steps with :has.
+            input #rating_none.r0 name="rating" type="radio" value="" checked[current.is_empty()] aria-label="No rating";
             label.rating-clear for="rating_none" title="Clear rating" { (cross_icon(10)) }
             span.pluses {
-                @for rating in Rating::ALL.iter().rev() {
+                @for rating in Rating::ALL {
                     @let value = rating.value();
                     @let id = format!("rating_{value}");
                     input id=(id) class=(format!("r{value}")) name="rating" type="radio" value=(value)
-                        checked[current == value.to_string()];
-                    label class=(format!("plus plus-{value}")) for=(id) title=(rating.word()) { "+" }
+                        checked[current == value.to_string()] aria-label=(rating.word());
+                    label class=(format!("plus plus-{value}")) for=(id) title=(rating.word()) aria-hidden="true" { "+" }
                 }
             }
             span.rating-word aria-hidden="true" {
@@ -299,16 +301,22 @@ fn rating_control(form: &EditorForm, errors: &FieldErrors) -> Markup {
 }
 
 /// The meal note: a select the island redraws as a word on a hairline
-/// over a paper menu. Blank reads as "a meal" in stone.
+/// over a paper menu. Blank reads as "food" in stone (Ross, 2026-09-25).
 fn meal_field(form: &EditorForm, errors: &FieldErrors) -> Markup {
     html! {
-        span.note-field.field-invalid[errors.get("meal").is_some()] data-note="meal" data-unset="a meal" {
+        span.note-field.field-invalid[errors.get("meal").is_some()] data-note="meal" data-unset="food" {
             span.select-rule {
                 select #meal name="meal" aria-label="Meal" aria-describedby=[described(errors, "meal")] {
-                    option value="" selected[form.meal == Choice::None] { "a meal" }
-                    @for meal in Meal::ALL {
+                    option value="" selected[form.meal == Choice::None] { "food" }
+                    // Late night is not offered any more (Ken and Ross,
+                    // 2026-09-25); a record that has it still reads.
+                    @for meal in Meal::ALL.iter().filter(|meal| **meal != Meal::LateNight) {
                         option value=(meal.as_str()) selected[form.meal == Choice::Known(*meal)] {
-                            (meal.display_name())
+                            (match meal {
+                                Meal::Snack => "a snack".to_owned(),
+                                Meal::LateNight => "a late-night meal".to_owned(),
+                                _ => meal.display_name().to_lowercase(),
+                            })
                         }
                     }
                     @if let Choice::Foreign(value) = &form.meal {
@@ -316,7 +324,6 @@ fn meal_field(form: &EditorForm, errors: &FieldErrors) -> Markup {
                     }
                 }
             }
-            (field_error(errors, "meal"))
         }
     }
 }
@@ -352,30 +359,32 @@ fn photos(page: &EditorPage<'_>) -> Markup {
     let errors = page.errors;
     html! {
         div.photos-block {
-            p.kicker { "Photos" }
             @if form.photos.is_empty() {
                 @match page.photos_page {
                     Some(path) => {
-                        a.photo-empty href=(path) data-upload=(crate::paths::UPLOAD) {
-                            span.photo-empty-idle { "Nothing to look at yet." }
+                        a.photo-empty href=(path) data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) data-max-photos=(eaten_at_atproto::lexicon::MAX_PHOTOS) {
+                            span.photo-empty-idle { "Add photos" }
                             span.photo-empty-hover aria-hidden="true" { "add a photo" }
                         }
                     }
+                    // No record yet: without script, photos go on the
+                    // photos page once it is published. The island puts
+                    // its own box in this one's place.
                     None => {
-                        span.photo-empty data-upload=(crate::paths::UPLOAD) {
-                            span.photo-empty-idle { "Nothing to look at yet." }
-                            span.photo-empty-hover aria-hidden="true" { "add a photo" }
+                        button.photo-empty type="submit" name="action" value=(Action::PublishPhotos.value())
+                            data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) data-max-photos=(eaten_at_atproto::lexicon::MAX_PHOTOS) {
+                            span.photo-empty-idle { "Publish, then add photos" }
+                            span.photo-empty-hover aria-hidden="true" { "publish, then add photos" }
                         }
                     }
                 }
             } @else {
-                div.photo-tiles data-upload=(crate::paths::UPLOAD) role="list" {
-                    @for (i, photo) in form.photos.iter().enumerate() {
+                div.photo-tiles data-upload=(crate::paths::UPLOAD) data-max-bytes=(crate::img::MAX_PHOTO_UPLOAD_BYTES) data-max-photos=(eaten_at_atproto::lexicon::MAX_PHOTOS) role="list" {
+                    @for photo in &form.photos {
                         figure.photo-tile role="listitem" data-cid=(photo.cid) data-mime=(photo.mime) data-size=(photo.size)
                             data-width=(photo.width) data-height=(photo.height) data-alt=(photo.alt)
                             data-full=(crate::paths::own_photo(&photo.cid, "full")) {
                             img src=(crate::paths::own_photo(&photo.cid, "thumb")) alt=(photo.alt) width="400" height="400" loading="lazy" draggable="false";
-                            @if i == 0 { span.cover-badge { "Cover" } }
                         }
                     }
                     @match page.photos_page {
@@ -414,43 +423,7 @@ fn photo_fields(form: &EditorForm) -> Markup {
     }
 }
 
-/// `Bluesky: see the thread.` once there is a post; before one, the
-/// toggle and the post's text in the same sentence.
-fn bluesky_line(form: &EditorForm, errors: &FieldErrors, state: &CrosspostState) -> Markup {
-    let placeholder = default_post_text(&form.place_name);
-    html! {
-        div.bluesky-line {
-            p.prose-line {
-                span.soft { "Bluesky:" } " "
-                @match state {
-                    CrosspostState::Posted(url) => {
-                        a.quiet-link href=(url) rel="noopener" { "see the thread" }
-                        span.soft { "." }
-                    }
-                    CrosspostState::Ready | CrosspostState::NeedsPermission => {
-                        label.choice.choice-inline for="crosspost" {
-                            input #crosspost name="crosspost" type="checkbox" value="1" checked[form.crosspost];
-                            " post it too"
-                        }
-                        span.soft { ", saying" } " "
-                        span.inline-field {
-                            input #post_text name="post_text" type="text" value=(form.post_text)
-                                placeholder=(placeholder) maxlength=(MAX_POST_GRAPHEMES)
-                                aria-label="Post text" aria-describedby=[described(errors, "post_text")];
-                        }
-                        span.soft { "." }
-                    }
-                }
-            }
-            @if *state == CrosspostState::NeedsPermission {
-                p.hint { "The first time, your account's server will ask you to allow posting." }
-            }
-            (field_error(errors, "post_text"))
-        }
-    }
-}
-
-/// `Elsewhere:` the place's links. Each link is a small paper card of
+/// `Elsewhere:` the place's links as words, then "add a link". Each link is a small paper card of
 /// two prose rows; without script every card is open, with it the row
 /// reads the labels and opens one card at a time. Blank rows are
 /// skipped by the server, so a card left empty costs nothing.
@@ -461,10 +434,7 @@ fn elsewhere(form: &EditorForm, errors: &FieldErrors) -> Markup {
             p.prose-line.elsewhere-line {
                 span.soft { "Elsewhere:" } " "
                 span.link-words { }
-                span.nowhere hidden { "nowhere yet" }
-                " "
                 span.add-link-slot {
-                    span.soft-stone { "— " }
                     @if rows < RowKind::Link.cap() {
                         button.hint-action.add-link type="submit" name="action" value=(Action::AddRow(RowKind::Link).value()) formnovalidate { "add a link" }
                     }
@@ -506,9 +476,10 @@ fn elsewhere(form: &EditorForm, errors: &FieldErrors) -> Markup {
                                 " · "
                                 button.hint-action type="button" data-link-cancel { "never mind" }
                             }
-                            @if rows > 1 {
-                                button.hint-action.danger type="submit" name="action" value=(Action::RemoveRow(RowKind::Link, i).value()) formnovalidate { "remove it" }
-                            }
+                            // One link can go too (the last row stays,
+                            // cleared); a blank one has nothing to remove.
+                            button.hint-action.danger type="submit" name="action" value=(Action::RemoveRow(RowKind::Link, i).value()) formnovalidate
+                                hidden[rows == 1 && link.url.trim().is_empty()] { "remove it" }
                         }
                     }
                 }
@@ -553,11 +524,12 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                 p.form-error role="alert" { (message) }
             }
             (carried(form))
+            @if form.changing_place { input type="hidden" name="changing_place" value="1"; }
             input type="hidden" name="place_mode" value=(PlaceMode::Choosing.value());
             input type="hidden" name="place_query" value=(form.place_query);
             div.place-head {
                 input #place_name.headline name="place_name" type="text" value=(form.place_name)
-                    placeholder="St. John" autocomplete="off" autofocus
+                    placeholder="St. John Bread and Wine" autocomplete="off" autofocus
                     aria-label="Name of the place"
                     data-suggest=[page.suggesting.then_some("/write/suggest")]
                     aria-describedby=[described(errors, "place_name")];
@@ -566,7 +538,7 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                 span.soft { "at" } " "
                 span.inline-field {
                     input #place_address name="place_address" type="text" value=(form.place_address)
-                        placeholder="26 St John Street, London" autocomplete="off"
+                        placeholder="94–96 Commercial Street" autocomplete="off"
                         aria-label="Address" aria-describedby=[described(errors, "place_address")];
                 }
                 span.soft { "." }
@@ -574,7 +546,9 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
             (field_error(errors, "place_name"))
             (field_error(errors, "place_address"))
             div.actions.start-writing {
-                button #start-writing type="submit" name="action" value=(Action::Manual.value()) { "Start writing" }
+                button #start-writing type="submit" name="action" value=(Action::Manual.value()) {
+                    @if form.changing_place { "Keep writing" } @else { "Start writing" }
+                }
             }
         }
     }
@@ -600,8 +574,6 @@ fn carried(form: &EditorForm) -> Markup {
         }
         (hidden("tags", &form.tags))
         (photo_fields(form))
-        @if form.crosspost { (hidden("crosspost", "1")) }
-        (hidden("post_text", &form.post_text))
     }
 }
 
@@ -616,7 +588,12 @@ fn alerts(page: &EditorPage<'_>) -> Markup {
             }
         }
         @if let Some(message) = page.publish_error {
-            p.form-error role="alert" { (message) }
+            p.form-error role="alert" {
+                (message)
+                @if page.reauthenticate {
+                    " " a href="/login?reauth=true&return_to=%2Flogin%2Freconnected" target="_blank" rel="noopener" { "Sign in again ↗" }
+                }
+            }
         }
     }
 }
@@ -639,17 +616,6 @@ fn cross_icon(size: u8) -> Markup {
     html! {
         svg width=(size) height=(size) viewBox="0 0 10 10" aria-hidden="true" focusable="false" {
             path d="M 1 1 L 9 9 M 9 1 L 1 9" stroke="currentColor" stroke-width="1.4" fill="none" {}
-        }
-    }
-}
-
-/// A folded map: change place.
-fn map_icon() -> Markup {
-    html! {
-        svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" focusable="false" {
-            path d="M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" {}
-            path d="M9 4 L9 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" {}
-            path d="M15 6 L15 20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" {}
         }
     }
 }
@@ -691,11 +657,11 @@ pub fn crosspost_page(page: &CrosspostPage<'_>) -> Markup {
                 CrosspostState::Posted(_) => { h1 { "“" (page.title) "” is on Bluesky" } }
                 CrosspostState::Ready => {
                     h1 { "Post “" (page.title) "” to Bluesky" }
-                    p.lede { "The write-up is published. A post with a link card to it goes to your Bluesky account, and replies to it show under the write-up." }
+                    p.lede { "The digest is published. A post with a link card to it goes to your Bluesky account, and replies to it show under the digest." }
                 }
                 CrosspostState::NeedsPermission => {
                     h1 { "Post “" (page.title) "” to Bluesky" }
-                    p.lede { "The write-up is published. To post it to Bluesky, eaten.at needs your account's permission to create posts; your server asks once." }
+                    p.lede { "The digest is published. To post it to Bluesky, eaten.at needs your account's permission to create posts; your server asks once." }
                 }
             }
             @if let Some(error) = page.error {
@@ -705,7 +671,7 @@ pub fn crosspost_page(page: &CrosspostPage<'_>) -> Markup {
         @match &page.state {
             CrosspostState::Posted(url) => {
                 p.meta { a href=(url) rel="noopener" { "See the thread on Bluesky →" } }
-                p.actions { a.button-link href=(page.document_path) { "← Back to the write-up" } }
+                p.actions { a.button-link href=(page.document_path) { "← Back to the digest" } }
             }
             CrosspostState::Ready => {
                 form.crosspost-form method="post" action=(action) {
@@ -758,7 +724,7 @@ pub fn delete_page(page: &DeletePage<'_>) -> Markup {
         div.page-head {
             p.kicker { "Delete" }
             h1 { "Delete “" (page.title) "”?" }
-            p.lede { "The write-up is removed from your repository. Links to it stop working. There is no undo." }
+            p.lede { "The digest is removed from your repository. Links to it stop working. There is no undo." }
         }
         form.actions.delete-form method="post" action=(format!("/write/{}/delete", page.rkey)) {
             @match &page.post {
@@ -795,8 +761,8 @@ mod tests {
             action_path: "/write/d1",
             editing: true,
             publish_error: None,
+            reauthenticate: false,
             pick_error: None,
-            crosspost: CrosspostState::Ready,
             suggesting: true,
             photos_page,
         })
@@ -804,41 +770,117 @@ mod tests {
     }
 
     #[test]
-    fn the_place_line_follows_the_title() {
+    fn the_meal_line_heads_the_digest_and_the_prompt_is_in_markdown() {
         let mut form = EditorForm::blank();
         form.place_mode = PlaceMode::Manual;
         form.place_name = "Noodle House".into();
-        form.place_address = "12 Example Lane".into();
-        // The place's name stands in as the title: the line under it is
-        // the address alone, and the change-place mark sits by the title.
         let out = page_for(&form, None);
-        assert!(out.contains("placeholder=\"Noodle House\""), "{out}");
+        let digest = out.find("class=\"digest").unwrap();
+        let visit = out.find("class=\"visit-row\"").unwrap();
+        let body = out.find("id=\"body\"").unwrap();
         assert!(
-            out.contains("<span class=\"place-name-slot\" hidden>"),
-            "{out}"
+            visit < digest && digest < body,
+            "the meal line is above the digest, not its head: {out}"
         );
-        let title_row = out.split("<p class=\"place-line\">").next().unwrap();
-        assert!(title_row.contains("value=\"change_place\""), "{title_row}");
-        // A title of the author's own brings the name onto the line.
-        form.title = "Late at the Noodle House".into();
-        let out = page_for(&form, None);
-        assert!(out.contains("<span class=\"place-name-slot\">"), "{out}");
-        let place_line = out.split("<p class=\"place-line\">").nth(1).unwrap();
         assert!(
-            place_line.contains("value=\"change_place\""),
-            "{place_line}"
+            !out.contains("digest-title"),
+            "no title line in the digest: {out}"
         );
-        // A title that only repeats the name is not one (D29).
-        form.title = "Noodle House ".into();
-        let out = page_for(&form, None);
         assert!(
-            out.contains("<span class=\"place-name-slot\" hidden>"),
+            !out.contains("class=\"kicker\" id=\"body-label\""),
+            "no DIGEST kicker: {out}"
+        );
+        assert!(
+            out.contains("<p class=\"visually-hidden\" id=\"body-label\">Digest</p>"),
+            "the label stays for assistive technology: {out}"
+        );
+        assert!(!out.contains("formatting-help"), "no disclosure: {out}");
+        assert!(
+            out.contains(
+                "placeholder=\"What did you eat? Was it good? Describe it. Use *markdown* if you want.\""
+            ),
             "{out}"
         );
     }
 
     #[test]
-    fn the_rating_is_set_in_reverse_so_the_stylesheet_can_fill_it() {
+    fn the_headline_is_the_title_and_the_place_line_changes_the_restaurant() {
+        let mut form = EditorForm::blank();
+        form.place_mode = PlaceMode::Manual;
+        form.place_name = "Noodle House".into();
+        form.place_address = "12 Example Lane, Brooklyn, NY 11201".into();
+        let out = page_for(&form, None);
+        assert!(!out.contains("<h1>"), "{out}");
+        // The name stands in as the title; the line under it is the address
+        // and the shrug that changes the restaurant.
+        assert!(
+            out.contains("<textarea class=\"headline\" id=\"title\" name=\"title\" rows=\"1\" placeholder=\"Noodle House\" autocomplete=\"off\"></textarea>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("<span class=\"place-name-text\" hidden>Noodle House</span>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("name=\"place_address\" value=\"12 Example Lane, Brooklyn, NY 11201\""),
+            "the code stays on the record: {out}"
+        );
+        assert!(
+            out.contains("<span class=\"place-address-text\">12 Example Lane, Brooklyn, NY</span>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("<button class=\"hint-action change-place\" id=\"change_restaurant\" type=\"submit\" name=\"action\" value=\"change_place\" aria-label=\"Change restaurant: Noodle House\" formnovalidate>somewhere else</button>"),
+            "{out}"
+        );
+        assert!(out.find("id=\"title\"").unwrap() < out.find("id=\"change_restaurant\"").unwrap());
+        assert!(out.find("id=\"change_restaurant\"").unwrap() < out.find("id=\"body\"").unwrap());
+        // With a title of its own, the place line names the restaurant.
+        form.title = "Late at the Noodle House".into();
+        let out = page_for(&form, None);
+        assert!(
+            out.contains("placeholder=\"Noodle House\" autocomplete=\"off\">Late at the Noodle House</textarea>"),
+            "{out}"
+        );
+        assert!(out.contains("<span class=\"place-name-text\">Noodle House</span><span class=\"place-comma\">, </span>"), "{out}");
+        // No address and no title: only the shrug.
+        form.title.clear();
+        form.place_address.clear();
+        let out = page_for(&form, None);
+        assert!(out.contains("<span class=\"place-where\" hidden>"), "{out}");
+    }
+
+    #[test]
+    fn a_single_link_can_be_removed() {
+        let mut form = EditorForm::blank();
+        form.place_mode = PlaceMode::Manual;
+        form.place_name = "Noodle House".into();
+        let remove = "value=\"remove_link:0\" formnovalidate";
+        // A blank row alone has nothing to remove; the button waits,
+        // hidden, for the island to fill the row.
+        let out = page_for(&form, None);
+        assert!(out.contains(&format!("{remove} hidden>remove it")), "{out}");
+        form.links[0].url = "https://example.com/menu".into();
+        let out = page_for(&form, None);
+        assert!(out.contains(&format!("{remove}>remove it")), "{out}");
+    }
+
+    #[test]
+    fn a_page_back_from_the_chooser_says_so_for_the_draft() {
+        let mut form = EditorForm::blank();
+        form.place_mode = PlaceMode::Manual;
+        form.place_name = "Noodle House".into();
+        assert!(!page_for(&form, None).contains("data-back"));
+        form.changing_place = true;
+        let out = page_for(&form, None);
+        assert!(
+            out.contains("<form class=\"editor editor-write\" method=\"post\" action=\"/write/d1\" data-back=\"1\" novalidate>"),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn the_rating_runs_as_it_is_seen_and_each_step_is_named() {
         let mut form = EditorForm::blank();
         form.place_mode = PlaceMode::Manual;
         form.place_name = "Cart".into();
@@ -855,8 +897,12 @@ mod tests {
             .match_indices("id=\"rating_")
             .map(|(i, _)| &pluses[i + 11..i + 12])
             .collect();
-        assert_eq!(order, ["4", "3", "2", "1"]);
-        assert!(pluses.contains("value=\"3\" checked"), "{pluses}");
+        assert_eq!(order, ["1", "2", "3", "4"]);
+        assert!(
+            pluses.contains("value=\"3\" checked aria-label=\"Strongly Recommended\""),
+            "{pluses}"
+        );
+        assert!(out.contains("value=\"\" aria-label=\"No rating\""), "{out}");
         assert!(
             out.contains("<span class=\"word word-3\">Strongly Recommended</span>"),
             "{out}"
@@ -888,7 +934,7 @@ mod tests {
         // A new write-up: the same tiles, with nowhere else to go.
         let out = page_for(&form, None);
         assert_eq!(out.matches("class=\"photo-tile\"").count(), 2, "{out}");
-        assert_eq!(out.matches("class=\"cover-badge\"").count(), 1, "{out}");
+        assert!(!out.contains("cover-badge"), "{out}");
         assert!(out.contains("data-upload=\"/write/upload\""), "{out}");
         assert!(
             out.contains("src=\"/write/photo/bafya?size=thumb\""),
@@ -913,14 +959,20 @@ mod tests {
         );
         form.photos.clear();
         let out = page_for(&form, Some("/write/d1/photos"));
-        assert!(out.contains("Nothing to look at yet."), "{out}");
+        assert!(out.contains("Add photos"), "{out}");
         assert!(
             out.contains("<a class=\"photo-empty\" href=\"/write/d1/photos\""),
             "{out}"
         );
+        // A new digest: without script, publishing is the way to the
+        // photos page (PH20).
         let out = page_for(&form, None);
         assert!(
-            out.contains("<span class=\"photo-empty\" data-upload=\"/write/upload\">"),
+            out.contains(
+                "<button class=\"photo-empty\" type=\"submit\" name=\"action\" value=\"publish_photos\" \
+                 data-upload=\"/write/upload\" data-max-bytes=\"20971520\" data-max-photos=\"24\">\
+                 <span class=\"photo-empty-idle\">Publish, then add photos</span>"
+            ),
             "{out}"
         );
     }

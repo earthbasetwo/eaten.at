@@ -14,7 +14,6 @@ use axum::response::{IntoResponse, Json, Redirect, Response};
 use axum::Form;
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
-use eaten_at_atproto::lexicon::at_eaten::Preferences;
 use eaten_at_web::assets::{
     CHOOSE_PLACE_SCRIPT, COMBOBOX_SCRIPT, DIGEST_SCRIPT, EDITOR_SCRIPT, PHOTOS_SCRIPT, TAGS_SCRIPT,
     WRITE_SCRIPT,
@@ -47,14 +46,12 @@ const SUGGEST_LIMIT: usize = 6;
 /// need be (plan 08).
 struct Author {
     identity: Identity,
-    preferences: Preferences,
     /// What the sign-in may do with Bluesky posts.
     posting: PostPermission,
 }
 
 async fn author(state: &AppState, did: &Did) -> Result<Author, AppError> {
     let identity = state.require_identity(did).await?;
-    let preferences = state.preferences(&identity).await?;
     // A session whose grant cannot be read is treated as one that may
     // not post; the worst case is being asked to allow it again.
     let posting = match state.oauth().granted_scopes(did).await {
@@ -64,11 +61,7 @@ async fn author(state: &AppState, did: &Did) -> Result<Author, AppError> {
             PostPermission::default()
         }
     };
-    Ok(Author {
-        identity,
-        preferences,
-        posting,
-    })
+    Ok(Author { identity, posting })
 }
 
 /// The document being edited, when there is one.
@@ -107,7 +100,7 @@ async fn editing(state: &AppState, author: &Author, rkey: &str) -> Result<Editin
         .await?
         .ok_or_else(|| AppError::NotFound(format!("document {rkey} not found")))?;
     let visit_doc = VisitDocument::from_record(record)
-        .ok_or_else(|| AppError::BadRequest("that document is not a visit".to_owned()))?;
+        .ok_or_else(|| AppError::BadRequest("that document is not a digest".to_owned()))?;
     Ok(Editing {
         rkey: rkey.to_owned(),
         visit_doc,
@@ -119,6 +112,7 @@ async fn editing(state: &AppState, author: &Author, rkey: &str) -> Result<Editin
 struct Outcome<'a> {
     errors: FieldErrors,
     publish_error: Option<&'a str>,
+    reauthenticate: bool,
     /// Why a picked suggestion could not be taken.
     pick_error: Option<&'a str>,
     /// Where the choosing screen's suggestions would look; unknown
@@ -130,25 +124,18 @@ fn render(
     state: &AppState,
     nonce: &str,
     status: StatusCode,
-    author: &Author,
     editing: Option<&Editing>,
     form: &EditorForm,
     outcome: &Outcome<'_>,
 ) -> Response {
     let action_path = editing.map_or_else(|| "/write".to_owned(), |e| format!("/write/{}", e.rkey));
-    let crosspost =
-        match editing.and_then(|e| crate::view::bluesky_post_url(e.visit_doc.document())) {
-            Some(url) => CrosspostState::Posted(url),
-            None if author.posting.create => CrosspostState::Ready,
-            None => CrosspostState::NeedsPermission,
-        };
     let photos_page = editing.map(|e| format!("/write/{}/photos", e.rkey));
-    // The choosing screen suggests places; the editing screen keeps a
-    // draft, dresses its controls, edits the markdown live, files tags
-    // as chips, and manages photos in place. Each ships only its own
-    // islands.
+    // The choosing screen suggests places and offers a kept draft; the
+    // editing screen keeps a draft, dresses its controls, edits the
+    // markdown live, files tags as chips, and manages photos in place.
+    // Each ships only its own islands.
     let scripts = if form.place_mode == PlaceMode::Choosing {
-        vec![COMBOBOX_SCRIPT, CHOOSE_PLACE_SCRIPT]
+        vec![COMBOBOX_SCRIPT, CHOOSE_PLACE_SCRIPT, EDITOR_SCRIPT]
     } else {
         vec![
             EDITOR_SCRIPT,
@@ -168,8 +155,8 @@ fn render(
             action_path: &action_path,
             editing: editing.is_some(),
             publish_error: outcome.publish_error,
+            reauthenticate: outcome.reauthenticate,
             pick_error: outcome.pick_error,
-            crosspost,
             suggesting: state.places_enabled() && outcome.located != Located::Unknown,
             photos_page: photos_page.as_deref(),
         }),
@@ -187,21 +174,12 @@ pub async fn new_form(
 ) -> Result<Response, AppError> {
     let nonce = nonce.0.as_str();
     let author = author(&state, &did).await?;
-    let mut form = EditorForm::blank();
-    form.crosspost = author.preferences.crosspost_default();
+    let form = EditorForm::blank();
     let outcome = Outcome {
         located: locate(&state, &author.identity, ip).await.1,
         ..Outcome::default()
     };
-    Ok(render(
-        &state,
-        nonce,
-        StatusCode::OK,
-        &author,
-        None,
-        &form,
-        &outcome,
-    ))
+    Ok(render(&state, nonce, StatusCode::OK, None, &form, &outcome))
 }
 
 /// `GET /write/{rkey}` — the editor prefilled from the author's document.
@@ -220,7 +198,6 @@ pub async fn edit_form(
         &state,
         nonce,
         StatusCode::OK,
-        &author,
         Some(&editing),
         &form,
         &outcome,
@@ -271,7 +248,7 @@ async fn submit(
         Action::Pick(index) => {
             return Ok(pick(state, nonce, author, editing, ip, form, index).await)
         }
-        Action::Publish => {}
+        Action::Publish | Action::PublishPhotos => {}
         Action::Manual if form.place_name.trim().is_empty() => {
             // The one error the choosing page can show: a place by hand
             // needs a name.
@@ -282,7 +259,6 @@ async fn submit(
                 state,
                 nonce,
                 StatusCode::UNPROCESSABLE_ENTITY,
-                author,
                 editing,
                 &form,
                 &Outcome {
@@ -304,7 +280,6 @@ async fn submit(
                 state,
                 nonce,
                 StatusCode::OK,
-                author,
                 editing,
                 &form,
                 &Outcome {
@@ -324,7 +299,6 @@ async fn submit(
                 state,
                 nonce,
                 StatusCode::UNPROCESSABLE_ENTITY,
-                author,
                 editing,
                 &form,
                 &Outcome {
@@ -334,7 +308,8 @@ async fn submit(
             ))
         }
     };
-    publish_and_continue(state, nonce, author, editing, &form, &draft).await
+    let then_photos = action == Action::PublishPhotos;
+    publish_and_continue(state, nonce, author, editing, &form, &draft, then_photos).await
 }
 
 /// Write the draft and move on, or come back to the form saying why not.
@@ -345,6 +320,7 @@ async fn publish_and_continue(
     editing: Option<&Editing>,
     form: &EditorForm,
     draft: &editor::DocumentDraft,
+    then_photos: bool,
 ) -> Result<Response, AppError> {
     match publish::publish(
         state,
@@ -355,12 +331,31 @@ async fn publish_and_continue(
     .await
     {
         Ok(published) => {
-            let document_path = published.document_path();
+            let outcome = if editing.is_some() {
+                "saved"
+            } else {
+                "published"
+            };
+            let draft_id = form.draft_id.map_or_else(String::new, |id| format!("&draft={id}"));
+            let mut document_path =
+                format!("{}?after={outcome}{draft_id}", published.document_path());
+            if then_photos {
+                document_path = format!(
+                    "/write/{}/photos?new=1&then={}",
+                    published.doc_rkey,
+                    urlencoding(&document_path)
+                );
+            }
             Ok(after_publish(state, author, &published.doc_rkey, &document_path, draft).await)
         }
-        Err(PublishError::SessionExpired) => {
-            Ok(Redirect::to("/login?return_to=/write").into_response())
-        }
+        Err(PublishError::SessionExpired) => Ok(render(
+            state, nonce, StatusCode::UNAUTHORIZED, editing, form,
+            &Outcome {
+                publish_error: Some("Your publishing connection has expired. Your writing is still here. Sign in again, then retry publishing."),
+                reauthenticate: true,
+                ..Outcome::default()
+            },
+        )),
         Err(PublishError::App(err)) => Err(err),
         Err(PublishError::Home(message)) => {
             // The default subdomain could not be claimed; settings is
@@ -370,12 +365,11 @@ async fn publish_and_continue(
                 state,
                 nonce,
                 StatusCode::UNPROCESSABLE_ENTITY,
-                author,
                 editing,
                 form,
                 &Outcome {
                     publish_error: Some(
-                        "Your publication's address could not be set up. Choose one in settings, then publish again.",
+                        "Your feed's address could not be set up. Choose one in settings, then publish again.",
                     ),
                     ..Outcome::default()
                 },
@@ -387,7 +381,6 @@ async fn publish_and_continue(
                 state,
                 nonce,
                 StatusCode::BAD_GATEWAY,
-                author,
                 editing,
                 form,
                 &Outcome {
@@ -455,15 +448,7 @@ async fn pick(
             ..Outcome::default()
         },
     };
-    render(
-        state,
-        nonce,
-        StatusCode::OK,
-        author,
-        editing,
-        &form,
-        &outcome,
-    )
+    render(state, nonce, StatusCode::OK, editing, &form, &outcome)
 }
 
 #[derive(Debug, Deserialize)]
@@ -600,7 +585,7 @@ pub struct CrosspostQuery {
 }
 
 const CROSSPOST_FAILED: &str =
-    "Bluesky didn't accept the post. The write-up is published; try again or skip.";
+    "Bluesky didn't accept the post. The digest is published; try again or skip.";
 
 fn crosspost_response(
     status: StatusCode,
@@ -682,7 +667,7 @@ pub async fn crosspost_submit(
             &author,
             &editing,
             text,
-            Some("Keep the post under 300 characters."),
+            Some("Keep the post to 300 characters or fewer."),
         ));
     }
     if !author.posting.create {

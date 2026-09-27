@@ -269,6 +269,7 @@ And a second paragraph that the excerpt never reaches.`,
     tags: ['long read'],
     place: { name: 'The Old Mill', address: '1 Mill Road' },
     visitedOn: '2026-07-27',
+    meal: 'snack',
     markdown: `The oldest of the three, unrated and with no links out at all: the footer
 shows only the tags, the feed, and the author.
 

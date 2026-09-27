@@ -30,7 +30,7 @@ pub fn card_for(visit: &Visit) -> VisitCard {
             .as_deref()
             .map(str::trim)
             .filter(|a| !a.is_empty())
-            .map(str::to_owned),
+            .map(display_address),
         price: place.price.map(PriceBand::signs),
         visited_on: visit.visited_on.as_string(),
         meal: visit.meal.as_deref().map(meal_label),
@@ -188,6 +188,92 @@ pub fn author_label(identity: &Identity) -> String {
 /// A publication's site as it is printed in chrome: the host and path
 /// without the scheme or a trailing slash, so `https://alice.eaten.test/`
 /// reads as `alice.eaten.test`.
+/// An address as the page shows it: the postcode stays on the record,
+/// where it is useful, and leaves the line, where it is not (Ken,
+/// 2026-09-25). Only what is clearly a code goes, from the last part:
+/// a region and its code ("NY 11201" keeps "NY"), a code alone
+/// ("1432", "E1 6LZ"), or a code before or after the town ("1432
+/// København K", "London E1 6LZ", "Berlin 10115"). A last part that
+/// names a unit ("Unit 4", "Shop 5", "Suite 200") is kept whole.
+pub fn display_address(address: &str) -> String {
+    let mut parts: Vec<String> = address.split(", ").map(|p| p.trim().to_owned()).collect();
+    let n = parts.len() - 1;
+    let last = parts[n].clone();
+    let is_code = |s: &str| {
+        !s.is_empty()
+            && s.chars().any(|c| c.is_ascii_digit())
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ' ')
+            && s.chars().filter(char::is_ascii_alphabetic).count() <= 4
+    };
+    // A run of digits, three to six, and for the last word a ZIP+4.
+    let digits = |s: &str, plus4: bool| {
+        let (main, rest) = match s.split_once('-') {
+            Some((main, rest)) if plus4 => (main, rest),
+            _ => (s, ""),
+        };
+        (3..=6).contains(&main.len())
+            && main.chars().all(|c| c.is_ascii_digit())
+            && (rest.is_empty() || rest.len() == 4 && rest.chars().all(|c| c.is_ascii_digit()))
+    };
+    let first_word = last.split(' ').next().unwrap_or("").trim_end_matches('.');
+    let unit = last.starts_with('#')
+        || [
+            "unit", "shop", "suite", "ste", "apt", "floor", "fl", "level", "room", "building",
+            "bldg",
+        ]
+        .contains(&first_word.to_ascii_lowercase().as_str());
+    if unit {
+        return parts.join(", ");
+    }
+    let words: Vec<&str> = last.split(' ').collect();
+    if words.len() == 2
+        && words[0].len() == 2
+        && words[0].chars().all(|c| c.is_ascii_uppercase())
+        && is_code(words[1])
+    {
+        words[0].clone_into(&mut parts[n]);
+    } else if n > 0 && is_code(&last) {
+        parts.pop();
+    } else if n > 0 {
+        let mut kept: &[&str] = &words;
+        // A code before the town: "1432 København K".
+        if kept.len() > 1
+            && digits(kept[0], false)
+            && kept[1].chars().next().is_some_and(|c| !c.is_ascii_digit())
+        {
+            kept = &kept[1..];
+        }
+        // A code after it: "London E1 6LZ", "Berlin 10115".
+        let k = kept.len();
+        if k > 2 && uk_outward(kept[k - 2]) && uk_inward(kept[k - 1]) {
+            kept = &kept[..k - 2];
+        } else if k > 1 && digits(kept[k - 1], true) {
+            kept = &kept[..k - 1];
+        }
+        parts[n] = kept.join(" ");
+    }
+    parts.join(", ")
+}
+
+/// The first half of a UK postcode: one or two letters, a digit, and
+/// perhaps a letter or digit ("E1", "SW1A", "M60").
+fn uk_outward(s: &str) -> bool {
+    let b = s.as_bytes();
+    let letters = b.iter().take_while(|c| c.is_ascii_uppercase()).count();
+    (1..=2).contains(&letters)
+        && b.get(letters).is_some_and(u8::is_ascii_digit)
+        && (b.len() == letters + 1
+            || b.len() == letters + 2
+                && (b[letters + 1].is_ascii_digit() || b[letters + 1].is_ascii_uppercase()))
+}
+
+/// The second half of a UK postcode: a digit and two letters ("6LZ").
+fn uk_inward(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 3 && b[0].is_ascii_digit() && b[1].is_ascii_uppercase() && b[2].is_ascii_uppercase()
+}
+
 pub fn display_url(url: &str) -> String {
     url.trim_start_matches("https://")
         .trim_start_matches("http://")
@@ -282,7 +368,7 @@ pub fn document_meta(
         canonical: canonical_url(state, did, pub_rkey, doc, publication),
         kind: Kind::Article,
         site_name: publication.name.clone(),
-        image: state.absolute(&paths::cover_og(did, doc.rkey())),
+        image: state.absolute(&paths::cover_og(did, doc.rkey(), &doc.cid)),
         published: Some(doc.value.published_at.as_str().to_owned()),
         modified: doc.value.updated_at.as_ref().map(|d| d.as_str().to_owned()),
         feed: Some(state.absolute(&paths::feed(did, pub_rkey))),
@@ -295,6 +381,7 @@ pub fn publication_meta(
     did: &Did,
     pub_rkey: &str,
     publication: &Publication,
+    version: &str,
 ) -> PageMeta {
     PageMeta {
         title: publication.name.clone(),
@@ -302,7 +389,7 @@ pub fn publication_meta(
         canonical: publication.base_url().to_owned(),
         kind: Kind::Website,
         site_name: publication.name.clone(),
-        image: state.absolute(&paths::icon(did, pub_rkey)),
+        image: state.absolute(&paths::icon(did, pub_rkey, version)),
         published: None,
         modified: None,
         feed: Some(state.absolute(&paths::feed(did, pub_rkey))),
@@ -311,7 +398,60 @@ pub fn publication_meta(
 
 #[cfg(test)]
 mod tests {
-    use super::{bluesky_post_url, card_for, place_links};
+    use super::{bluesky_post_url, card_for, display_address, place_links};
+
+    #[test]
+    fn an_address_is_shown_without_its_postcode() {
+        assert_eq!(
+            display_address("105 York St, Brooklyn, NY 11201-2597"),
+            "105 York St, Brooklyn, NY"
+        );
+        assert_eq!(
+            display_address("Refshalevej 96, København, 1432"),
+            "Refshalevej 96, København"
+        );
+        assert_eq!(
+            display_address("94–96 Commercial Street, London, E1 6LZ"),
+            "94–96 Commercial Street, London"
+        );
+        assert_eq!(display_address("12 Example Lane"), "12 Example Lane");
+        assert_eq!(
+            display_address("1 Main St, Springfield, IL"),
+            "1 Main St, Springfield, IL"
+        );
+        assert_eq!(
+            display_address("Pier 39, San Francisco"),
+            "Pier 39, San Francisco"
+        );
+        // A unit is not a code (CB13).
+        for kept in [
+            "12 Main Street, Unit 4",
+            "3 High St, Shop 5",
+            "1 Market St, Suite 200",
+            "9 Pine Rd, #12",
+        ] {
+            assert_eq!(display_address(kept), kept);
+        }
+        // A code inside the last part, before or after the town.
+        assert_eq!(
+            display_address("Refshalevej 96, 1432 København K"),
+            "Refshalevej 96, København K"
+        );
+        assert_eq!(
+            display_address("94–96 Commercial Street, London E1 6LZ"),
+            "94–96 Commercial Street, London"
+        );
+        assert_eq!(
+            display_address("Torstraße 1, Berlin 10115"),
+            "Torstraße 1, Berlin"
+        );
+        assert_eq!(
+            display_address("1 Main St, Springfield IL 62701-1234"),
+            "1 Main St, Springfield IL"
+        );
+        // One part alone keeps its numbers: it is the street.
+        assert_eq!(display_address("96 Refshalevej"), "96 Refshalevej");
+    }
     use eaten_at_atproto::lexicon::{Document, Place, StrongRef, Visit};
 
     fn doc(uri: Option<&str>) -> Document {
