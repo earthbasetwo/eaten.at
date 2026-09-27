@@ -163,9 +163,10 @@ fn place_heading(form: &EditorForm, errors: &FieldErrors, near: &Near) -> Markup
                 span.place-comma hidden[!titled || !has_address] { ", " }
                 span.place-address-text { (crate::view::display_address(&form.place_address)) }
             }
+            // The leading space parts it from "at [name]" when a title
+            // is typed; at a line's start it collapses.
             span.place-near hidden[has_address || town.is_none()] {
-                @if titled { " " }
-                span.soft { "near" } " " (town.unwrap_or_default())
+                " " span.soft { "near" } " " (town.unwrap_or_default())
             }
             " "
             // The dash and "somewhere else" never part at a line's end;
