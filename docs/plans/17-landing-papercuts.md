@@ -105,3 +105,10 @@ sheet F: the list as compact rows with the excerpt kept.
   masthead as the front page's chips do, and stays through a find; the
   listing has no rule of its own on the home, the first row starting
   at the block's step under the field.
+- **S21, the foot stuck, the handle in it.** Ken: the handle at the
+  top of the page belongs in the foot, and the foot should stay at the
+  window's bottom as the page scrolls, not only rest there. The foot
+  is `position: sticky` at the block end, painting the paper, with a
+  smaller bottom padding; the handle sits at its far end in the stone
+  voice. The page head is the h1 alone now. How the head and the
+  action should sit above the preview is an open question.

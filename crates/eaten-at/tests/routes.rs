@@ -407,8 +407,10 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
         "{body}"
     );
     assert!(body.contains("<h1>Where did you eat?</h1>"), "{body}");
+    // The handle is in the closing line, not the head (S21).
+    assert!(!body.contains("class=\"meta handle\""), "{body}");
     assert!(
-        body.contains("<p class=\"meta handle\">@alice.test</p>"),
+        body.contains("</form><span class=\"handle\">@alice.test</span></div></div></footer>"),
         "{body}"
     );
     // The publication: nameplate, find, tags, the newest eight, the rest
