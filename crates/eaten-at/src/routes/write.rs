@@ -31,7 +31,7 @@ use crate::error::AppError;
 use crate::geoip::ClientIp;
 use crate::model::VisitDocument;
 use crate::paths;
-use crate::places::{Point, SearchError};
+use crate::places::{self, Point, SearchError};
 use crate::publish::{self, PublishError, MAX_POST_GRAPHEMES};
 use crate::security::Nonce;
 use crate::state::AppState;
@@ -523,20 +523,23 @@ pub async fn suggest(
             Suggestions {
                 q: q.clone(),
                 near,
-                hits: hits
-                    .iter()
-                    .take(SUGGEST_LIMIT)
-                    .enumerate()
-                    .map(|(i, hit)| Suggestion {
-                        i,
-                        name: hit.name.clone(),
-                        detail: match &hit.address {
-                            Some(address) => format!("{address} · {:.1} mi", hit.distance_mi),
-                            None => format!("{:.1} mi", hit.distance_mi),
-                        },
-                        address: hit.address.clone(),
-                    })
-                    .collect(),
+                hits: {
+                    let shown = &hits[..hits.len().min(SUGGEST_LIMIT)];
+                    shown
+                        .iter()
+                        .zip(places::short_addresses(shown))
+                        .enumerate()
+                        .map(|(i, (hit, short))| Suggestion {
+                            i,
+                            name: hit.name.clone(),
+                            detail: match short {
+                                Some(short) => format!("{short} · {:.1} mi", hit.distance_mi),
+                                None => format!("{:.1} mi", hit.distance_mi),
+                            },
+                            address: hit.address.clone(),
+                        })
+                        .collect()
+                },
                 error: None,
             },
         ),

@@ -110,6 +110,14 @@ pub struct Hit {
     pub name: String,
     /// One line, assembled from the API's address parts.
     pub address: Option<String>,
+    /// The parts a short address is made of (PL25): the street line, the
+    /// locality, and the region as a two-letter code.
+    #[serde(default)]
+    pub street: Option<String>,
+    #[serde(default)]
+    pub locality: Option<String>,
+    #[serde(default)]
+    pub region: Option<String>,
     pub lat_e6: i32,
     pub lon_e6: i32,
     pub distance_mi: f64,
@@ -174,8 +182,8 @@ impl AppState {
                 "That's too long for a search.".to_owned(),
             ));
         }
-        // The version keeps a list from before the ladder out of a pick.
-        let cache_key = format!("2|{q}|{}", near.cache_key());
+        // The version keeps a list from an older shape out of a pick.
+        let cache_key = format!("3|{q}|{}", near.cache_key());
         let hits = self
             .cache()
             .get_or_fetch(Namespace::PlaceSearch, &cache_key, || async {
@@ -398,10 +406,14 @@ impl WirePlace {
         }
         let lat_e6 = to_e6(self.lat).and_then(LatE6::new)?.value();
         let lon_e6 = to_e6(self.lon).and_then(LonE6::new)?.value();
+        let parts = self.address.as_ref().map(address_parts).unwrap_or_default();
         Some(Hit {
             gers_id,
             name,
             address: self.address.as_ref().and_then(one_line),
+            street: parts.0,
+            locality: parts.1,
+            region: parts.2,
             lat_e6,
             lon_e6,
             distance_mi: self.distance_mi.unwrap_or(0.0).max(0.0),
@@ -434,6 +446,51 @@ fn to_e6(degrees: f64) -> Option<i32> {
     // Bounded above, so the cast cannot truncate or wrap.
     #[allow(clippy::cast_possible_truncation)]
     Some(scaled as i32)
+}
+
+/// The cleaned street line, locality, and two-letter region code.
+fn address_parts(address: &WireAddress) -> (Option<String>, Option<String>, Option<String>) {
+    let clean = |s: &Option<String>| {
+        s.as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+    };
+    let street = clean(&address.street).or_else(|| clean(&address.formatted));
+    let locality = clean(&address.locality);
+    let region = clean(&address.region)
+        .filter(|r| r.len() == 2 && r.chars().all(|c| c.is_ascii_alphabetic()))
+        .map(|r| r.to_ascii_uppercase());
+    (street, locality, region)
+}
+
+/// What a suggestion row says under each name (PL25, Ken 2026-09-27):
+/// the town and state, short enough to share the line; the street is
+/// added only where two rows with one name would otherwise read the
+/// same. A hit with no parts at all falls back to its one-line address.
+pub fn short_addresses(hits: &[Hit]) -> Vec<Option<String>> {
+    let town = |hit: &Hit| match (&hit.locality, &hit.region) {
+        (Some(locality), Some(region)) => Some(format!("{locality}, {region}")),
+        (Some(locality), None) => Some(locality.clone()),
+        (None, Some(region)) => Some(region.clone()),
+        (None, None) => hit.address.clone(),
+    };
+    hits.iter()
+        .map(|hit| {
+            let short = town(hit);
+            let twins = hits
+                .iter()
+                .filter(|other| other.name == hit.name && town(other) == short)
+                .count();
+            match (&hit.street, twins > 1) {
+                (Some(street), true) => Some(match &short {
+                    Some(short) => format!("{street}, {short}"),
+                    None => street.clone(),
+                }),
+                _ => short,
+            }
+        })
+        .collect()
 }
 
 /// One display line from the API's address parts: the street line, the
@@ -538,6 +595,46 @@ mod tests {
             place(serde_json::json!({"place_id": "abc", "name": "P", "lat": 0.0, "lon": 0.0}))
                 .unwrap();
         assert_eq!(hit.gers_id, "abc");
+    }
+
+    #[test]
+    fn short_addresses_say_the_town_and_the_street_only_to_tell_twins_apart() {
+        let hit = |name: &str, street: &str, locality: &str| Hit {
+            gers_id: format!("{name}-{street}"),
+            name: name.into(),
+            address: Some(format!("{street}, {locality}, MA 01720")),
+            street: Some(street.into()),
+            locality: Some(locality.into()),
+            region: Some("MA".into()),
+            lat_e6: 0,
+            lon_e6: 0,
+            distance_mi: 1.0,
+            category: None,
+            website: None,
+        };
+        let hits = vec![
+            hit("Dunkin'", "182 Great Rd", "Acton"),
+            hit("Dunkin'", "315 Main St", "Acton"),
+            hit("Dunkin'", "794 Elm St", "Concord"),
+            hit("Silver Girl", "1 Nagog Park", "Acton"),
+            Hit {
+                locality: None,
+                region: None,
+                street: None,
+                address: Some("Somewhere".into()),
+                ..hit("Cart", "", "")
+            },
+        ];
+        assert_eq!(
+            short_addresses(&hits),
+            vec![
+                Some("182 Great Rd, Acton, MA".to_owned()),
+                Some("315 Main St, Acton, MA".to_owned()),
+                Some("Concord, MA".to_owned()),
+                Some("Acton, MA".to_owned()),
+                Some("Somewhere".to_owned()),
+            ]
+        );
     }
 
     #[test]

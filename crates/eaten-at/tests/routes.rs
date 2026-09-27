@@ -4068,8 +4068,8 @@ async fn suggestions_come_from_the_same_search_a_pick_reads() {
     assert_eq!(json["hits"][0]["i"], 0);
     assert_eq!(json["hits"][0]["name"], "Devocion");
     assert_eq!(
-        json["hits"][0]["detail"],
-        "105 York St, Brooklyn, NY 11201 · 0.9 mi"
+        json["hits"][0]["detail"], "Brooklyn, NY · 0.9 mi",
+        "the town and state, not the street (PL25)"
     );
     assert_eq!(
         json["hits"][0]["address"], "105 York St, Brooklyn, NY 11201",
