@@ -632,7 +632,9 @@
   .interstitial > .page-head + * { margin-block-start: 0; }
 
   /* Handle lookup: a labelled field and one button. */
-  .lookup { max-inline-size: 34rem; position: relative; }
+  /* A field runs the column's width, so its rule lines up with the
+     page's hairlines (S14, Ken); the lede beside it keeps its measure. */
+  .lookup { position: relative; }
   /* The handle list floats over what follows rather than pushing it
      down (L2, Ken 2026-09-26): an absolute at its static position. */
   .lookup .combobox-list { position: absolute; inset-block-start: auto; inset-inline: 0; z-index: 20; }
@@ -738,6 +740,10 @@
   }
   .own-publication .list-head .kicker { margin: 0; }
   .own-publication .empty { padding-block: var(--space-l); }
+  /* The last row keeps no padding below (S16): what follows, the
+     closing line or "All digests", sets its own distance, the same one
+     the signed-out page has above its closing line. */
+  .own-publication .listing-item:last-child { padding-block-end: 0; }
   .tertiary {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-s) var(--action-gap);
     margin-block-start: var(--section-gap); padding-block-start: var(--space-m);
@@ -1308,7 +1314,7 @@
   .photo-row-body { min-inline-size: 0; flex: 1; }
   .photo-row-body > * + * { margin-block-start: var(--space-s); }
   .photo-row-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--action-gap); }
-  .hosting-form { margin-block-start: var(--space-m); max-inline-size: 34rem; }
+  .hosting-form { margin-block-start: var(--space-m); }
   .hosting-form > * + * { margin-block-start: var(--space-m); }
   /* A choice is the box and its label on one line, the whole row
      clickable because the row is the label. The label is the serif at

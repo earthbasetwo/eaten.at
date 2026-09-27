@@ -63,3 +63,15 @@ sheet F: the list as compact rows with the excerpt kept.
 - **S12, no photo badge** on the home; the compact row has none.
 - **S13, one rhythm.** The feed block is a grid with a 24px step; the
   field and its tag line sit 12px apart; rows keep `--row-pad`.
+
+## Round three, from Ken's look at round two
+
+- **S14, fields at the column's width.** `.lookup` and the settings
+  form lose their 34rem cap, so a field's rule lines up with the page's
+  hairlines. The composer keeps its 34rem: that is a writing measure.
+- **S16, the space under the last row.** The last row keeps no padding
+  below, so the closing line sits at the section gap, as on the
+  signed-out page, and "All digests" at the rhythm's step.
+- **S15, a placeholder for a row without a photo** and **S17, the
+  nameplate as a preview of the feed**, are filed for a decision
+  (Backlog).
