@@ -3520,6 +3520,27 @@ async fn adding_photos_uploads_each_good_file_and_names_the_bad_ones() {
     let (status, location, _) = get(&state, "/write/ph0/photos").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert!(location.unwrap().starts_with("/login"));
+
+    // A post from a run-out session goes to sign in too, and comes back
+    // marked, so the page can say the chosen files were not kept (PC6).
+    let (status, location, _) = post_photos(
+        &state,
+        "/write/ph0/photos",
+        "",
+        &[("action", "add")],
+        &[("a.jpg", b"not kept")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(
+        location.as_deref(),
+        Some("/login?return_to=%2Fwrite%2Fph0%2Fphotos%3Fexpired%3D1")
+    );
+    let (status, _, body) = get_signed(&state, "/write/ph0/photos?expired=1", &cookie).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("what you sent was not kept"), "{body}");
+    // The mark is not carried into the form's own action.
+    assert!(body.contains("action=\"/write/ph0/photos\""), "{body}");
 }
 
 #[tokio::test]
@@ -3823,7 +3844,7 @@ async fn an_upload_says_so_when_the_sign_in_has_run_out() {
         if !json {
             assert_eq!(
                 response.headers()[header::LOCATION],
-                "/login?return_to=%2Fwrite%2Fd1%2Fphotos"
+                "/login?return_to=%2Fwrite%2Fd1%2Fphotos%3Fexpired%3D1"
             );
         }
     }
