@@ -80,3 +80,9 @@ sheet F: the list as compact rows with the excerpt kept.
   is already a flex column with main growing, so the line sits at the
   window's bottom on a short page and under the content on a long one,
   main's bottom padding being the distance.
+- **S19, the find's state in the field.** Ken: the field, the tag line
+  and "Matching “q” · Clear" said the same thing three times. Now the
+  tag line (always the feed's, not the find's) is hidden while a find
+  is on, the visible head is gone (a hidden one still announces), and
+  a clear mark at the field's end replaces the return mark and the
+  browser's own cancel button; it is a link home without script.
