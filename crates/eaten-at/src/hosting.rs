@@ -361,6 +361,8 @@ impl AppState {
 fn passes_through(path: &str) -> bool {
     path == "/healthz"
         || path.starts_with("/static/")
+        || path == "/favicon.ico"
+        || path == "/apple-touch-icon.png"
         || path.starts_with("/img/")
         || path.starts_with("/at/")
         || path.starts_with("/@")

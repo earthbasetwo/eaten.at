@@ -139,6 +139,45 @@ pub struct Rendition {
     pub jpeg: Vec<u8>,
 }
 
+/// A decoded source keeps its place in the image-work budget until its
+/// pixels and encoding work are finished. Moving the whole value into
+/// the blocking encoder also keeps the permit there if the request is
+/// cancelled while the task is running.
+struct DecodedImage {
+    image: DynamicImage,
+    _turn: tokio::sync::SemaphorePermit<'static>,
+}
+
+impl DecodedImage {
+    fn decode(
+        bytes: &[u8],
+        turn: tokio::sync::SemaphorePermit<'static>,
+    ) -> Result<Self, ImageError> {
+        Ok(Self {
+            image: decode(bytes)?,
+            _turn: turn,
+        })
+    }
+
+    async fn placeholder(seed: &str) -> Self {
+        let turn = image_turn().await;
+        Self {
+            image: placeholder_from_seed(seed),
+            _turn: turn,
+        }
+    }
+
+    // Taking self keeps both the pixels and permit in the blocking
+    // closure; capturing only self.image would release the permit early.
+    fn encode(self, size: Size) -> Result<Vec<u8>, ImageError> {
+        encode(&self.image, size)
+    }
+
+    fn encode_photo(self, size: PhotoSize) -> Result<Vec<u8>, ImageError> {
+        encode_photo(&self.image, size)
+    }
+}
+
 impl AppState {
     /// The cover for `visit_doc` at `size`, cached. Never fails: the last
     /// link in the chain is a generated placeholder.
@@ -178,9 +217,12 @@ impl AppState {
                     self.fetch_and_decode(url).await
                 }
                 None => None,
-            }
-            .unwrap_or_else(|| placeholder_from_seed(&publication.value.name));
-            tokio::task::spawn_blocking(move || encode(&image, Size::Og))
+            };
+            let image = match image {
+                Some(image) => image,
+                None => DecodedImage::placeholder(&publication.value.name).await,
+            };
+            tokio::task::spawn_blocking(move || image.encode(Size::Og))
                 .await
                 .ok()
                 .and_then(Result::ok)
@@ -209,24 +251,28 @@ impl AppState {
     ) -> Vec<u8> {
         let (source, image) = self.source_image(identity, visit_doc).await;
         tracing::debug!(did = %identity.did, rkey = visit_doc.rkey(), source = source.as_str(), "cover resolved");
-        match tokio::task::spawn_blocking(move || encode(&image, size)).await {
-            Ok(Ok(jpeg)) => jpeg,
+        match tokio::task::spawn_blocking(move || image.encode(size)).await {
+            Ok(Ok(jpeg)) => return jpeg,
             Ok(Err(err)) => {
                 tracing::warn!(%err, "cover encode failed; using placeholder");
-                encode(&placeholder(visit_doc), size).unwrap_or_default()
             }
             Err(err) => {
                 tracing::warn!(%err, "cover encode task failed; using placeholder");
-                encode(&placeholder(visit_doc), size).unwrap_or_default()
             }
         }
+        let image = DecodedImage::placeholder(&visit_doc.visit.place.name).await;
+        tokio::task::spawn_blocking(move || image.encode(size))
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .unwrap_or_default()
     }
 
     async fn source_image(
         &self,
         identity: &eaten_at_atproto::identity::Identity,
         visit_doc: &VisitDocument,
-    ) -> (Source, DynamicImage) {
+    ) -> (Source, DecodedImage) {
         if let Some(photo) = visit_doc.visit.photos.first() {
             let url = self
                 .repo_for(identity)
@@ -241,7 +287,10 @@ impl AppState {
                 return (Source::Blob, image);
             }
         }
-        (Source::Placeholder, placeholder(visit_doc))
+        (
+            Source::Placeholder,
+            DecodedImage::placeholder(&visit_doc.visit.place.name).await,
+        )
     }
 
     /// One of the document's photos at `size`, cached; `None` when the
@@ -271,7 +320,7 @@ impl AppState {
                 .repo_for(identity)
                 .blob_url(&identity.did, photo.image.cid());
             let image = self.fetch_and_decode(url).await?;
-            tokio::task::spawn_blocking(move || encode_photo(&image, size))
+            tokio::task::spawn_blocking(move || image.encode_photo(size))
                 .await
                 .ok()
                 .and_then(Result::ok)
@@ -300,7 +349,9 @@ impl AppState {
         cid: &str,
         jpeg: Vec<u8>,
     ) -> Result<(), AppError> {
+        let turn = image_turn().await;
         let renditions = tokio::task::spawn_blocking(move || {
+            let _turn = turn;
             let image = decode(&jpeg)?;
             [PhotoSize::Thumb, PhotoSize::Full, PhotoSize::Card]
                 .into_iter()
@@ -312,7 +363,10 @@ impl AppState {
         .map_err(|err| AppError::Upstream(err.to_string()))?;
         for (size, bytes) in renditions {
             let key = own_photo_key(identity, cid, size);
-            self.cache().put_bytes(Namespace::Image, &key, &bytes).await;
+            self.cache()
+                .put_bytes(Namespace::Image, &key, &bytes)
+                .await
+                .map_err(|err| AppError::Upstream(err.to_string()))?;
         }
         Ok(())
     }
@@ -331,7 +385,7 @@ impl AppState {
         let build = || async {
             let url = self.repo_for(identity).blob_url(&identity.did, cid);
             let image = self.fetch_and_decode(url).await?;
-            tokio::task::spawn_blocking(move || encode_photo(&image, size))
+            tokio::task::spawn_blocking(move || image.encode_photo(size))
                 .await
                 .ok()
                 .and_then(Result::ok)
@@ -351,7 +405,7 @@ impl AppState {
 
     /// Download and decode an image, or `None` with a log line for any
     /// reason at all: this is a fallback chain, not an error path.
-    async fn fetch_and_decode(&self, url: Url) -> Option<DynamicImage> {
+    async fn fetch_and_decode(&self, url: Url) -> Option<DecodedImage> {
         let response = match self.http().get_limited(url.clone(), MAX_SOURCE_BYTES).await {
             Ok(r) => r,
             Err(err) => {
@@ -369,7 +423,10 @@ impl AppState {
             return None;
         }
         let bytes = response.body;
-        match tokio::task::spawn_blocking(move || decode(&bytes)).await {
+        // Downloads may overlap; only decoded pixels and CPU work need
+        // a turn. A successful decode carries that turn into encoding.
+        let turn = image_turn().await;
+        match tokio::task::spawn_blocking(move || DecodedImage::decode(&bytes, turn)).await {
             Ok(Ok(image)) => Some(image),
             Ok(Err(err)) => {
                 tracing::debug!(%url, %err, "cover decode rejected");
@@ -541,19 +598,28 @@ fn animated(bytes: &[u8]) -> bool {
     }
 }
 
-/// At most this many photos are prepared at once, whoever sent them: a
-/// 48 MP photo holds a few hundred megabytes while it is decoded and
-/// shrunk, so the server's memory is bounded by this, not by how many
-/// uploads arrive together.
-static PREPARING: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+/// At most this many images are decoded and rendered at once, across
+/// uploads, proxy requests, previews, and feeds. A 48 MP source holds a
+/// few hundred megabytes until it is shrunk; the permit stays with its
+/// pixels through encoding, including when the request is cancelled.
+static IMAGE_WORK: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+
+/// The budget is private and never closed, so acquisition fails only if
+/// that lifecycle invariant is changed inside this module.
+async fn image_turn() -> tokio::sync::SemaphorePermit<'static> {
+    IMAGE_WORK
+        .acquire()
+        .await
+        .expect("image-work budget stays open")
+}
 
 /// [`photo_upload`] on a blocking thread, waiting its turn among
-/// [`PREPARING`]. The turn is held by the work itself, so a request
+/// [`IMAGE_WORK`]. The turn is held by the work itself, so a request
 /// that goes away mid-decode does not let another start beside it.
 pub async fn prepare_photo(
     bytes: impl AsRef<[u8]> + Send + 'static,
 ) -> Result<Result<PreparedPhoto, ImageError>, tokio::task::JoinError> {
-    let turn = PREPARING.acquire().await.ok();
+    let turn = image_turn().await;
     tokio::task::spawn_blocking(move || {
         let _turn = turn;
         photo_upload(bytes.as_ref())
@@ -1142,6 +1208,50 @@ mod tests {
             .write_to(&mut out, ImageFormat::Png)
             .unwrap();
         out.into_inner()
+    }
+
+    #[tokio::test]
+    async fn decoded_sources_keep_the_budget_through_cancelled_encoding() {
+        // A separate budget keeps this test independent of other image
+        // tests. Both slots hold decoded sources awaiting their encoders.
+        static BUDGET: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+        let bytes = png(8, 6);
+        let first = DecodedImage::decode(&bytes, BUDGET.acquire().await.unwrap()).unwrap();
+        let second = DecodedImage::decode(&bytes, BUDGET.acquire().await.unwrap()).unwrap();
+        assert!(BUDGET.try_acquire().is_err());
+
+        let (started, worker_started) = tokio::sync::oneshot::channel();
+        let (resume, paused) = std::sync::mpsc::channel();
+        let (finished, worker_finished) = tokio::sync::oneshot::channel();
+        let request = tokio::spawn(async move {
+            tokio::task::spawn_blocking(move || {
+                started.send(()).unwrap();
+                paused.recv().unwrap();
+                let encoded = first.encode(Size::Og);
+                finished.send(()).unwrap();
+                encoded
+            })
+            .await
+        });
+        worker_started.await.unwrap();
+        request.abort();
+        assert!(request.await.unwrap_err().is_cancelled());
+        // The request has gone away, but its blocking worker still owns
+        // the source. A third decode must not start alongside those two.
+        assert!(BUDGET.try_acquire().is_err());
+        resume.send(()).unwrap();
+        worker_finished.await.unwrap();
+        assert_eq!(BUDGET.available_permits(), 1);
+        drop(second);
+        assert_eq!(BUDGET.available_permits(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_failed_source_decode_releases_its_turn_for_the_fallback() {
+        static BUDGET: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
+        let turn = BUDGET.acquire().await.unwrap();
+        assert!(DecodedImage::decode(b"not an image", turn).is_err());
+        assert!(BUDGET.try_acquire().is_ok());
     }
 
     /// A JPEG with an EXIF orientation of 6 (rotate 90° clockwise to

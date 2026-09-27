@@ -165,6 +165,36 @@ async fn a_full_answer_is_searched_again_close_in_and_read_by_distance() {
 }
 
 #[tokio::test]
+async fn a_failed_close_search_keeps_and_caches_the_successful_wide_answer() {
+    for status in [402, 429, 503] {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/places"))
+            .and(query_param("radius_mi", "25"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(chain(20, 24.0, 100)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/places"))
+            .and(query_param("radius_mi", "3"))
+            .respond_with(ResponseTemplate::new(status))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let state = state_for(&server, Some("test-key"));
+        let hits = state.search_places("dunkin", brooklyn()).await.unwrap();
+        assert_eq!(hits.len(), 20, "usable results survive HTTP {status}");
+        assert_eq!(hits[0].gers_id, "00000119-0000-0000-0000-000000000000");
+        assert_eq!(
+            state.search_places("Dunkin", brooklyn()).await.unwrap(),
+            hits,
+            "a pick reads the same cached order"
+        );
+    }
+}
+
+#[tokio::test]
 async fn an_empty_answer_is_searched_without_the_category_and_then_wider() {
     // PL21, PL24: a market filed under retail, or a place past 25 miles.
     let server = MockServer::start().await;
