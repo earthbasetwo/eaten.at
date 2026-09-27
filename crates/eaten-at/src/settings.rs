@@ -13,6 +13,7 @@ use url::Url;
 
 use crate::bsky::BskyConfig;
 use crate::cache::{Cache, SystemClock};
+use crate::cities::Cities;
 use crate::geoip::GeoIp;
 use crate::places::{PlacesConfig, Point};
 use crate::state::{AppConfig, AppState, USER_AGENT};
@@ -46,6 +47,11 @@ pub mod env {
     /// `lat,lon`: where every request is, on the local network, whose
     /// loopback addresses locate to nothing.
     pub const DEV_LOCATION: &str = "EATEN_AT_DEV_LOCATION";
+    /// Path of a `GeoNames` cities file (`cities5000.txt`), with
+    /// `admin1CodesASCII.txt` beside it, for the chooser's near line
+    /// (plan 15). Without it the line is not shown and the search looks
+    /// only where the request is.
+    pub const CITIES: &str = "EATEN_AT_CITIES";
 }
 
 /// Everything the process needs to start.
@@ -59,6 +65,7 @@ pub struct Settings {
     pub bsky_appview: Option<Url>,
     pub places: PlacesConfig,
     pub geoip_db: Option<PathBuf>,
+    pub cities: Option<PathBuf>,
     pub dev: Option<Dev>,
 }
 
@@ -156,6 +163,7 @@ impl Settings {
             bsky_appview,
             places,
             geoip_db: var(env::GEOIP_DB).map(PathBuf::from),
+            cities: var(env::CITIES).map(PathBuf::from),
             dev,
         })
     }
@@ -174,6 +182,19 @@ impl Settings {
             env::GEOIP_DB
         );
         Ok(GeoIp::none())
+    }
+
+    /// The towns the near line can name: the configured `GeoNames` file
+    /// with its regions file beside it, or nothing.
+    pub fn cities(&self) -> anyhow::Result<Cities> {
+        let Some(path) = &self.cities else {
+            tracing::warn!(
+                "{} is not set: the chooser has no near line and searches only where the request is",
+                env::CITIES
+            );
+            return Ok(Cities::none());
+        };
+        Cities::open(path, &path.with_file_name("admin1CodesASCII.txt"))
     }
 
     /// The outbound HTTP policy: production unless dev mode says otherwise.
@@ -246,6 +267,7 @@ impl Settings {
             },
             places: self.places.clone(),
             geoip: self.geoip()?,
+            cities: self.cities()?,
         };
         AppState::new(self.http()?, self.dns()?, config, cache)
     }

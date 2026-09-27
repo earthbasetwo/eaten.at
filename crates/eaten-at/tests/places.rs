@@ -38,6 +38,7 @@ fn state_for(server: &MockServer, key: Option<&str>) -> AppState {
                 api_key: key.map(str::to_owned),
             },
             geoip: eaten_at::geoip::GeoIp::none(),
+            cities: eaten_at::cities::Cities::none(),
         },
         Cache::in_memory(Arc::new(SystemClock)).unwrap(),
     )

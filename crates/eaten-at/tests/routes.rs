@@ -225,6 +225,18 @@ fn state_for(server: &MockServer, dns: StaticDns) -> AppState {
                 "/tests/fixtures/GeoIP2-City-Test.mmdb"
             )))
             .unwrap(),
+            // A few towns: London and Acton (three of them) among them.
+            cities: eaten_at::cities::Cities::open(
+                std::path::Path::new(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/cities-test.txt"
+                )),
+                std::path::Path::new(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/admin1-test.txt"
+                )),
+            )
+            .unwrap(),
         },
         Cache::in_memory(Arc::new(SystemClock)).unwrap(),
     )
@@ -2051,7 +2063,10 @@ async fn a_picked_suggestion_fills_the_place_from_the_cached_search() {
         .find(|r| r.url.path() == "/v1/places")
         .expect("the search ran");
     let query: std::collections::HashMap<_, _> = request.url.query_pairs().into_owned().collect();
-    assert_eq!(query["lat"], "51.5142", "where the address is");
+    assert_eq!(
+        query["lat"], "51.50853",
+        "the town nearest the request: London's centroid (plan 15)"
+    );
     // The editing screen: the place's name stands in as the title, the
     // address is the line under it, and the listing's facts are carried.
     assert!(!body.contains("<h1>"), "{body}");
@@ -2135,7 +2150,10 @@ async fn suggestions_look_near_the_last_visit_and_are_not_offered_without_a_poin
         .find(|r| r.url.path() == "/v1/places")
         .expect("the search ran");
     let query: std::collections::HashMap<_, _> = request.url.query_pairs().into_owned().collect();
-    assert_eq!(query["lat"], "40.688838", "the seed visit's coordinates");
+    assert_eq!(
+        query["lat"], "40.71427",
+        "the town nearest the seed visit: New York City's centroid (plan 15)"
+    );
 
     // No visit has coordinates: nothing to suggest near, so the name is
     // a plain field and Start writing takes it as typed.
@@ -4021,6 +4039,156 @@ async fn each_editor_state_carries_its_own_nonced_scripts_and_nothing_else_chang
 }
 
 #[tokio::test]
+async fn the_near_line_names_the_town_and_moves_the_search() {
+    // Plan 15. The fixture's towns: London and three Actons among them.
+    let server = mount(&one_publication()).await;
+    mount_places(
+        &server,
+        ResponseTemplate::new(200).set_body_json(places_results()),
+    )
+    .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+
+    // On arrival the line names the town nearest the request.
+    let request = Request::get("/write")
+        .header(header::COOKIE, &cookie)
+        .header("x-forwarded-for", LONDON_IP)
+        .body(Body::empty())
+        .unwrap();
+    let response = router(state.clone()).oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = String::from_utf8(
+        response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(
+        body.contains("<input type=\"hidden\" name=\"near\" value=\"2643743\">"),
+        "{body}"
+    );
+    assert!(
+        body.contains(
+            "<span class=\"soft\">Near</span> <span class=\"near-town\">London, England</span>"
+        ),
+        "{body}"
+    );
+    assert!(
+        body.contains("<summary class=\"hint-action\">change</summary>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("name=\"near_query\"") && body.contains("data-near=\"/write/near\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("The address is public. Leave it out for home."),
+        "{body}"
+    );
+
+    // No address: the town nearest the author's last visit.
+    let (_, _, body) = get_signed(&state, "/write", &cookie).await;
+    assert!(
+        body.contains("<span class=\"near-town\">New York City, NY</span>"),
+        "{body}"
+    );
+
+    // Towns called "act", the closest to Acton, MA first.
+    let request = Request::get("/write/near?q=act&near=4928703")
+        .header(header::COOKIE, &cookie)
+        .body(Body::empty())
+        .unwrap();
+    let response = router(state.clone()).oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let json: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let labels: Vec<&str> = json
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["label"].as_str().unwrap())
+        .collect();
+    assert_eq!(labels, ["Acton, MA", "Acton, Ontario", "Acton, England"]);
+    assert_eq!(json[0]["id"], 4_928_703);
+}
+
+#[tokio::test]
+async fn a_chosen_town_moves_the_search_and_pins_a_place_by_hand() {
+    let server = mount(&one_publication()).await;
+    mount_places(
+        &server,
+        ResponseTemplate::new(200).set_body_json(places_results()),
+    )
+    .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+
+    // A suggestion search from a chosen town looks at that town's
+    // centroid, wherever the request is from.
+    let request = Request::get("/write/suggest?q=Devocion&near=4928703")
+        .header(header::COOKIE, &cookie)
+        .header("x-forwarded-for", LONDON_IP)
+        .body(Body::empty())
+        .unwrap();
+    let response = router(state.clone()).oneshot(request).await.unwrap();
+    let json: Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(json["near"], "Acton, MA", "{json}");
+    let request = server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|r| r.url.path() == "/v1/places")
+        .expect("the search ran");
+    let query: std::collections::HashMap<_, _> = request.url.query_pairs().into_owned().collect();
+    assert_eq!(query["lat"], "42.48509");
+
+    // A town typed without script is resolved on the next submit, the
+    // closest to where the request is first.
+    let (status, body) = post_editor_from(
+        &state,
+        "/write",
+        &cookie,
+        &[("place_mode", "choosing"), ("near_query", "acton")],
+        Some(LONDON_IP),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("<input type=\"hidden\" name=\"near\" value=\"2657697\">")
+            && body.contains("<span class=\"near-town\">Acton, England</span>"),
+        "{body}"
+    );
+
+    // A place by hand sits at its town: a coarse pin (PL6).
+    let (status, body) = post_editor(
+        &state,
+        "/write",
+        &cookie,
+        &[
+            ("place_mode", "choosing"),
+            ("near", "4928703"),
+            ("place_name", "Home"),
+            ("action", "manual"),
+        ],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("name=\"lat_e6\" value=\"42485090\"")
+            && body.contains("name=\"lon_e6\" value=\"-71432840\""),
+        "{body}"
+    );
+    assert!(body.contains("value=\"Home\""), "{body}");
+}
+
+#[tokio::test]
 async fn suggestions_come_from_the_same_search_a_pick_reads() {
     let server = mount(&one_publication()).await;
     mount_places(
@@ -4063,7 +4231,7 @@ async fn suggestions_come_from_the_same_search_a_pick_reads() {
     assert_eq!(status, StatusCode::OK, "{json}");
     assert_eq!(cache.as_deref(), Some("private, no-store"));
     assert_eq!(json["q"], "Devocion");
-    assert_eq!(json["near"], "London");
+    assert_eq!(json["near"], "London, England");
     assert_eq!(json["hits"].as_array().unwrap().len(), 2, "{json}");
     assert_eq!(json["hits"][0]["i"], 0);
     assert_eq!(json["hits"][0]["name"], "Devocion");
@@ -4108,7 +4276,10 @@ async fn suggestions_come_from_the_same_search_a_pick_reads() {
     assert_eq!(json["hits"], json!([]));
     assert!(json.get("error").is_none(), "{json}");
     let (_, _, json) = suggest(None, "Devocion").await;
-    assert_eq!(json["near"], Value::Null, "the last visit names no city");
+    assert_eq!(
+        json["near"], "New York City, NY",
+        "the town nearest the last visit (plan 15)"
+    );
     assert_eq!(json["hits"].as_array().unwrap().len(), 2);
 
     // The bucket: thirty a minute, then 429 until it refills.

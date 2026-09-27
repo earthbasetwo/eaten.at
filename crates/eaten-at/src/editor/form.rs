@@ -26,6 +26,10 @@ pub struct EditorForm {
     pub changing_place: bool,
     /// The search box on the choosing state.
     pub place_query: String,
+    /// The near line (plan 15): the `GeoNames` id of the town the search
+    /// looks near, and a town typed to change it without script.
+    pub near: String,
+    pub near_query: String,
     /// The Overture GERS id of the picked place; blank by hand.
     pub gers_id: String,
     /// The place's coordinates in microdegrees, hidden fields filled by a
@@ -334,6 +338,8 @@ impl EditorForm {
             changing_place: false,
             photos_unread: 0,
             place_query: String::new(),
+            near: String::new(),
+            near_query: String::new(),
             gers_id: visit.place.gers_id.clone().unwrap_or_default(),
             lat_e6: visit
                 .place
@@ -388,6 +394,8 @@ impl EditorForm {
                 "draft_id" => form.draft_id = value.parse().ok(),
                 "changing_place" => form.changing_place = value == "1",
                 "place_query" => form.place_query = value,
+                "near" => form.near = value,
+                "near_query" => form.near_query = value,
                 "gers_id" => form.gers_id = value,
                 "lat_e6" => form.lat_e6 = value,
                 "lon_e6" => form.lon_e6 = value,

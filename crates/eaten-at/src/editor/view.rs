@@ -48,6 +48,19 @@ pub enum Located {
     LastVisit,
 }
 
+/// The chooser's near line (plan 15): where the search looks, as the
+/// author can change it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum Near {
+    /// No cities file: no line, and the search looks where the request is.
+    #[default]
+    Off,
+    /// Nothing located: the line asks for a town and the search waits.
+    Unknown,
+    /// A town, by its `GeoNames` id and its label ("Acton, MA").
+    Town { id: u32, label: String },
+}
+
 /// Everything the page needs.
 #[derive(Debug)]
 pub struct EditorPage<'a> {
@@ -65,6 +78,8 @@ pub struct EditorPage<'a> {
     /// Whether the choosing screen suggests places as the author types:
     /// the site has a search and the request could be located.
     pub suggesting: bool,
+    /// The near line, when the site has a cities list.
+    pub near: Near,
     /// The photos page of the write-up being edited, the way photos are
     /// managed without script; a new write-up has none yet.
     pub photos_page: Option<&'a str>,
@@ -534,6 +549,7 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                     data-suggest=[page.suggesting.then_some("/write/suggest")]
                     aria-describedby=[described(errors, "place_name")];
             }
+            (near_line(&page.near))
             p.place-line {
                 span.soft { "at" } " "
                 span.inline-field {
@@ -543,12 +559,41 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                 }
                 span.soft { "." }
             }
+            @if page.near != Near::Off {
+                p.hint.address-hint { "The address is public. Leave it out for home." }
+            }
             (field_error(errors, "place_name"))
             (field_error(errors, "place_address"))
             div.actions.start-writing {
                 button #start-writing type="submit" name="action" value=(Action::Manual.value()) {
                     @if form.changing_place { "Keep writing" } @else { "Start writing" }
                 }
+            }
+        }
+    }
+}
+
+/// Where the search looks, and the way to change it (plan 15): the
+/// town, then "change", which opens a town field. The field works as a
+/// plain input, resolved on the next submit; with script it is a
+/// combobox over `/write/near`, and the line becomes the address once a
+/// place is picked.
+fn near_line(near: &Near) -> Markup {
+    let (id, label) = match near {
+        Near::Off => return html! {},
+        Near::Unknown => (String::new(), None),
+        Near::Town { id, label } => (id.to_string(), Some(label.as_str())),
+    };
+    html! {
+        input type="hidden" name="near" value=(id);
+        div.near-line {
+            span.soft { "Near" } " "
+            span.near-town { (label.unwrap_or("where?")) }
+            span.soft { " · " }
+            details.near-change {
+                summary.hint-action { @if label.is_some() { "change" } @else { "choose" } }
+                input #near_query name="near_query" type="text" value="" placeholder="Town"
+                    autocomplete="off" aria-label="Town to search near" data-near="/write/near";
             }
         }
     }
@@ -764,6 +809,7 @@ mod tests {
             reauthenticate: false,
             pick_error: None,
             suggesting: true,
+            near: Near::Off,
             photos_page,
         })
         .into_string()

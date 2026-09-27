@@ -64,6 +64,24 @@ geoip-refresh:
 dev-env:
     ATPROTO_DIR="${ATPROTO_DIR:-../atproto}" NODE_OPTIONS=--no-experimental-webstorage node scripts/dev-env.mjs
 
+# Fetch GeoNames' towns above 5,000 people and the region names that label
+# them (CC BY 4.0) into the directory EATEN_AT_CITIES names, atomically.
+# The app reads both at startup, so restart it afterwards.
+cities-refresh:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${EATEN_AT_CITIES:?set EATEN_AT_CITIES to the path cities5000.txt should live at}"
+    dir="$(dirname "${EATEN_AT_CITIES}")"
+    mkdir -p "${dir}"
+    echo "fetching cities5000.zip and admin1CodesASCII.txt from download.geonames.org"
+    curl -fsSL https://download.geonames.org/export/dump/cities5000.zip -o "${dir}/cities5000.zip.tmp"
+    unzip -p "${dir}/cities5000.zip.tmp" cities5000.txt > "${EATEN_AT_CITIES}.tmp"
+    rm "${dir}/cities5000.zip.tmp"
+    curl -fsSL https://download.geonames.org/export/dump/admin1CodesASCII.txt -o "${dir}/admin1CodesASCII.txt.tmp"
+    mv "${EATEN_AT_CITIES}.tmp" "${EATEN_AT_CITIES}"
+    mv "${dir}/admin1CodesASCII.txt.tmp" "${dir}/admin1CodesASCII.txt"
+    ls -la "${EATEN_AT_CITIES}" "${dir}/admin1CodesASCII.txt"
+
 # Run the app against the local network described by .env.dev
 run-dev:
     #!/usr/bin/env bash

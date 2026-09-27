@@ -101,6 +101,7 @@ mod tests {
             bsky_appview: None,
             places: eaten_at::places::PlacesConfig::default(),
             geoip_db: None,
+            cities: None,
             dev: insecure.map(|insecure| Dev {
                 insecure,
                 hosts: StaticHosts::default(),

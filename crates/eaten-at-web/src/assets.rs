@@ -84,8 +84,11 @@ pub const INLINE_SCRIPTS: &[&str] = &[
 /// landed with the Write Pages handoff, and to 80 KB on 2026-09-26: the
 /// composer trial had already crossed 72, and the photo fixes (the draft
 /// keeping photos, the upload queue and its hold on Publish, the
-/// keyboard's reorder, naming refused files) added about 6 KB.
-pub const JS_BUDGET_BYTES: usize = 80 * 1024;
+/// keyboard's reorder, naming refused files) added about 6 KB. Raised
+/// to 84 KB on 2026-09-27 for the chooser's near line (plan 15), which
+/// crossed 80 by under a kilobyte; Ken expects a script refactor, or
+/// measuring without comments, before it moves again.
+pub const JS_BUDGET_BYTES: usize = 84 * 1024;
 
 /// Self-hosted web fonts. Newsreader and the mono face are OFL
 /// (`static/fonts/OFL.txt`), as latin and latin-ext subsets that the
