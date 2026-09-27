@@ -161,7 +161,10 @@ fn render(
             reauthenticate: outcome.reauthenticate,
             pick_error: outcome.pick_error,
             suggesting: state.places_enabled() && outcome.located != Located::Unknown,
-            near: outcome.near.clone(),
+            near: match &outcome.near {
+                Near::Off => near_of_form(state, form),
+                near => near.clone(),
+            },
             photos_page: photos_page.as_deref(),
         }),
         ..Page::default()
@@ -471,6 +474,20 @@ async fn whereabouts(
         Located::Ip(Some(label.clone())),
         Near::Town { id: city.id, label },
     )
+}
+
+/// The town the editing screen names for a place with no address: the
+/// form's near town, else the town nearest the place's own position.
+fn near_of_form(state: &AppState, form: &EditorForm) -> Near {
+    let city =
+        near_city(state, form).or_else(|| point_of(form).and_then(|p| state.cities().nearest(p)));
+    match city {
+        Some(city) => Near::Town {
+            id: city.id,
+            label: city.label(),
+        },
+        None => Near::Off,
+    }
 }
 
 /// The place's position as the form carries it, if it has one.

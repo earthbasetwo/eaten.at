@@ -103,7 +103,7 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
             // this one only re-renders the page, so nothing typed is ever
             // sent by accident.
             button.visually-hidden type="submit" name="action" value=(Action::Keep.value()) tabindex="-1" aria-hidden="true" { "Keep editing" }
-            (place_heading(form, errors))
+            (place_heading(form, errors, &page.near))
             div.visit-row {
                 (date_line(form, errors))
             }
@@ -137,9 +137,15 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
 /// [address] — somewhere else`, the name shown there once the title
 /// is something else. Changing the restaurant is the shrug at the end
 /// of that line, so the two jobs sit on two lines (C6, 2026-09-25).
-fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
+fn place_heading(form: &EditorForm, errors: &FieldErrors, near: &Near) -> Markup {
     let titled = !form.title.trim().is_empty();
     let has_address = !form.place_address.trim().is_empty();
+    // A place with no address, Home say, keeps its town on the line so
+    // the layout holds (plan 15; Ken, 2026-09-27).
+    let town = match near {
+        Near::Town { label, .. } => Some(label.as_str()),
+        Near::Off | Near::Unknown => None,
+    };
     html! {
         div.place-head {
             label.visually-hidden for="title" { "Title" }
@@ -156,6 +162,10 @@ fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
                 span.place-name-text hidden[!titled] { (form.place_name) }
                 span.place-comma hidden[!titled || !has_address] { ", " }
                 span.place-address-text { (crate::view::display_address(&form.place_address)) }
+            }
+            span.place-near hidden[has_address || town.is_none()] {
+                @if titled { " " }
+                span.soft { "near" } " " (town.unwrap_or_default())
             }
             " "
             // The dash and "somewhere else" never part at a line's end;
@@ -176,6 +186,7 @@ fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
         input type="hidden" name="gers_id" value=(form.gers_id);
         input type="hidden" name="lat_e6" value=(form.lat_e6);
         input type="hidden" name="lon_e6" value=(form.lon_e6);
+        input type="hidden" name="near" value=(form.near);
     }
 }
 
