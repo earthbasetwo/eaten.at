@@ -510,7 +510,7 @@ and "Older →" right.
 | Page | Above the content | Opens with | Then |
 |---|---|---|---|
 | Landing `/`, signed out | wordmark | page head: h1 pitch, lede | connect: one primary "Connect to start writing", which becomes the sign-in form in place (that field carries the return mark and no button; the block is the field's height from the start, so the hairline below never moves); a hairline; a second connect, drawn the same but secondary — one line in the lede's voice over a "Look up a friend" button that becomes the field for someone else's handle; both fields suggest handles as you type |
-| Landing `/`, signed in | — | page head: the handle in the mono voice where a kicker goes, h1 "Where did you eat?" | one primary "Write a new digest"; "Your feed" as a hidden heading; the front page's nameplate in miniature (S17): the name linked to the front page, a dateline of address, rss and the digest count, the description as an italic lede, the tag line, a double rule above and a hairline below; the find field (no button, no visible label: it carries the return mark, and its placeholder says what it finds), then the compact rows with no rule and no visible head; during a find the field carries the state: a clear mark at its end in place of the return mark, a hidden "Matching “q”" line for assistive technology; "All digests →" when there are more; or, with no feed yet, one lede saying what it will be; then, in the page foot, a hairline and one quiet line, Settings · About · Sign out |
+| Landing `/`, signed in | — | page head: h1 "Where did you eat?" | one primary "Write a new digest"; "Your feed" as a hidden heading; the front page's nameplate in miniature (S17): the name linked to the front page, a dateline of address, rss and the digest count, the description as an italic lede, the tag line, a double rule above and a hairline below; the find field (no button, no visible label: it carries the return mark, and its placeholder says what it finds), then the compact rows with no rule and no visible head; during a find the field carries the state: a clear mark at its end in place of the return mark, a hidden "Matching “q”" line for assistive technology; "All digests →" when there are more; or, with no feed yet, one lede saying what it will be; then, in the page foot, stuck to the window's bottom, a hairline and one quiet line, Settings · About · Sign out, with the handle at its far end |
 | Feed front page | — | nameplate | listing, notice if truncated, pagination |
 | About `/about` | — | page head: "About" kicker, h1 "About eaten.at", lede | prose: one paragraph on the protocol a digest lives on, then the credits — the place licences and the IP database, and nothing that is not asked for. The page is static |
 | Tag page | — | page head: "Tag" kicker, h1 "Tagged “x”", scope note | listing, pagination |
@@ -778,7 +778,7 @@ place. The action carries its own reason — the phrase is the button, not
 an aside beside it — so the line reads as one. Under the hairline,
 reading is offered the same way and secondary, with one line above it
 where the button alone could not carry the tone. Under a second hairline,
-signed out and signed in alike, one quiet line, the page foot at the window's bottom, leads to the about page,
+signed out and signed in alike, one quiet line, the page foot stuck to the window's bottom, leads to the about page,
 which is where the credits the data and the fonts ask for are given.
 
 ## Accessibility and constraints

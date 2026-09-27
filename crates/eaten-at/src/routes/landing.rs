@@ -2,8 +2,10 @@
 //! that becomes a handle field (plan 09); signed in, the author's home:
 //! one primary "Write a new digest", their feed with its recent
 //! digests and a way to find one, and settings last (plan 11). Both
-//! states end on the same quiet line, the page foot (S18), which is
-//! where the about page (and with it the credits) is reached from.
+//! states end on the same quiet line, the page foot (S18), kept at the
+//! window's foot as the page scrolls (S21), which is where the about
+//! page (and with it the credits) is reached from; signed in it also
+//! names the handle.
 
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Response};
@@ -144,7 +146,6 @@ async fn signed_in(
         scripts,
         main: html! {
             div.page-head {
-                p.meta.handle { (label) }
                 h1 { "Where did you eat?" }
             }
             div.actions.landing-actions {
@@ -152,6 +153,8 @@ async fn signed_in(
             }
             (section)
         },
+        // The closing line stays at the window's foot (S21) and says who
+        // is signed in, at its far end, where the head used to.
         foot: html! {
             div.meta.tertiary {
                 a href="/settings" { "Settings" }
@@ -159,6 +162,7 @@ async fn signed_in(
                 form.inline-form method="post" action="/logout" {
                     button.link-button type="submit" { "Sign out" }
                 }
+                span.handle { (label) }
             }
         },
         ..Page::default()

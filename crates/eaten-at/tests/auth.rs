@@ -248,7 +248,7 @@ async fn sign_in_sets_a_session_and_sign_out_clears_it() {
     let home = get(&state, "/", Some(&cookie)).await;
     assert!(
         home.body
-            .contains(&format!("<p class=\"meta handle\">@{HANDLE}</p>")),
+            .contains(&format!("<span class=\"handle\">@{HANDLE}</span>")),
         "{}",
         home.body
     );
