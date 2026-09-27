@@ -32,6 +32,9 @@ pub struct EditorForm {
     pub near_query: String,
     /// The Overture GERS id of the picked place; blank by hand.
     pub gers_id: String,
+    /// Overture's category for the picked place (PL13), a hidden field
+    /// filled by a pick or carried from the record; blank by hand.
+    pub place_category: String,
     /// The place's coordinates in microdegrees, hidden fields filled by a
     /// pick (plan 06) or carried from the record; blank when unknown.
     pub lat_e6: String,
@@ -341,6 +344,7 @@ impl EditorForm {
             near: String::new(),
             near_query: String::new(),
             gers_id: visit.place.gers_id.clone().unwrap_or_default(),
+            place_category: visit.place.category.clone().unwrap_or_default(),
             lat_e6: visit
                 .place
                 .lat_e6
@@ -397,6 +401,7 @@ impl EditorForm {
                 "near" => form.near = value,
                 "near_query" => form.near_query = value,
                 "gers_id" => form.gers_id = value,
+                "place_category" => form.place_category = value,
                 "lat_e6" => form.lat_e6 = value,
                 "lon_e6" => form.lon_e6 = value,
                 "visited_on" => form.visited_on = value,
@@ -487,6 +492,7 @@ impl EditorForm {
     pub fn pick(&mut self, hit: &Hit) {
         self.place_mode = PlaceMode::Picked;
         self.gers_id.clone_from(&hit.gers_id);
+        self.place_category = hit.category.clone().unwrap_or_default();
         self.place_name.clone_from(&hit.name);
         self.place_address = hit.address.clone().unwrap_or_default();
         self.lat_e6 = hit.lat_e6.to_string();
@@ -506,6 +512,7 @@ impl EditorForm {
 
     fn forget_listing(&mut self) {
         self.gers_id.clear();
+        self.place_category.clear();
         self.lat_e6.clear();
         self.lon_e6.clear();
     }

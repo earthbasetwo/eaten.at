@@ -185,6 +185,7 @@ fn place_heading(form: &EditorForm, errors: &FieldErrors, near: &Near) -> Markup
         }
         input type="hidden" name="place_mode" value=(form.place_mode.value());
         input type="hidden" name="gers_id" value=(form.gers_id);
+        input type="hidden" name="place_category" value=(form.place_category);
         input type="hidden" name="lat_e6" value=(form.lat_e6);
         input type="hidden" name="lon_e6" value=(form.lon_e6);
         input type="hidden" name="near" value=(form.near);
