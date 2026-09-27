@@ -692,7 +692,9 @@ the field is; the composer's copy of the refusal points back at
   a remove mark revealed on the tile, and an add tile (a dashed box
   with a `+`) last; or, with none, one dashed box: "Nothing to look at
   yet." that reads "add a photo" in vermilion under the pointer. Under
-  the grid: "Drag to reorder — the first photo is the cover." From the
+  the grid: "Drag to reorder, or press Alt and an arrow key — the first
+  photo is the cover." (PC5: the keys are said where sighted keyboard
+  users read, not only to screen readers.) From the
   keyboard, Alt and an arrow key move a focused tile a place, and where
   it landed is announced ("Photo 1 of 5, the cover."); removing one with
   its × hands focus to the tile that took its place. A tile
