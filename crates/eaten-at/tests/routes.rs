@@ -4182,7 +4182,7 @@ async fn a_chosen_town_moves_the_search_and_pins_a_place_by_hand() {
     // The composer keeps the town on the line where the address would be.
     assert!(
         body.contains(
-            "<span class=\"place-near\"><span class=\"soft\">near</span> Acton, MA</span>"
+            "<span class=\"place-near\"> <span class=\"soft\">near</span> Acton, MA</span>"
         ),
         "{body}"
     );
