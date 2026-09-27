@@ -927,6 +927,24 @@
   .editor-choosing .place-head { position: relative; }
   .editor-choosing .headline { display: block; inline-size: 100%; min-inline-size: 0; }
   .editor-choosing .place-line { margin-block-start: var(--space-xs); }
+  /* The near line (plan 15): where the search looks, in the mono voice,
+     with "change" opening a town field in place. */
+  .editor-choosing .near-line {
+    margin-block-start: var(--space-xs); display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.25em;
+    font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em; color: var(--color-ink);
+  }
+  .editor-choosing .near-line .soft { color: var(--color-stone); }
+  .editor-choosing .near-change { position: relative; }
+  .editor-choosing .near-change summary { cursor: pointer; list-style: none; display: inline; }
+  .editor-choosing .near-change summary::-webkit-details-marker { display: none; }
+  .editor-choosing .near-change[open] summary { display: none; }
+  .editor-choosing .near-change input {
+    font: inherit; letter-spacing: inherit; color: var(--color-ink); background: transparent;
+    border: 0; border-block-end: var(--rule-ink); padding: 0 0 1px; inline-size: 12em; min-inline-size: 0;
+  }
+  .editor-choosing .near-change input:focus { outline: none; border-block-end-color: var(--color-vermilion); }
+  .editor-choosing .near-change .combobox-list { min-inline-size: 16rem; }
+  .editor-choosing .address-hint { margin-block-start: var(--space-xs); }
   .editor-choosing .combobox-list {
     position: absolute; inset-block-start: 100%; inset-inline: 0; margin: 8px 0 0; z-index: 20;
   }

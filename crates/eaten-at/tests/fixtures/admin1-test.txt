@@ -1,0 +1,5 @@
+CA.08	Ontario	Ontario	6093943
+FR.11	Île-de-France	Ile-de-France	3012874
+GB.ENG	England	England	6269131
+US.NY	New York	New York	5128638
+US.MA	Massachusetts	Massachusetts	6254926

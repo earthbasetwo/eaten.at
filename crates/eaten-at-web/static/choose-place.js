@@ -12,7 +12,18 @@
   var address = form.elements.place_address;
   var query = form.elements.place_query;
   var start = form.querySelector("#start-writing");
-  var picked = null;
+  var picked = null, byHand = false;
+  // The near line (plan 15) shows until a place is picked; the address
+  // line takes its place, or joins it for a place by hand.
+  var near = form.elements.near, nearLine = form.querySelector(".near-line");
+  var placeLine = form.querySelector(".place-line"), hint = form.querySelector(".address-hint");
+  function lines() {
+    if (!nearLine) return;
+    var isPick = matchesPick();
+    nearLine.hidden = isPick;
+    placeLine.hidden = !isPick && !byHand;
+    if (hint) hint.hidden = isPick || !byHand;
+  }
 
   // Measured against a mirror where field-sizing is not understood.
   (function () {
@@ -44,15 +55,20 @@
       start.value = matchesPick() ? "pick:" + picked.i : "manual";
     }
     if (query) query.value = matchesPick() ? picked.q : "";
+    lines();
   }
 
   name.addEventListener("input", function () {
     if (!name.value.trim()) {
       name.value = "";
       address.value = "";
+      byHand = false;
       address.dispatchEvent(new Event("input", { bubbles: true }));
     }
     arm();
+  });
+  name.addEventListener("blur", function () {
+    if (name.value.trim() && !matchesPick()) { byHand = true; arm(); }
   });
   address.addEventListener("input", arm);
 
@@ -65,7 +81,7 @@
       source: function (q, signal) {
         /* The list stays shut while the lines still read as the pick. */
         if (matchesPick()) return Promise.resolve([]);
-        return fetch(url + "?q=" + encodeURIComponent(q), {
+        return fetch(url + "?q=" + encodeURIComponent(q) + (near ? "&near=" + near.value : ""), {
           signal: signal,
           credentials: "same-origin",
           headers: { Accept: "application/json" }
@@ -85,6 +101,7 @@
       pick: function (hit) {
         if (hit.byHand) {
           picked = null;
+          byHand = true;
           name.value = hit.name;
           address.value = "";
           address.dispatchEvent(new Event("input", { bubbles: true }));
@@ -97,6 +114,31 @@
         address.value = picked.address;
         address.dispatchEvent(new Event("input", { bubbles: true }));
         arm();
+      }
+    });
+  }
+  var town = form.elements.near_query;
+  if (town && near && window.eaCombobox) {
+    var nearUrl = town.getAttribute("data-near");
+    window.eaCombobox(town, {
+      minChars: 2,
+      delay: 150,
+      source: function (q, signal) {
+        return fetch(nearUrl + "?q=" + encodeURIComponent(q) + "&near=" + near.value, {
+          signal: signal,
+          credentials: "same-origin",
+          headers: { Accept: "application/json" }
+        }).then(function (r) { return r.ok ? r.json() : []; });
+      },
+      render: function (t) { return { label: t.label }; },
+      pick: function (t) {
+        near.value = t.id;
+        nearLine.querySelector(".near-town").textContent = t.label;
+        nearLine.querySelector("summary").textContent = "change";
+        town.value = "";
+        town.closest("details").open = false;
+        name.focus();
+        name.dispatchEvent(new Event("input", { bubbles: true }));
       }
     });
   }

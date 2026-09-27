@@ -489,6 +489,8 @@ mod tests {
             changing_place: false,
             photos_unread: 0,
             place_query: String::new(),
+            near: String::new(),
+            near_query: String::new(),
             gers_id: " 08f2a5b6c7d8e9f0a1b2c3d4e5f60718 ".into(),
             lat_e6: "40688838".into(),
             lon_e6: "-73979914".into(),

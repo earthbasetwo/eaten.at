@@ -5,6 +5,7 @@ pub mod app;
 pub mod auth;
 pub mod bsky;
 pub mod cache;
+pub mod cities;
 pub mod db;
 pub mod editor;
 pub mod error;

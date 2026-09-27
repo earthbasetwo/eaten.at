@@ -65,6 +65,15 @@ pub async fn about() -> Markup {
                     }
                     "."
                 }
+                p {
+                    "The towns the editor can search near come from "
+                    a href="https://www.geonames.org" rel="noopener" { "GeoNames" }
+                    ", used under the "
+                    a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener" {
+                        "Creative Commons Attribution 4.0 International Licence"
+                    }
+                    "."
+                }
             }
         },
         ..Page::default()

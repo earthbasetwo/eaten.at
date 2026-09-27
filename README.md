@@ -48,6 +48,7 @@ Everything is an environment variable; a `.env` file is loaded by `just`.
 | `EATEN_AT_PLACES_API_URL` | `https://api.openplacesapi.com` | The Open Places API, which serves Overture Maps places for the editor's place search. |
 | `EATEN_AT_PLACES_API_KEY` | unset | The Open Places API key. Unset, place search is disabled and the editor takes places by hand. Never used from a browser. |
 | `EATEN_AT_GEOIP_DB` | unset | Path of an IP-to-city database in the MaxMind DB format with the GeoIP2 City layout: DB-IP's IP-to-City Lite (CC BY 4.0), fetched by `just geoip-refresh`. The editor's place search looks near where the request's IP is. Unset, it looks near the author's last visit only. Read into memory at startup; refresh monthly and restart. |
+| `EATEN_AT_CITIES` | unset | Path of GeoNames' `cities5000.txt` (towns above 5,000 people, CC BY 4.0), with `admin1CodesASCII.txt` beside it, both fetched by `just cities-refresh`. The chooser's near line names the town the search looks near and lets the author change it. Unset, there is no line and the search looks only where the request is. Read into memory at startup. |
 | `RUST_LOG` | `info` | Log filter. `debug` shows cache misses, skipped records, and upstream fallbacks. |
 
 The app expects to sit behind a TLS-terminating reverse proxy that sets
