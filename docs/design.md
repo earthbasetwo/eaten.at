@@ -562,10 +562,11 @@ itself says "looking near Acton, MA…"; a live region says the same and
 then how many rows came back. Then "Start writing" 48px below, and nothing
 else: the Overture and DB-IP credit the earlier choosing page carried
 (plan 12) is gone with it, and is given on the about page instead. Suggestions (the combobox, positioned under the headline) open
-while the name has three characters and matches: up to ten, nearest
+while the name has three characters and matches: five, nearest
 first, each row the name with the town, state and distance in the mono
 voice beside it (the street too, only where two rows with one name in
-one town would read the same), and a last row in italic, "Add “what was typed” by hand", which fills
+one town would read the same), then "Show n more" in italic for the
+rest of the same answer (PL32), and a last row in italic, "Add “what was typed” by hand", which fills
 the name, clears the address and moves to it (PL25, PL26). Food and
 drink is searched first, within 25 miles; a full answer is searched
 again within 3 miles, an empty one without the category and then at 50

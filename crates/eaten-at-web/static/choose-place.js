@@ -102,6 +102,14 @@
   });
   address.addEventListener("input", arm);
 
+  // Five rows, then "Show n more", then the by-hand row (PL32).
+  var SHOWN = 5;
+  function rowsFor(hits, q, all) {
+    var rows = all || hits.length <= SHOWN ? hits.slice() : hits.slice(0, SHOWN);
+    if (rows.length < hits.length) rows.push({ more: hits.length - rows.length, hits: hits, q: q });
+    rows.push({ byHand: true, name: q });
+    return rows;
+  }
   var url = name.getAttribute("data-suggest"), recentUrl = name.getAttribute("data-recent");
   if (url && window.eaCombobox) {
     var searched = "";
@@ -134,17 +142,17 @@
           .then(function (r) { return r.ok ? r.json() : { hits: [] }; })
           .then(function (body) {
             searched = body.q || q;
-            var hits = body.hits || [];
-            hits.push({ byHand: true, name: q });
-            return hits;
+            return rowsFor(body.hits || [], q, false);
           });
       },
       render: function (hit) {
+        if (hit.more) return { label: "Show " + hit.more + " more", kind: "combobox-action" };
         if (hit.byHand) return { label: "Add \u201c" + hit.name + "\u201d by hand", kind: "combobox-action" };
         if (hit.recent) return { label: hit.name, detail: hit.address || "" };
         return { label: hit.name, detail: hit.detail };
       },
       pick: function (hit) {
+        if (hit.more) return rowsFor(hit.hits, hit.q, true);
         if (hit.recent) {
           picked = { take: true, name: hit.name, address: hit.address || "", q: "" };
           byHand = false;
