@@ -75,3 +75,8 @@ sheet F: the list as compact rows with the excerpt kept.
 - **S15, a placeholder for a row without a photo** and **S17, the
   nameplate as a preview of the feed**, are filed for a decision
   (Backlog).
+- **S18, the closing line as a page foot.** Ken: sticky at the bottom.
+  `Page` gains `foot`, rendered as `<footer>` after `<main>`; the body
+  is already a flex column with main growing, so the line sits at the
+  window's bottom on a short page and under the content on a long one,
+  main's bottom padding being the distance.

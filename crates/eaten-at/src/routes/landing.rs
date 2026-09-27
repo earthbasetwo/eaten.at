@@ -2,8 +2,8 @@
 //! that becomes a handle field (plan 09); signed in, the author's home:
 //! one primary "Write a new digest", their feed with its recent
 //! digests and a way to find one, and settings last (plan 11). Both
-//! states end on the same quiet line, which is where the about page
-//! (and with it the credits) is reached from.
+//! states end on the same quiet line, the page foot (S18), which is
+//! where the about page (and with it the credits) is reached from.
 
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Response};
@@ -92,7 +92,10 @@ fn signed_out(nonce: &Nonce, appview: &str, origin: &str) -> Markup {
                 intro: Some("Oh, so you're one of the demanding public, eh?"),
                 label: "Look up a friend",
             }))
-            // The one quiet line signed out: where the credits are.
+        },
+        // The one quiet line signed out, in the page foot: where the
+        // credits are.
+        foot: html! {
             div.meta.tertiary {
                 a href="/about" { "About" }
             }
@@ -146,6 +149,8 @@ async fn signed_in(
                 a.button href="/write" { "Write a new digest" }
             }
             (section)
+        },
+        foot: html! {
             div.meta.tertiary {
                 a href="/settings" { "Settings" }
                 a href="/about" { "About" }
