@@ -2,8 +2,8 @@
    is typed, from this site's suggest endpoint, with a last row that
    takes what was typed as a place by hand (PL26). A pick fills name and
    address and is sent as the pick, read back from the same cached
-   search; typing over either line makes it a place by hand again, and
-   clearing the name clears the address. Without this, both are typed. */
+   search; typing over the name drops the pick and its address, typing
+   over the address makes it a place by hand. Without this, both are typed. */
 (function () {
   "use strict";
   var name = document.querySelector("form.editor-choosing input[name=\"place_name\"]");
@@ -60,8 +60,11 @@
   }
 
   name.addEventListener("input", function () {
-    if (!name.value.trim()) {
-      name.value = "";
+    // Typing over a picked name, or clearing it, drops the pick and the
+    // address that was the pick's; the line goes back to "near".
+    if (!name.value.trim() || (picked && name.value !== picked.name)) {
+      if (!name.value.trim()) name.value = "";
+      picked = null;
       address.value = "";
       byHand = false;
       address.dispatchEvent(new Event("input", { bubbles: true }));
