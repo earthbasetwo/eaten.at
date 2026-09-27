@@ -19,7 +19,8 @@ pub struct City {
     pub id: u32,
     pub name: String,
     /// The name in ASCII, what typing is matched against.
-    ascii: String,
+    /// The name in ASCII, for slugs and matching.
+    pub ascii: String,
     pub point: Point,
     /// ISO country code.
     country: String,

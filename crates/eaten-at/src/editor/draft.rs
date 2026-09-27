@@ -360,6 +360,13 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
             address: (!address.is_empty()).then(|| address.to_owned()),
             price,
             gers_id: (!gers_id.is_empty()).then(|| gers_id.to_owned()),
+            // The slug is settled by the route at publish time (PL7): it
+            // needs the author's other visits.
+            slug: None,
+            category: (!gers_id.is_empty())
+                .then(|| form.place_category.trim())
+                .filter(|c| !c.is_empty())
+                .map(str::to_owned),
             lat_e6,
             lon_e6,
             urls,
@@ -483,6 +490,7 @@ mod tests {
             description: String::new(),
             place_name: "Promises".into(),
             place_address: " 1 Example St ".into(),
+            place_category: "coffee_shop".into(),
             place_price: "2".into(),
             place_mode: PlaceMode::Picked,
             draft_id: None,

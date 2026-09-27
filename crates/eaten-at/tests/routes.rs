@@ -2758,6 +2758,70 @@ async fn publishing_to_an_existing_publication_writes_only_the_document() {
 }
 
 #[tokio::test]
+async fn a_published_place_carries_its_slug_and_its_category() {
+    // The author has been to Promises (g1) before, and that visit
+    // already carries the slug (PL7).
+    let mut repo = one_publication();
+    repo.documents[0].1["content"]["place"]["slug"] = json!("promises");
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+
+    let mut fields = good_fields();
+    fields.retain(|(k, _)| *k != "action");
+    fields.push(("place_category", "coffee_shop"));
+    fields.push(("action", "publish"));
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
+    let place = &repo_writes(&server).await[0].1["record"]["content"]["place"];
+    assert_eq!(place["slug"], "promises", "the same place shares its slug");
+    assert_eq!(
+        place["category"], "coffee_shop",
+        "PL13: Overture's own value"
+    );
+
+    // Another Promises, a different place: the town tells them apart.
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let mut fields = good_fields();
+    fields.retain(|(k, _)| !matches!(*k, "action" | "gers_id"));
+    fields.extend([
+        ("gers_id", "g2"),
+        ("lat_e6", "40650100"),
+        ("lon_e6", "-73949580"),
+        ("action", "publish"),
+    ]);
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
+    let place = &repo_writes(&server).await[0].1["record"]["content"]["place"];
+    assert_eq!(place["slug"], "promises-brooklyn");
+    assert!(place.get("category").is_none(), "none posted: {place}");
+
+    // A place by hand: the name's slug, and no category even if one is posted.
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let mut fields = good_fields();
+    fields.retain(|(k, _)| !matches!(*k, "action" | "gers_id" | "place_name" | "place_mode"));
+    fields.extend([
+        ("place_name", "Katz's Home Kitchen"),
+        ("place_mode", "manual"),
+        ("place_category", "coffee_shop"),
+        ("action", "publish"),
+    ]);
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
+    let place = &repo_writes(&server).await[0].1["record"]["content"]["place"];
+    assert_eq!(place["slug"], "katzs-home-kitchen");
+    assert!(place.get("category").is_none(), "{place}");
+    assert!(place.get("gersId").is_none(), "{place}");
+}
+
+#[tokio::test]
 async fn editing_replaces_the_record_and_deleting_removes_it() {
     let mut repo = one_publication();
     repo.preferences = Some(json!({
