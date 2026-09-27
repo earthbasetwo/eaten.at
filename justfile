@@ -77,14 +77,18 @@ run-places:
     # The key comes from .env and the base URL is the production default;
     # .env.dev's stub lines are ignored (dev-env rewrites them anyway).
     set -euo pipefail
+    # A location given on the command line wins over .env.dev's Brooklyn:
+    #   EATEN_AT_DEV_LOCATION=42.4851,-71.4328 just run-places   (Acton, MA)
     real_key="${EATEN_AT_PLACES_API_KEY:-}"
     if [ -z "$real_key" ] || [ "$real_key" = dev-key ]; then
         echo "Put the real Open Places key in .env as EATEN_AT_PLACES_API_KEY" >&2
         exit 1
     fi
+    location="${EATEN_AT_DEV_LOCATION:-}"
     set -a; . ./.env.dev; set +a
     unset EATEN_AT_PLACES_API_URL
     export EATEN_AT_PLACES_API_KEY="$real_key"
+    if [ -n "$location" ]; then export EATEN_AT_DEV_LOCATION="$location"; fi
     cargo run -p eaten-at
 
 # Dry-run the lexicon publish against the local network
