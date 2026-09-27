@@ -4075,10 +4075,10 @@ async fn the_near_line_names_the_town_and_moves_the_search() {
     // The second line is "near" the town, the town its own control;
     // it ships hidden, since only script offers suggestions.
     assert!(
-        body.contains("<p class=\"near-line\" hidden><span class=\"soft\">near</span> <details class=\"near-change\"><summary class=\"near-town\">London, England</summary>"),
+        body.contains("<p class=\"near-line\" hidden><span class=\"soft\">near</span> <button class=\"near-town\" type=\"button\" aria-label=\"Town to search near; press to change it\">London, England</button><span class=\"inline-field\" hidden><input id=\"near_query\""),
         "{body}"
     );
-    assert!(!body.contains("change</summary>"), "{body}");
+    assert!(!body.contains("<details"), "{body}");
     assert!(
         body.contains("name=\"near_query\"") && body.contains("data-near=\"/write/near\""),
         "{body}"
@@ -4105,10 +4105,7 @@ async fn the_near_line_names_the_town_and_moves_the_search() {
 
     // No address: the town nearest the author's last visit.
     let (_, _, body) = get_signed(&state, "/write", &cookie).await;
-    assert!(
-        body.contains("<summary class=\"near-town\">New York City, NY</summary>"),
-        "{body}"
-    );
+    assert!(body.contains(">New York City, NY</button>"), "{body}");
 
     // Towns called "act", the closest to Acton, MA first.
     let request = Request::get("/write/near?q=act&near=4928703")
@@ -4174,7 +4171,7 @@ async fn a_chosen_town_moves_the_search_and_pins_a_place_by_hand() {
     assert_eq!(status, StatusCode::OK);
     assert!(
         body.contains("<input type=\"hidden\" name=\"near\" value=\"2657697\">")
-            && body.contains("<summary class=\"near-town\">Acton, England</summary>"),
+            && body.contains(">Acton, England</button>"),
         "{body}"
     );
 

@@ -134,17 +134,22 @@
       render: function (t) { return { label: t.label }; },
       pick: function (t) {
         near.value = t.id;
-        nearLine.querySelector(".near-town").textContent = t.label;
-        town.value = "";
-        town.closest("details").open = false;
+        townButton.textContent = t.label;
+        closeTown();
         name.focus();
         name.dispatchEvent(new Event("input", { bubbles: true }));
       }
     });
-    var change = town.closest("details");
-    change.addEventListener("toggle", function () { if (change.open) town.focus(); });
+    // The town is a button until pressed; then the field stands in its place.
+    var townButton = nearLine.querySelector(".near-town"), townField = town.closest(".inline-field");
+    function closeTown() { townField.hidden = true; townButton.hidden = false; town.value = ""; }
+    townButton.addEventListener("click", function () {
+      townButton.hidden = true;
+      townField.hidden = false;
+      town.focus();
+    });
     town.addEventListener("blur", function () {
-      setTimeout(function () { if (document.activeElement !== town) { change.open = false; town.value = ""; } }, 200);
+      setTimeout(function () { if (document.activeElement !== town) closeTown(); }, 200);
     });
   }
   // Return with nothing highlighted leaves the field as typed.

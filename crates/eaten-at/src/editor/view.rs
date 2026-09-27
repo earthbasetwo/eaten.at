@@ -577,11 +577,11 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
 
 /// Where the search looks (plan 15, D48): "near" and the town, the
 /// second line while no place is chosen, in the address line's voice.
-/// The town is the control: it is a `<summary>`, and opening it puts a
-/// town field in its place, a combobox over `/write/near`. The line
-/// ships hidden: only script offers suggestions, so only script shows
-/// it, and the address line stands alone without; a pick or a place by
-/// hand swaps the line for the address.
+/// The town is the control: a button that script swaps for a town
+/// field in its place, a combobox over `/write/near`. The line ships
+/// hidden: only script offers suggestions, so only script shows it, and
+/// the address line stands alone without; a pick or a place by hand
+/// swaps the line for the address.
 fn near_line(near: &Near) -> Markup {
     let (id, label) = match near {
         Near::Off => return html! {},
@@ -592,12 +592,12 @@ fn near_line(near: &Near) -> Markup {
         input type="hidden" name="near" value=(id);
         p.near-line hidden {
             span.soft { "near" } " "
-            details.near-change {
-                summary.near-town { (label.unwrap_or("where?")) }
-                span.inline-field {
-                    input #near_query name="near_query" type="text" value="" placeholder="Town"
-                        autocomplete="off" aria-label="Town to search near" data-near="/write/near";
-                }
+            button.near-town type="button" aria-label="Town to search near; press to change it" {
+                (label.unwrap_or("where?"))
+            }
+            span.inline-field hidden {
+                input #near_query name="near_query" type="text" value="" placeholder="Town"
+                    autocomplete="off" aria-label="Town to search near" data-near="/write/near";
             }
         }
     }
