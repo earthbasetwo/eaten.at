@@ -452,6 +452,28 @@ pub fn tag_links(tags: &[Link], scope_note: Option<&str>) -> Markup {
     }
 }
 
+/// A document's tags as the composer's sentence (P5): "Filed under" in
+/// italic soft ink, the tags as words with commas, a full stop. Each
+/// tag is a link on the home's hairline underline. Set above the
+/// footer's rule, as the composer sets it under the photos.
+pub fn filed_under(tags: &[Link]) -> Markup {
+    html! {
+        @if !tags.is_empty() {
+            nav.tags.filed-under aria-label="Tags in this feed" {
+                p.tags-sentence {
+                    span.filed-label { "Filed under" }
+                    " "
+                    @for (i, tag) in tags.iter().enumerate() {
+                        @if i > 0 { ", " }
+                        a.tag-word href=(tag.href) { (tag.label) }
+                    }
+                    "."
+                }
+            }
+        }
+    }
+}
+
 /// The author's home's tags as one line in the composer's treatment
 /// (S9): the serif, commas (drawn by the stylesheet, so a folded tag
 /// takes its comma with it), a faint count after a tag used more than

@@ -4,7 +4,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
 use eaten_at_atproto::lexicon::Document;
 use eaten_at_web::components::{
-    comments, photo_grid, tag_links, visit_card, visit_links, CommentsView, Link,
+    comments, filed_under, photo_grid, visit_card, visit_links, CommentsView, Link,
 };
 use eaten_at_web::dates::human_date;
 use eaten_at_web::layout::{self, Masthead, Page};
@@ -87,14 +87,11 @@ pub async fn document_page(
     let footer = Footer {
         links: card.as_ref().map_or(&[][..], |c| c.links.as_slice()),
         comments_url: view::bluesky_post_url(&record.value),
-        tags: &tags,
         feed_path: paths::feed(&did, &pub_rkey),
         author_path: paths::repo(&did),
         author: view::author_label(&identity),
         // The author, signed in, can edit from the page itself.
         edit_path: (viewer.as_ref() == Some(&did)).then(|| format!("/write/{doc_rkey}")),
-        photos_path: (viewer.as_ref() == Some(&did) && visit_doc.is_some())
-            .then(|| format!("/write/{doc_rkey}/photos")),
     };
 
     let confirmation = (viewer.as_ref() == Some(&did))
@@ -132,6 +129,7 @@ pub async fn document_page(
                 } @else {
                     p.notice { "This document has no readable body." }
                 }
+                (filed_under(&tags))
                 @if let Some(thread) = &thread {
                     (comments(thread))
                 }
@@ -201,16 +199,16 @@ async fn comment_thread(state: &AppState, doc: &Document) -> Option<CommentsView
 }
 
 /// What the document footer shows: the place's links, the comment
-/// thread, the tags, and the publication's feed and author.
+/// thread, and the publication's feed and author. The tags sit above
+/// it as the "Filed under" sentence (P5); "photos" is not here, since
+/// "edit" already leads to where photos are managed (P6).
 struct Footer<'a> {
     links: &'a [Link],
     comments_url: Option<String>,
-    tags: &'a [Link],
     feed_path: String,
     author_path: String,
     author: String,
     edit_path: Option<String>,
-    photos_path: Option<String>,
 }
 
 impl Footer<'_> {
@@ -226,13 +224,9 @@ impl Footer<'_> {
                     }
                 }
                 div.doc-footer-row {
-                    (tag_links(self.tags, None))
                     div.quiet-links.push {
                         @if let Some(edit) = &self.edit_path {
                             a href=(edit) { "edit" }
-                        }
-                        @if let Some(photos) = &self.photos_path {
-                            a href=(photos) { "photos" }
                         }
                         a href=(self.feed_path) rel="alternate" type="application/rss+xml" { "rss" }
                         a href=(self.author_path) rel="author" { (self.author) }

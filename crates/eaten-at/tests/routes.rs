@@ -926,6 +926,15 @@ async fn document_page_renders_card_body_tags_and_canonical() {
         "the coordinates become a map link: {body}"
     );
     assert!(body.contains("longform"), "{body}");
+    // The tags are the composer's sentence above the footer (P5), not
+    // chips inside it.
+    assert!(
+        body.contains(&format!(
+            "<nav class=\"tags filed-under\" aria-label=\"Tags in this feed\"><p class=\"tags-sentence\"><span class=\"filed-label\">Filed under</span> <a class=\"tag-word\" href=\"/at/{DID}/pub1/tagged/longform\">longform</a>.</p></nav>"
+        )),
+        "{body}"
+    );
+    assert!(!body.contains("class=\"tag\""), "{body}");
 }
 
 #[tokio::test]
@@ -4148,11 +4157,11 @@ async fn the_photo_proxy_serves_listed_photos_only_and_pages_show_them() {
         "the others: {listing}"
     );
     let cookie = signed_in(&state).await;
+    // The author's foot leads to the editor; photos are managed from
+    // there, so the foot has no "photos" link of its own (P6).
     let (_, _, mine) = get_signed(&state, &format!("/at/{DID}/pub1/ph"), &cookie).await;
-    assert!(
-        mine.contains("<a href=\"/write/ph/photos\">photos</a>"),
-        "{mine}"
-    );
+    assert!(mine.contains("<a href=\"/write/ph\">edit</a>"), "{mine}");
+    assert!(!mine.contains("href=\"/write/ph/photos\""), "{mine}");
     let (_, _, editor) = get_signed(&state, "/write/ph", &cookie).await;
     assert!(
         editor.contains("name=\"photo_cid_0\" value=\"bafkcover\""),
