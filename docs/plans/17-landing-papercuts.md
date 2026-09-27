@@ -95,3 +95,8 @@ sheet F: the list as compact rows with the excerpt kept.
   whole feed, the description as the lede. Set aside: the action as an
   ear on the masthead (not clear enough as the action), the find as
   the band's floor.
+- **S15, first step.** Rows without a photo measured shortest but read
+  as taller, the text hanging beside an empty column. The square stays,
+  recessed and empty (`.listing-thumb-blank`). A mark by the place's
+  kind is the row's open half: the icon source and its licence, the
+  map from Overture's category, the fallback.

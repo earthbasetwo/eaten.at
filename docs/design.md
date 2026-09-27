@@ -380,8 +380,9 @@ the words, unfolds it (S4).
 digests compactly (S7): a square thumbnail on `--thumb-small` when the
 visit has a photo, the title, one mono line with the verdict first
 (S8) then the date and the place, and the excerpt. No photo badge. A
-row without a photo keeps the thumbnail column empty, so every title
-starts on the same line. The front page keeps the full card.
+row without a photo keeps the square as a recessed blank (S15's first
+step), so every row is anchored the same way. The front page keeps the
+full card.
 
 **Buttons.** Typeset: an action is a label in the serif italic on a
 rule, with no box and no fill (the Typeset handoff, 6a). The rule is an

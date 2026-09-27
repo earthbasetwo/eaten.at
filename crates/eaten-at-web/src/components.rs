@@ -478,8 +478,10 @@ pub fn tag_line(tags: &[(Link, usize)]) -> Markup {
 /// The author's home's rows (S7): a square thumbnail on the small-thumb
 /// size when the visit has a photo, the title, one mono line with the
 /// verdict first (S8), then the excerpt. No badge and no photo count.
-/// A row without a photo has no thumbnail element; the stylesheet keeps
-/// the column, so every title starts on the same line.
+/// A row without a photo keeps the square as a recessed blank (S15's
+/// first step; a mark by the place's kind may fill it later), so every
+/// row is anchored the same way and every title starts on the same
+/// line.
 pub fn listing_compact(items: &[ListingItem]) -> Markup {
     html! {
         ol.listing.listing-compact {
@@ -492,6 +494,8 @@ pub fn listing_compact(items: &[ListingItem]) -> Markup {
                                 img src=(photo.src) alt=(photo.alt)
                                     width=(CARD_PHOTO_WIDTH) height=(CARD_PHOTO_HEIGHT) loading="lazy";
                             }
+                        } @else {
+                            span.listing-thumb.listing-thumb-blank aria-hidden="true" {}
                         }
                         div.listing-body {
                             h2.listing-title { a href=(item.href) { (item.title) } }
@@ -817,8 +821,10 @@ mod tests {
             out.contains("<p class=\"listing-meta\"><span class=\"rating\">Can’t Miss</span><time datetime=\"2026-09-07T12:00:00Z\">September 7, 2026</time><span class=\"listing-place-name\">Noodle House</span></p><p class=\"listing-excerpt\">Twice.</p>"),
             "{out}"
         );
-        assert_eq!(out.matches("listing-thumb").count(), 1, "{out}");
-        assert!(out.contains("<article><div class=\"listing-body\"><h2 class=\"listing-title\"><a href=\"/b\">B</a></h2><p class=\"listing-meta\"><time"), "{out}");
+        assert!(
+            out.contains("<article><span class=\"listing-thumb listing-thumb-blank\" aria-hidden=\"true\"></span><div class=\"listing-body\"><h2 class=\"listing-title\"><a href=\"/b\">B</a></h2><p class=\"listing-meta\"><time"),
+            "{out}"
+        );
     }
 
     #[test]
