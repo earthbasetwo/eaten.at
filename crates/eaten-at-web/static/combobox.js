@@ -9,7 +9,7 @@ window.eaCombobox = function (input, opts) {
   list.id = id;
   list.setAttribute("role", "listbox");
   list.hidden = true;
-  var anchor = input.closest(".lookup-row") || input;
+  var anchor = opts.anchor || input.closest(".lookup-row") || input;
   anchor.parentNode.insertBefore(list, anchor.nextSibling);
   input.setAttribute("role", "combobox");
   input.setAttribute("aria-autocomplete", "list");
@@ -96,7 +96,7 @@ window.eaCombobox = function (input, opts) {
 
   input.addEventListener("input", function () {
     clearTimeout(timer);
-    /* The rows for an empty field go the moment typing starts. */
+    /* Typing closes the empty field's rows. */
     if (resting && input.value.trim()) close();
     timer = setTimeout(search, opts.delay);
   });

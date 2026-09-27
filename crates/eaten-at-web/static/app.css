@@ -946,6 +946,9 @@
   .editor-choosing .combobox-list {
     position: absolute; inset-block-start: 100%; inset-inline: 0; margin: 8px 0 0; z-index: 20;
   }
+  /* The place list sits under the near line, in the flow, so where the
+     search looks stays in view above it (Ken, 2026-09-27). */
+  .editor-choosing .near-line + .combobox-list { position: static; margin-block-start: var(--space-s); }
   .editor-choosing .combobox-option { padding: 9px 16px; gap: var(--space-xs) var(--space-s); }
   .editor-choosing .combobox-label { font-size: 1.0625rem; }
   .editor-choosing .start-writing { margin-block-start: 3rem; }

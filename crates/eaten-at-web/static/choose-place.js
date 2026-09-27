@@ -11,7 +11,7 @@
   var query = form.elements.place_query;
   var start = form.querySelector("#start-writing");
   var picked = null, byHand = false;
-  // The second line (D48): near the town, or at the address. Home keeps near.
+  // D48: near the town, or at the address; Home keeps near.
   var near = form.elements.near, nearLine = form.querySelector(".near-line");
   var placeLine = form.querySelector(".place-line");
   function isHome() { return /^home$/i.test(name.value.trim()) && !matchesPick(); }
@@ -108,6 +108,7 @@
     window.eaCombobox(name, {
       minChars: 3,
       delay: 300,
+      anchor: nearLine || name,
       emptyHeading: "Recently",
       empty: recentUrl ? function (q, signal) {
         if (picked || byHand) return Promise.resolve([]);
