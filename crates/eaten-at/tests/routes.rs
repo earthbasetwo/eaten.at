@@ -4083,25 +4083,6 @@ async fn the_near_line_names_the_town_and_moves_the_search() {
         body.contains("name=\"near_query\"") && body.contains("data-near=\"/write/near\""),
         "{body}"
     );
-    // The note that the address is public waits for Home.
-    assert!(
-        body.contains("<p class=\"hint address-hint\" hidden>The address is public. Leave it out for home.</p>"),
-        "{body}"
-    );
-    let (_, body) = post_editor_from(
-        &state,
-        "/write",
-        &cookie,
-        &[("place_mode", "choosing"), ("place_name", "Home")],
-        Some(LONDON_IP),
-    )
-    .await;
-    assert!(
-        body.contains(
-            "<p class=\"hint address-hint\">The address is public. Leave it out for home.</p>"
-        ),
-        "{body}"
-    );
 
     // No address: the town nearest the author's last visit.
     let (_, _, body) = get_signed(&state, "/write", &cookie).await;
@@ -4175,7 +4156,8 @@ async fn a_chosen_town_moves_the_search_and_pins_a_place_by_hand() {
         "{body}"
     );
 
-    // A place by hand sits at its town: a coarse pin (PL6).
+    // A place by hand sits at its town: a coarse pin (PL6). Home is a
+    // name and a town, never an address, whatever was posted.
     let (status, body) = post_editor(
         &state,
         "/write",
@@ -4184,6 +4166,7 @@ async fn a_chosen_town_moves_the_search_and_pins_a_place_by_hand() {
             ("place_mode", "choosing"),
             ("near", "4928703"),
             ("place_name", "Home"),
+            ("place_address", "1 Secret Lane"),
             ("action", "manual"),
         ],
     )
@@ -4195,6 +4178,7 @@ async fn a_chosen_town_moves_the_search_and_pins_a_place_by_hand() {
         "{body}"
     );
     assert!(body.contains("value=\"Home\""), "{body}");
+    assert!(!body.contains("Secret Lane"), "Home has no address: {body}");
 }
 
 #[tokio::test]

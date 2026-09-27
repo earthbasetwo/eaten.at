@@ -942,7 +942,6 @@
   .editor-choosing .near-town:hover { text-decoration-color: var(--color-ink); }
   .editor-choosing .near-town:focus-visible { text-decoration-color: var(--color-vermilion); outline: none; }
   .editor-choosing .near-line .combobox-list { inset-inline: 0; min-inline-size: 16rem; max-inline-size: 24rem; }
-  .editor-choosing .address-hint { margin-block-start: var(--space-xs); }
   .editor-choosing .combobox-list {
     position: absolute; inset-block-start: 100%; inset-inline: 0; margin: 8px 0 0; z-index: 20;
   }
