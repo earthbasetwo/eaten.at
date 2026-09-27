@@ -50,6 +50,23 @@ PL14 (the feed by place) and the rest stay on the backlog.
   server puts the posted name over the listing's. Another name drops
   the pick and its address as before; "Home" always does.
 
+## After Ken's look (2026-09-27)
+
+- The recent rows are headed "Recently" and close on the first
+  keystroke; the list sits under the near line, in the flow, so "near
+  Acton, MA" stays in view above it.
+- Loading (PL31): of three shapes shown as an artifact (rows step back
+  with a status row; the near line as the indicator; a sweep along the
+  name's rule), Ken chose the first alone, then, since the list now sits
+  right under the near line, had the words go into that line instead of
+  a row: the combobox marks the list stale when a search starts and,
+  400 ms later, the near line reads "looking near Acton, MA…" and a
+  live region says the same; the answer clears both.
+- The script tripwire went to 96 KiB (Ken) rather than trim comments a
+  third time; T4 settles it.
+- "eve" never finds "Eve & Murray's Farm to Home" (Acton, 2 mi), even
+  at 3 miles, while "eve & murray" does: the API's matcher (PL33).
+
 ## Verification
 
 `just check`; new route tests for the slug, the category, the recent

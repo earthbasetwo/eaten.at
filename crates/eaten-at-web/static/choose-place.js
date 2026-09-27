@@ -110,6 +110,12 @@
       delay: 300,
       anchor: nearLine || name,
       emptyHeading: "Recently",
+      // The near line says it: "looking near Acton, MA…" (PL31).
+      busy: function (on) { if (nearLine) nearLine.classList.toggle("looking", on); },
+      searching: function () {
+        var t = nearLine && nearLine.querySelector(".near-town");
+        return t && t.textContent !== "where?" ? "Looking near " + t.textContent : "Looking";
+      },
       empty: recentUrl ? function (q, signal) {
         if (picked || byHand) return Promise.resolve([]);
         return fetch(recentUrl, { signal: signal, credentials: "same-origin", headers: { Accept: "application/json" } })
