@@ -13,16 +13,17 @@
   var query = form.elements.place_query;
   var start = form.querySelector("#start-writing");
   var picked = null, byHand = false;
-  // The near line (plan 15) shows until a place is picked; the address
-  // line takes its place, or joins it for a place by hand.
+  // One second line (plan 15, D48): "near" the town until a place is
+  // picked or typed by hand, then "at" the address. The note that the
+  // address is public shows only for Home.
   var near = form.elements.near, nearLine = form.querySelector(".near-line");
   var placeLine = form.querySelector(".place-line"), hint = form.querySelector(".address-hint");
   function lines() {
     if (!nearLine) return;
-    var isPick = matchesPick();
-    nearLine.hidden = isPick;
-    placeLine.hidden = !isPick && !byHand;
-    if (hint) hint.hidden = isPick || !byHand;
+    var at = matchesPick() || byHand;
+    nearLine.hidden = at;
+    placeLine.hidden = !at;
+    if (hint) hint.hidden = !(byHand && /^home$/i.test(name.value.trim()));
   }
 
   // Measured against a mirror where field-sizing is not understood.
@@ -134,12 +135,16 @@
       pick: function (t) {
         near.value = t.id;
         nearLine.querySelector(".near-town").textContent = t.label;
-        nearLine.querySelector("summary").textContent = "change";
         town.value = "";
         town.closest("details").open = false;
         name.focus();
         name.dispatchEvent(new Event("input", { bubbles: true }));
       }
+    });
+    var change = town.closest("details");
+    change.addEventListener("toggle", function () { if (change.open) town.focus(); });
+    town.addEventListener("blur", function () {
+      setTimeout(function () { if (document.activeElement !== town) { change.open = false; town.value = ""; } }, 200);
     });
   }
   // Return with nothing highlighted leaves the field as typed.
