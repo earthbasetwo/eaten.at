@@ -43,6 +43,10 @@ pub struct PhotosQuery {
     /// Where to go when done: a local path, else ignored.
     #[serde(default)]
     then: Option<String>,
+    /// Set on the way back from sign-in after a post that a run-out
+    /// session refused: the files chosen then were not kept (PC6).
+    #[serde(default)]
+    expired: Option<String>,
 }
 
 impl PhotosQuery {
@@ -67,6 +71,14 @@ impl PhotosQuery {
             path.push_str(&urlencoding(then));
         }
         path
+    }
+
+    /// Where sign-in comes back to after refusing a post: the page,
+    /// marked so it can say the chosen files were not kept.
+    fn expired_path(&self, rkey: &str) -> String {
+        let path = self.action_path(rkey);
+        let sep = if path.contains('?') { '&' } else { '?' };
+        format!("{path}{sep}expired=1")
     }
 }
 
@@ -239,7 +251,10 @@ pub async fn photos_form(
         &visit_doc,
         &visit_doc.visit.photos,
         &query,
-        &Outcome::default(),
+        &Outcome {
+            error: query.expired.is_some().then_some(EXPIRED_PAGE),
+            ..Outcome::default()
+        },
     ))
 }
 
@@ -257,7 +272,7 @@ pub async fn photos_submit(
     // Signed out, JSON is told so with a 401, as the upload is; a page
     // goes to sign in and comes back.
     let Some(did) = user else {
-        return Ok(signed_out(wants, &query.action_path(&rkey)));
+        return Ok(signed_out(wants, &query.expired_path(&rkey)));
     };
     let (identity, visit_doc) = load(&state, &did, &rkey).await?;
     let form = match PhotosForm::from_multipart(multipart).await {
@@ -319,7 +334,7 @@ pub async fn photos_submit(
                 },
             ),
             Err(Refused::Session) => {
-                return Ok(signed_out(wants, &query.action_path(&rkey)));
+                return Ok(signed_out(wants, &query.expired_path(&rkey)));
             }
             Err(Refused::Repo(problems)) => {
                 return Ok(render(
@@ -363,7 +378,7 @@ pub async fn photos_submit(
             &query,
             &outcome,
         )),
-        Err(PublishError::SessionExpired) => Ok(signed_out(wants, &query.action_path(&rkey))),
+        Err(PublishError::SessionExpired) => Ok(signed_out(wants, &query.expired_path(&rkey))),
         Err(PublishError::App(err)) => Err(err),
         Err(PublishError::Home(message)) => Err(AppError::Upstream(message)),
         Err(PublishError::Repo(err)) => {
@@ -386,6 +401,11 @@ pub async fn photos_submit(
 
 const WRITE_REFUSED: &str =
     "Your server did not accept the change. Nothing was changed; try again in a moment.";
+
+/// What the page says on the way back from sign-in, after it refused a
+/// post: the browser does not carry chosen files or typed descriptions
+/// across the bounce, so they have to be given again (PC6).
+const EXPIRED_PAGE: &str = "Your sign-in had expired, so what you sent was not kept. You are signed in again: choose the photos again, or retype the descriptions.";
 
 /// What the island says when the sign-in has run out mid-upload. The
 /// editor's page, and its draft, stay where they are.
