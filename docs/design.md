@@ -546,7 +546,13 @@ islands dress it and fall away.
 `at [address].` under it, "Start writing" 48px below, and nothing
 else: the Overture and DB-IP credit the earlier choosing page carried
 (plan 12) is gone with it, and is given on the about page instead. Suggestions (the combobox, positioned under the headline) open
-while the name has three characters and matches; ↓/↑ cycle, Return takes
+while the name has three characters and matches: up to ten, nearest
+first, the name on one line and the address and distance on the next,
+and a last row in italic, "Add “what was typed” by hand", which fills
+the name, clears the address and moves to it (PL25, PL26). Food and
+drink is searched first, within 25 miles; a full answer is searched
+again within 3 miles, an empty one without the category and then at 50
+(PL21, PL24). ↓/↑ cycle, Return takes
 the highlighted row or leaves the field, Escape closes. A pick fills
 both lines and arms Start writing as that pick, which the server reads
 from the same cached search (`action=pick:N`); typing over either line

@@ -20,8 +20,20 @@ use crate::state::AppState;
 
 /// Where the production API lives.
 pub const DEFAULT_BASE_URL: &str = "https://api.openplacesapi.com";
-/// How many hits one search shows. The API caps text search at 20.
-pub const RESULT_LIMIT: u8 = 10;
+/// How many hits one search asks for: the API's cap on a text search.
+/// The API orders by name match, not distance, so a full answer is the
+/// one that can hide the nearest branches of a chain (PL24).
+pub const RESULT_LIMIT: u8 = 20;
+/// Overture's top-level food category, matched by hierarchy ancestor,
+/// so bars, bakeries, delis and diners all come through (PL21; the name
+/// as of release 2026-08-19).
+const CATEGORY: &str = "food_and_drink";
+/// The radius of the first search, in miles: the API's own default.
+const RADIUS_MI: u8 = 25;
+/// The radius of the second search when the first came back full.
+const CLOSE_RADIUS_MI: u8 = 3;
+/// The radius of the last search when nothing was found: the API's cap.
+const WIDE_RADIUS_MI: u8 = 50;
 /// Every `place_id` the API issues starts with this; the rest is the
 /// Overture GERS id (D36, verified 2026-09-13 against release 2026-08-19).
 const ID_PREFIX: &str = "overture:";
@@ -139,7 +151,12 @@ impl AppState {
         self.places().api_key.is_some()
     }
 
-    /// Places called `q` near `near`, cached by query and point.
+    /// Places called `q` near `near`, nearest first, cached by query
+    /// and point. Food and drink within 25 miles; when that answer is
+    /// full, the same within 3 miles is merged in, since the API orders
+    /// by name and a chain can fill the twenty with far branches; when
+    /// it is empty, once more without the category (a market filed
+    /// under retail), and then once at 50 miles (PL21, PL22, PL24).
     pub async fn search_places(&self, q: &str, near: Point) -> Result<Vec<Hit>, SearchError> {
         let config = self.places();
         let Some(key) = &config.api_key else {
@@ -157,11 +174,33 @@ impl AppState {
                 "That's too long for a search.".to_owned(),
             ));
         }
-        let cache_key = format!("{q}|{}", near.cache_key());
+        // The version keeps a list from before the ladder out of a pick.
+        let cache_key = format!("2|{q}|{}", near.cache_key());
         let hits = self
             .cache()
             .get_or_fetch(Namespace::PlaceSearch, &cache_key, || async {
-                let hits = fetch(self, &config.base_url, key, &q, near).await?;
+                let search = |radius: u8, category: Option<&'static str>| {
+                    fetch(self, &config.base_url, key, &q, near, radius, category)
+                };
+                let mut hits = search(RADIUS_MI, Some(CATEGORY)).await?;
+                if hits.len() >= usize::from(RESULT_LIMIT) {
+                    let close = search(CLOSE_RADIUS_MI, Some(CATEGORY)).await?;
+                    for hit in close {
+                        if !hits.iter().any(|h| h.gers_id == hit.gers_id) {
+                            hits.push(hit);
+                        }
+                    }
+                } else if hits.is_empty() {
+                    hits = search(RADIUS_MI, None).await?;
+                    if hits.is_empty() {
+                        hits = search(WIDE_RADIUS_MI, Some(CATEGORY)).await?;
+                    }
+                }
+                hits.sort_by(|a, b| {
+                    a.distance_mi
+                        .partial_cmp(&b.distance_mi)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
                 Ok::<_, SearchError>(Some(hits))
             })
             .await?;
@@ -184,15 +223,24 @@ async fn fetch(
     key: &str,
     q: &str,
     near: Point,
+    radius_mi: u8,
+    category: Option<&str>,
 ) -> Result<Vec<Hit>, SearchError> {
     let mut url = base_url
         .join("/v1/places")
         .map_err(|_| SearchError::Unavailable)?;
-    url.query_pairs_mut()
-        .append_pair("q", q)
-        .append_pair("lat", &near.lat.to_string())
-        .append_pair("lon", &near.lon.to_string())
-        .append_pair("limit", &RESULT_LIMIT.to_string());
+    {
+        let mut pairs = url.query_pairs_mut();
+        pairs
+            .append_pair("q", q)
+            .append_pair("lat", &near.lat.to_string())
+            .append_pair("lon", &near.lon.to_string())
+            .append_pair("radius_mi", &radius_mi.to_string())
+            .append_pair("limit", &RESULT_LIMIT.to_string());
+        if let Some(category) = category {
+            pairs.append_pair("category", category);
+        }
+    }
     let mut headers = HeaderMap::new();
     headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
     let bearer = HeaderValue::from_str(&format!("Bearer {key}")).map_err(|_| {
