@@ -292,7 +292,11 @@ async fn submit(
                 outcome.near = near;
             } else if form.place_mode == PlaceMode::Manual && form.gers_id.is_empty() {
                 // A place by hand sits at its town (PL6): a coarse pin,
-                // never the request's point or the address.
+                // never the request's point or the address. Home is a
+                // name and a town, never an address (Ken).
+                if form.place_name.trim().eq_ignore_ascii_case("home") {
+                    form.place_address.clear();
+                }
                 if let Some(city) = near_city(state, &form) {
                     form.lat_e6 = to_e6(city.point.lat).to_string();
                     form.lon_e6 = to_e6(city.point.lon).to_string();

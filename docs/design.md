@@ -551,8 +551,8 @@ by hand. The town is the one nearest the request or the last visit,
 "where?" when nothing locates. The near line ships hidden and script
 shows it, since only script offers suggestions; without script the
 address line stands alone and the town still pins a place by hand.
-"The address is public. Leave it out for home." shows under the address
-only when the name is Home. Then "Start writing" 48px below, and nothing
+Home keeps the near line: it is a name and a town, and any address
+posted with it is dropped. Then "Start writing" 48px below, and nothing
 else: the Overture and DB-IP credit the earlier choosing page carried
 (plan 12) is gone with it, and is given on the about page instead. Suggestions (the combobox, positioned under the headline) open
 while the name has three characters and matches: up to ten, nearest

@@ -14,16 +14,17 @@
   var start = form.querySelector("#start-writing");
   var picked = null, byHand = false;
   // One second line (plan 15, D48): "near" the town until a place is
-  // picked or typed by hand, then "at" the address. The note that the
-  // address is public shows only for Home.
+  // picked or typed by hand, then "at" the address. Home keeps "near":
+  // it has a town and no address.
   var near = form.elements.near, nearLine = form.querySelector(".near-line");
-  var placeLine = form.querySelector(".place-line"), hint = form.querySelector(".address-hint");
+  var placeLine = form.querySelector(".place-line");
+  function isHome() { return /^home$/i.test(name.value.trim()) && !matchesPick(); }
   function lines() {
     if (!nearLine) return;
-    var at = matchesPick() || byHand;
+    var at = (matchesPick() || byHand) && !isHome();
     nearLine.hidden = at;
     placeLine.hidden = !at;
-    if (hint) hint.hidden = !(byHand && /^home$/i.test(name.value.trim()));
+    if (isHome() && address.value) { address.value = ""; }
   }
 
   // Measured against a mirror where field-sizing is not understood.

@@ -559,11 +559,6 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                 }
                 span.soft { "." }
             }
-            @if page.near != Near::Off {
-                p.hint.address-hint hidden[!form.place_name.trim().eq_ignore_ascii_case("home")] {
-                    "The address is public. Leave it out for home."
-                }
-            }
             (field_error(errors, "place_name"))
             (field_error(errors, "place_address"))
             div.actions.start-writing {
