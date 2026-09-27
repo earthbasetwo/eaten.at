@@ -361,15 +361,21 @@ hairlined rows. Each row is a byline over the text:
 Replies to replies are indented up to three levels. "No comments yet."
 is the empty state, and "Reply on Bluesky →" is in the accent.
 
+**Filed under, on the document** (`.filed-under`, P5). The tags sit
+above the footer's rule as the composer's sentence: "Filed under" in
+italic soft ink, the tags as words with commas, a full stop; each tag a
+link on the home's hairline underline (`.tag-word`).
+
 **Document footer** (`.doc-footer`). Mono, hairline above, actions 18px
 apart. Row one: the "Links" label (stone) and links (accent), with the
-comments link pushed right with an arrow. Row two: tag chips, then edit,
-rss, and the author pushed right as quiet links in `ink-soft`.
+comments link pushed right with an arrow. Row two: edit, rss, and the
+author pushed right as quiet links in `ink-soft`. There is no "photos"
+link: edit leads to where photos are managed (P6).
 
 **Tag chip** (`.tag`). A small square badge: a hairline, the mono voice
 at metadata size, `ink-soft`, the tag as the author wrote it. On hover
-the border and text turn `ink`. The same chip on the front page, the
-and in the document footer. The author's home sets its tags as a line
+the border and text turn `ink`. The same chip on the front page and
+the tag page. The author's home sets its tags as a line
 instead (`.tag-line`, S9): the composer's treatment, the serif at field
 size with a hairline underline, commas drawn by the stylesheet, a faint
 mono count after a tag used more than once, the most used first, set in

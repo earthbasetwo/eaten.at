@@ -1503,6 +1503,10 @@
   .doc-footer .quiet-links { display: flex; gap: var(--action-gap); }
   .doc-footer .quiet-links a { color: var(--color-ink-soft); }
   .doc-footer .quiet-links a:hover { color: var(--color-vermilion); }
+  /* Filed under (P5): the document's tags as the composer's sentence,
+     above the footer's rule; the words on the home's hairline underline. */
+  .filed-under .tags-sentence { margin-block-start: var(--space-l); color: var(--color-ink-soft); }
+  .filed-label { font-style: italic; }
 
   /* Tag chip: a small square badge in the mono voice, hairlined. */
   .tag-list { display: flex; flex-wrap: wrap; gap: var(--space-s); align-items: center; }
