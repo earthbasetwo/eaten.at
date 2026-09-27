@@ -14,6 +14,7 @@ use axum::response::{IntoResponse, Json, Redirect, Response};
 use axum::Form;
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
+use eaten_at_atproto::lexicon::{LatE6, LonE6};
 use eaten_at_web::assets::{
     CHOOSE_PLACE_SCRIPT, COMBOBOX_SCRIPT, DIGEST_SCRIPT, EDITOR_SCRIPT, PHOTOS_SCRIPT, TAGS_SCRIPT,
     WRITE_SCRIPT,
@@ -543,7 +544,14 @@ async fn pick(
     };
     let outcome = match hit {
         Some(hit) => {
+            // A small correction to the picked name ("Devocion" to
+            // "Devoción") keeps the pick (PL29, Ken): the id and the
+            // address are the listing's, the name is the author's.
+            let typed = form.place_name.trim().to_owned();
             form.pick(&hit);
+            if !typed.is_empty() {
+                form.place_name = typed;
+            }
             Outcome::default()
         }
         None => Outcome {
@@ -571,6 +579,66 @@ pub struct SuggestQuery {
 struct Town {
     id: u32,
     label: String,
+}
+
+/// One of the author's own recent places (PL11), as the chooser offers
+/// it before anything is typed: everything a pick would fill, so
+/// taking it needs no search.
+#[derive(Debug, Serialize)]
+struct RecentPlace {
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    address: Option<String>,
+    #[serde(rename = "gersId", skip_serializing_if = "Option::is_none")]
+    gers_id: Option<String>,
+    #[serde(rename = "latE6", skip_serializing_if = "Option::is_none")]
+    lat_e6: Option<i32>,
+    #[serde(rename = "lonE6", skip_serializing_if = "Option::is_none")]
+    lon_e6: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    category: Option<String>,
+}
+
+/// How many recent places the chooser opens with.
+const RECENT_LIMIT: usize = 5;
+
+/// `GET /write/recent` — the author's most recent places, one row per
+/// place, newest visit first (PL11). Read from the author's own visits,
+/// so it costs no quota; empty for an author with no feed yet.
+pub async fn recent_places(
+    State(state): State<AppState>,
+    RequireUser(did): RequireUser,
+) -> Result<Response, AppError> {
+    let identity = state.require_identity(&did).await?;
+    let mut recent: Vec<RecentPlace> = Vec::new();
+    if let Some(publication) = state.own_publication(&identity).await? {
+        let listing = state.visit_listing(&identity, &publication, None).await?;
+        let mut seen: Vec<eaten_at_atproto::lexicon::at_eaten::Place> = Vec::new();
+        for visit_doc in listing.items {
+            let place = visit_doc.visit.place;
+            if seen.iter().any(|s| publish::same_place(s, &place)) {
+                continue;
+            }
+            recent.push(RecentPlace {
+                name: place.name.clone(),
+                address: place.address.clone(),
+                gers_id: place.gers_id.clone(),
+                lat_e6: place.lat_e6.map(LatE6::value),
+                lon_e6: place.lon_e6.map(LonE6::value),
+                category: place.category.clone(),
+            });
+            seen.push(place);
+            if recent.len() >= RECENT_LIMIT {
+                break;
+            }
+        }
+    }
+    let mut response = Json(recent).into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
 }
 
 /// `GET /write/near?q=…&near=…` — towns called `q`, the closest to the

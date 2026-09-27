@@ -246,6 +246,10 @@ pub enum Action {
     Pick(usize),
     /// Take the name and address as typed, with no listing behind them.
     Manual,
+    /// Take the place as the hidden fields describe it: one of the
+    /// author's own recent places, offered before anything is typed
+    /// (PL11). A place with an id is a pick; one without is by hand.
+    Take,
     /// Back to choosing a place, keeping everything else.
     ChangePlace,
     /// Re-render the form as it is. Return pressed in a text field
@@ -266,6 +270,7 @@ impl Action {
             "publish" => Some(Self::Publish),
             "publish_photos" => Some(Self::PublishPhotos),
             "manual" => Some(Self::Manual),
+            "take" => Some(Self::Take),
             "change_place" => Some(Self::ChangePlace),
             other => {
                 if let Some(kind) = other.strip_prefix("add_") {
@@ -289,6 +294,7 @@ impl Action {
             Self::RemoveRow(kind, i) => format!("remove_{}:{i}", kind.name()),
             Self::Pick(i) => format!("pick:{i}"),
             Self::Manual => "manual".to_owned(),
+            Self::Take => "take".to_owned(),
             Self::ChangePlace => "change_place".to_owned(),
             Self::Keep => "keep".to_owned(),
             Self::Publish => "publish".to_owned(),
@@ -465,6 +471,13 @@ impl EditorForm {
             },
             Action::ChangePlace => self.change_place(),
             Action::Manual => self.manual(),
+            Action::Take => {
+                self.place_mode = if self.gers_id.trim().is_empty() {
+                    PlaceMode::Manual
+                } else {
+                    PlaceMode::Picked
+                };
+            }
             Action::Pick(_) | Action::Keep | Action::Publish | Action::PublishPhotos => {}
         }
         self.ensure_rows();

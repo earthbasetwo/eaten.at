@@ -1,9 +1,8 @@
-/* Choosing the place (plan 12). Suggestions open under the name as it
-   is typed, from this site's suggest endpoint, with a last row that
-   takes what was typed as a place by hand (PL26). A pick fills name and
-   address and is sent as the pick, read back from the same cached
-   search; typing over the name drops the pick and its address, typing
-   over the address makes it a place by hand. Without this, both are typed. */
+/* Choosing the place (plan 12): suggestions as the name is typed, a
+   last row for a place by hand (PL26), the author's recent places
+   before typing (PL11). A pick is sent as its index into the cached
+   search; a recent place as its fields. A corrected name keeps the
+   pick (PL29); another name drops it; an edited address is by hand. */
 (function () {
   "use strict";
   var name = document.querySelector("form.editor-choosing input[name=\"place_name\"]");
@@ -13,9 +12,8 @@
   var query = form.elements.place_query;
   var start = form.querySelector("#start-writing");
   var picked = null, byHand = false;
-  // One second line (plan 15, D48): "near" the town until a place is
-  // picked or typed by hand, then "at" the address. Home keeps "near":
-  // it has a town and no address.
+  // The second line (D48): "near" the town, or "at" the address once a
+  // place is picked or by hand. Home keeps "near".
   var near = form.elements.near, nearLine = form.querySelector(".near-line");
   var placeLine = form.querySelector(".place-line");
   function isHome() { return /^home$/i.test(name.value.trim()) && !matchesPick(); }
@@ -47,23 +45,53 @@
     });
   })();
 
-  function matchesPick() {
-    return picked !== null && name.value === picked.name && address.value === picked.address;
+  function fold(s) {
+    return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
   }
-  // Start writing shows once there is a name, as the pick or by hand.
+  function distance(a, b) {
+    var prev = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) prev[j] = j;
+    for (i = 1; i <= a.length; i++) {
+      cur = [i];
+      for (j = 1; j <= b.length; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      }
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  // Still the picked place: the same folded, a start or tail of it, or
+  // a typo or two away (PL29).
+  function corrects(typed, pickedName) {
+    var a = fold(typed), b = fold(pickedName);
+    if (!a || /^home$/i.test(typed.trim())) return false;
+    if (a === b) return true;
+    if (a.length >= 3 && (b.indexOf(a) === 0 || a.indexOf(b) === 0)) return true;
+    return distance(a, b) <= (Math.min(a.length, b.length) >= 6 ? 2 : 1);
+  }
+  function matchesPick() {
+    return picked !== null && corrects(name.value, picked.name) && address.value === picked.address;
+  }
+  var ids = ["gers_id", "lat_e6", "lon_e6", "place_category"];
+  function fill(values) {
+    ids.forEach(function (id) {
+      if (form.elements[id]) form.elements[id].value = values[id] === undefined || values[id] === null ? "" : values[id];
+    });
+  }
   function arm() {
     if (start) {
       start.hidden = !name.value.trim();
-      start.value = matchesPick() ? "pick:" + picked.i : "manual";
+      start.value = matchesPick() ? (picked.take ? "take" : "pick:" + picked.i) : "manual";
     }
+    if (!matchesPick()) fill({});
     if (query) query.value = matchesPick() ? picked.q : "";
     lines();
   }
 
   name.addEventListener("input", function () {
-    // Typing over a picked name, or clearing it, drops the pick and the
-    // address that was the pick's; the line goes back to "near".
-    if (!name.value.trim() || (picked && name.value !== picked.name)) {
+    // Another name, or none, drops the pick and its address (a
+    // correction keeps both, PL29).
+    if (!name.value.trim() || (picked && !corrects(name.value, picked.name))) {
       if (!name.value.trim()) name.value = "";
       picked = null;
       address.value = "";
@@ -77,12 +105,20 @@
   });
   address.addEventListener("input", arm);
 
-  var url = name.getAttribute("data-suggest");
+  var url = name.getAttribute("data-suggest"), recentUrl = name.getAttribute("data-recent");
   if (url && window.eaCombobox) {
     var searched = "";
     window.eaCombobox(name, {
       minChars: 3,
       delay: 300,
+      empty: recentUrl ? function (q, signal) {
+        if (picked || byHand) return Promise.resolve([]);
+        return fetch(recentUrl, { signal: signal, credentials: "same-origin", headers: { Accept: "application/json" } })
+          .then(function (r) { return r.ok ? r.json() : []; })
+          .then(function (places) {
+            return places.map(function (p) { p.recent = true; return p; });
+          });
+      } : undefined,
       source: function (q, signal) {
         /* The list stays shut while the lines still read as the pick. */
         if (matchesPick()) return Promise.resolve([]);
@@ -101,9 +137,21 @@
       },
       render: function (hit) {
         if (hit.byHand) return { label: "Add \u201c" + hit.name + "\u201d by hand", kind: "combobox-action" };
+        if (hit.recent) return { label: hit.name, detail: hit.address || "" };
         return { label: hit.name, detail: hit.detail };
       },
       pick: function (hit) {
+        if (hit.recent) {
+          // Id, position and category ride in the hidden fields.
+          picked = { take: true, name: hit.name, address: hit.address || "", q: "" };
+          byHand = false;
+          fill({ gers_id: hit.gersId, lat_e6: hit.latE6, lon_e6: hit.lonE6, place_category: hit.category });
+          name.value = hit.name;
+          address.value = picked.address;
+          address.dispatchEvent(new Event("input", { bubbles: true }));
+          arm();
+          return;
+        }
         if (hit.byHand) {
           picked = null;
           byHand = true;
@@ -122,6 +170,8 @@
       }
     });
   }
+  // Arrival focused the name before this ran.
+  if (recentUrl && document.activeElement === name && !name.value.trim()) name.dispatchEvent(new Event("focus"));
   var town = form.elements.near_query;
   if (town && near && window.eaCombobox) {
     var nearUrl = town.getAttribute("data-near");
@@ -144,7 +194,7 @@
         name.dispatchEvent(new Event("input", { bubbles: true }));
       }
     });
-    // The town is a button until pressed; then the field stands in its place.
+    // The town is a button until pressed; then the field takes its place.
     var townButton = nearLine.querySelector(".near-town"), townField = town.closest(".inline-field");
     function closeTown() { townField.hidden = true; townButton.hidden = false; town.value = ""; }
     townButton.addEventListener("click", function () {
@@ -162,8 +212,8 @@
     if (e.key === "Enter") { e.preventDefault(); name.blur(); }
   });
   arm();
-  // On arrival, typing replaces the current restaurant. Do this once,
-  // so later clicks can still position the caret for a small correction.
+  // Typing on arrival replaces the current name; a later click still
+  // places the caret.
   if (name.value) {
     name.focus();
     name.select();

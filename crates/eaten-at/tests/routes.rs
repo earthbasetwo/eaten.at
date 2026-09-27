@@ -1974,7 +1974,7 @@ async fn editor_requires_sign_in_and_starts_by_choosing_a_place() {
     assert!(!body.contains("<h1>"), "{body}");
     assert!(!body.contains("class=\"kicker\""), "{body}");
     assert!(
-        body.contains("<input class=\"headline\" id=\"place_name\" name=\"place_name\" type=\"text\" value=\"\" placeholder=\"St. John Bread and Wine\" autocomplete=\"off\" autofocus aria-label=\"Name of the place\" data-suggest=\"/write/suggest\">"),
+        body.contains("<input class=\"headline\" id=\"place_name\" name=\"place_name\" type=\"text\" value=\"\" placeholder=\"St. John Bread and Wine\" autocomplete=\"off\" autofocus aria-label=\"Name of the place\" data-suggest=\"/write/suggest\" data-recent=\"/write/recent\">"),
         "{body}"
     );
     assert!(
@@ -2819,6 +2819,102 @@ async fn a_published_place_carries_its_slug_and_its_category() {
     assert_eq!(place["slug"], "katzs-home-kitchen");
     assert!(place.get("category").is_none(), "{place}");
     assert!(place.get("gersId").is_none(), "{place}");
+}
+
+#[tokio::test]
+async fn recent_places_are_offered_before_typing_and_taken_as_posted() {
+    let server = mount(&one_publication()).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    // One row per place, newest visit first (PL11): every seeded visit
+    // shares g1, so there is one.
+    let (status, _, body) = get_signed(&state, "/write/recent", &cookie).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let places: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(places.as_array().map(Vec::len), Some(1), "{body}");
+    assert_eq!(places[0]["name"], "Third Place");
+    assert_eq!(places[0]["gersId"], "g1");
+    assert_eq!(places[0]["latE6"], 40_688_838);
+    assert_eq!(places[0]["address"], "1 Example St");
+    // The chooser names the endpoint and carries the fields a taken
+    // place fills.
+    let (_, _, page) = get_signed(&state, "/write", &cookie).await;
+    assert!(page.contains("data-recent=\"/write/recent\""), "{page}");
+    assert!(page.contains("name=\"gers_id\" value=\"\""), "{page}");
+    // Taken as posted: a pick, with no search run.
+    let fields = [
+        ("place_name", "Third Place"),
+        ("place_address", "1 Example St"),
+        ("gers_id", "g1"),
+        ("lat_e6", "40688838"),
+        ("lon_e6", "-73979914"),
+        ("place_category", "delicatessen"),
+        ("action", "take"),
+    ];
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body.contains("name=\"place_mode\" value=\"picked\""),
+        "{body}"
+    );
+    assert!(body.contains("name=\"gers_id\" value=\"g1\""), "{body}");
+    assert!(
+        body.contains("name=\"place_category\" value=\"delicatessen\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("name=\"lat_e6\" value=\"40688838\""),
+        "{body}"
+    );
+    // Without an id it is a place by hand again, pinned at its town.
+    let fields = [
+        ("place_name", "Home"),
+        ("near", "4928703"),
+        ("action", "take"),
+    ];
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body.contains("name=\"place_mode\" value=\"manual\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("name=\"lat_e6\" value=\"42485090\""),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_corrected_name_rides_with_the_pick() {
+    let server = mount(&one_publication()).await;
+    mount_places(
+        &server,
+        ResponseTemplate::new(200).set_body_json(places_results()),
+    )
+    .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    // The author picked Devocion and put the accent back (PL29): the
+    // id and address are the listing's, the name is theirs.
+    let fields = vec![
+        ("place_query", "Devocion"),
+        ("place_name", "Devoción"),
+        ("place_address", "105 York St, Brooklyn, NY 11201"),
+        ("action", "pick:0"),
+    ];
+    let (status, body) =
+        post_editor_from(&state, "/write", &cookie, &fields, Some(LONDON_IP)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body.contains("name=\"place_mode\" value=\"picked\""),
+        "{body}"
+    );
+    assert!(body.contains("value=\"Devoción\""), "{body}");
+    assert!(body.contains("105 York St"), "{body}");
+    assert!(
+        body.contains("name=\"place_category\" value=\"coffee_shop\""),
+        "{body}"
+    );
 }
 
 #[tokio::test]
