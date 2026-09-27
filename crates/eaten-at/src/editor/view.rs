@@ -175,14 +175,18 @@ fn place_heading(form: &EditorForm, errors: &FieldErrors, near: &Near) -> Markup
                 span.soft.place-dash { "—\u{a0}" }
                 button #change_restaurant.hint-action.change-place type="submit" name="action" value=(Action::ChangePlace.value())
                     aria-label=(format!("Change restaurant: {}", form.place_name))
-                    aria-describedby=[described(errors, "place_name")] formnovalidate { "somewhere else" }
+                    aria-describedby=[described_by(errors, &["place_name", "place_address"])] formnovalidate { "somewhere else" }
             }
         }
         input type="hidden" name="place_name" value=(form.place_name);
         input type="hidden" name="place_address" value=(form.place_address);
-        @for field in ["place_name", "place_address", "gers_id"] {
-            (field_error(errors, field))
+        (field_error(errors, "place_name"))
+        // The address is hidden here, so its refusal says where it can
+        // be changed (PC4); the choosing page refuses it first.
+        @if let Some(message) = errors.get("place_address") {
+            p.field-error #place_address-error { (message) " Change it with “somewhere else”." }
         }
+        (field_error(errors, "gers_id"))
         input type="hidden" name="place_mode" value=(form.place_mode.value());
         input type="hidden" name="gers_id" value=(form.gers_id);
         input type="hidden" name="place_category" value=(form.place_category);
@@ -665,6 +669,16 @@ fn alerts(page: &EditorPage<'_>) -> Markup {
 
 fn described(errors: &FieldErrors, field: &str) -> Option<String> {
     errors.get(field).map(|_| format!("{field}-error"))
+}
+
+/// The error ids of whichever of `fields` have one, for a control that
+/// answers for several; `None` when none does.
+fn described_by(errors: &FieldErrors, fields: &[&str]) -> Option<String> {
+    let ids: Vec<String> = fields
+        .iter()
+        .filter_map(|field| described(errors, field))
+        .collect();
+    (!ids.is_empty()).then(|| ids.join(" "))
 }
 
 /// A field's problem, under the line it belongs to.

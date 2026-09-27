@@ -85,6 +85,14 @@ pub struct Context<'a> {
     pub original: Option<&'a Visit>,
 }
 
+/// The address's one rule, checked where the address is typed, on the
+/// choosing page, as well as at publish (PC4): by then the field is
+/// hidden and "somewhere else" is the only way back to it.
+pub fn address_error(address: &str) -> Option<String> {
+    (graphemes(address.trim()) > MAX_ADDRESS_GRAPHEMES)
+        .then(|| format!("Keep the address to {MAX_ADDRESS_GRAPHEMES} characters or fewer."))
+}
+
 /// Check every field. All problems are reported at once.
 #[allow(clippy::too_many_lines)]
 pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, FieldErrors> {
@@ -128,11 +136,8 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     }
 
     let address = form.place_address.trim();
-    if graphemes(address) > MAX_ADDRESS_GRAPHEMES {
-        errors.add(
-            "place_address",
-            format!("Keep the address to {MAX_ADDRESS_GRAPHEMES} characters or fewer."),
-        );
+    if let Some(problem) = address_error(address) {
+        errors.add("place_address", problem);
     }
 
     let price = match form.place_price.trim() {

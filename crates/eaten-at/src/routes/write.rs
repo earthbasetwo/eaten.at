@@ -260,11 +260,20 @@ async fn submit(
             return Ok(pick(state, nonce, author, editing, ip, form, index).await)
         }
         Action::Publish | Action::PublishPhotos => {}
-        Action::Manual if form.place_name.trim().is_empty() => {
-            // The one error the choosing page can show: a place by hand
-            // needs a name.
+        Action::Manual
+            if form.place_name.trim().is_empty()
+                || editor::address_error(&form.place_address).is_some() =>
+        {
+            // The errors the choosing page can show: a place by hand
+            // needs a name, and its address is refused here, where it
+            // can be changed, not at publish (PC4).
             let mut errors = FieldErrors::default();
-            errors.add("place_name", "Name the place.");
+            if form.place_name.trim().is_empty() {
+                errors.add("place_name", "Name the place.");
+            }
+            if let Some(problem) = editor::address_error(&form.place_address) {
+                errors.add("place_address", problem);
+            }
             let (_, located, near) = whereabouts(state, &author.identity, ip, &mut form).await;
             return Ok(render(
                 state,

@@ -75,7 +75,20 @@ PL14 (the feed by place) and the rest stay on the backlog.
 - The script tripwire went to 96 KiB (Ken) rather than trim comments a
   third time; T4 settles it.
 - "eve" never finds "Eve & Murray's Farm to Home" (Acton, 2 mi), even
-  at 3 miles, while "eve & murray" does: the API's matcher (PL33).
+  at 3 miles, while "eve & murray" does (PL33). Not the matcher: the
+  shop is a `cheese_shop` under Overture's `shopping >
+  food_and_beverage_store`, outside `food_and_drink`, which covers
+  places to eat and drink (bakeries, breweries and ice cream shops
+  included) but not shops that sell food. The API's `mode` (`all`,
+  `name`, `address`) changes nothing for a name query, and it takes one
+  category per call. A close search without a category, filtered by
+  hierarchy, would find it only when the wide answer is full; two
+  categories at every step would halve the quota. Ken, 2026-09-27: the
+  no-category fallback on an empty answer and the by-hand row are fine
+  for v1; typing more of the name gets there.
+- A clicked handle suggestion sends its form, as Return does (L6), and
+  an over-long address is refused on the choosing page, where the field
+  is, with the composer's refusal pointing at "somewhere else" (PC4).
 
 ## Verification
 

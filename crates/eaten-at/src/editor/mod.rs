@@ -17,7 +17,7 @@ pub mod form;
 pub mod photos;
 pub mod view;
 
-pub use draft::{default_post_text, validate, Context, DocumentDraft, FieldErrors};
+pub use draft::{address_error, default_post_text, validate, Context, DocumentDraft, FieldErrors};
 pub use form::{Action, Choice, EditorForm, LinkField, PlaceMode, RowKind, ServiceChoice};
 
 /// Most external links on one place (lexicon `maxLength`).

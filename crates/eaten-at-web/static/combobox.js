@@ -1,6 +1,6 @@
 /* A combobox over a text input (plan 10), the WAI-ARIA pattern: arrows
-   move, Enter picks or submits when the source asks (opts.send), Escape
-   closes. */
+   move, Enter picks, or a pick and Enter both send when the source asks
+   (opts.send), Escape closes. */
 window.eaCombobox = function (input, opts) {
   "use strict";
   var id = input.id + "-list";
@@ -56,6 +56,9 @@ window.eaCombobox = function (input, opts) {
     /* A pick may answer with rows to show instead (a "show more" row). */
     var again = item && opts.pick(item);
     if (again) show(again);
+    /* A source that sends (opts.send) sends on a pick by pointer too,
+       since a click that only filled the field read as nothing (L6). */
+    else if (item && opts.send && input.form) submit(input.form);
   }
   function show(found, heading) {
     settle();
@@ -148,9 +151,9 @@ window.eaCombobox = function (input, opts) {
     else if (e.key === "ArrowUp") { e.preventDefault(); highlight((active - 1 + items.length) % items.length); }
     else if (e.key === "Enter") {
       var had = active >= 0;
-      if (had) pick(active); else close();
+      if (had) { e.preventDefault(); pick(active); return; }
+      close();
       if (opts.send && input.form) { e.preventDefault(); submit(input.form); }
-      else if (had) e.preventDefault();
     }
     else if (e.key === "Escape") { close(); }
   });

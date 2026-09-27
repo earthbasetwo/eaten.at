@@ -1,6 +1,6 @@
 /* Handle suggestions from the Bluesky AppView (plan 10), called without
-   credentials. Enter sends the highlighted suggestion, else exactly
-   what was typed. The form is untouched either way. */
+   credentials. A picked suggestion sends the form, by Enter or by
+   pointer (L6); Enter with none picked sends exactly what was typed. */
 (function () {
   "use strict";
   var inputs = document.querySelectorAll("input[data-typeahead]");
