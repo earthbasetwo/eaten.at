@@ -68,6 +68,10 @@ PL14 (the feed by place) and the rest stay on the backlog.
   there, with "looking near…" on the near line while it does. Return in
   the town field never sends the form (it had, and came back as "Name
   the place."); Escape puts the town back.
+- Five rows, not ten (PL32, Ken: a lot, and maybe not for a phone),
+  then "Show n more", which reveals the rest of the same cached answer
+  with no request, then the by-hand row. The server sends the whole
+  answer, twenty at most.
 - The script tripwire went to 96 KiB (Ken) rather than trim comments a
   third time; T4 settles it.
 - "eve" never finds "Eve & Murray's Farm to Home" (Acton, 2 mi), even

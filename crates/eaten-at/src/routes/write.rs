@@ -39,9 +39,10 @@ use crate::state::AppState;
 
 /// Suggestion requests one session may make per minute (plan 12, D45).
 pub const SUGGESTS_PER_MINUTE: u32 = 30;
-/// Suggestions the listbox shows, nearest first, of the search's twenty
-/// (Ken, 2026-09-27: ten, not six; PL25).
-const SUGGEST_LIMIT: usize = 10;
+/// Suggestions sent to the browser, nearest first: the whole answer, so
+/// "show more" needs no second request. The browser shows five and a
+/// row for the rest (Ken, 2026-09-27: five, not ten; PL32).
+const SUGGEST_LIMIT: usize = 20;
 
 /// Who is writing. The publication is not part of it: every write-up
 /// goes to the account's one publication, made on the first publish if

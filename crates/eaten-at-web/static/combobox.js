@@ -53,7 +53,9 @@ window.eaCombobox = function (input, opts) {
   function pick(i) {
     var item = items[i];
     close();
-    if (item) opts.pick(item);
+    /* A pick may answer with rows to show instead (a "show more" row). */
+    var again = item && opts.pick(item);
+    if (again) show(again);
   }
   function show(found, heading) {
     settle();
