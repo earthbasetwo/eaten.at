@@ -1074,6 +1074,7 @@
   .tags-sentence { margin: 0; font-size: 1.0625rem; line-height: 1.55; color: var(--color-ink); }
   .tags-sentence > label { font-style: italic; color: var(--color-ink-soft); }
   .tag-field, .tag-chips { display: inline; }
+  .chip-item { white-space: nowrap; }
   .editor .chip { font: inherit; }
   .tag-field input { min-inline-size: 3ch; }
   .tag-field input:focus-visible { text-decoration-color: var(--color-ink); }
