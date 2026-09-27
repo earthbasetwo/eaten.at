@@ -547,8 +547,9 @@ islands dress it and fall away.
 else: the Overture and DB-IP credit the earlier choosing page carried
 (plan 12) is gone with it, and is given on the about page instead. Suggestions (the combobox, positioned under the headline) open
 while the name has three characters and matches: up to ten, nearest
-first, the name on one line and the address and distance on the next,
-and a last row in italic, "Add “what was typed” by hand", which fills
+first, each row the name with the town, state and distance in the mono
+voice beside it (the street too, only where two rows with one name in
+one town would read the same), and a last row in italic, "Add “what was typed” by hand", which fills
 the name, clears the address and moves to it (PL25, PL26). Food and
 drink is searched first, within 25 miles; a full answer is searched
 again within 3 miles, an empty one without the category and then at 50
