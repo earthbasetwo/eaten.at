@@ -15,7 +15,7 @@
   var store = null;
   try { store = window.localStorage; } catch (e) { store = null; }
 
-  var placeFields = ["place_name", "place_address", "place_mode", "gers_id", "lat_e6", "lon_e6"];
+  var placeFields = ["place_name", "place_address", "place_mode", "gers_id", "lat_e6", "lon_e6", "place_category", "near"];
   function isPhotoField(name) { return name.indexOf("photo_") === 0; }
   function fields() {
     var out = [];

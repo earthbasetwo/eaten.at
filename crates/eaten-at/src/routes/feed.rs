@@ -21,7 +21,8 @@ pub async fn feed(
     let page = state.visit_listing(&identity, &publication, None).await?;
 
     // An enclosure says how long it is, so each cover is rendered (or
-    // read from the image cache), all at once.
+    // read from the image cache). Downloads overlap; image preparation
+    // shares the proxy/upload budget through the end of each encoding.
     let mut covers = tokio::task::JoinSet::new();
     for (i, visit_doc) in page.items.iter().enumerate() {
         let (state, identity, visit_doc) = (state.clone(), identity.clone(), visit_doc.clone());

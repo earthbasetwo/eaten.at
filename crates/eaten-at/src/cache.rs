@@ -1,9 +1,10 @@
 //! SQLite-backed TTL cache for everything read from upstream.
 //!
-//! The cache is an optimisation, never a source of truth: every database
-//! failure is logged and treated as a miss, so deleting the file (or losing
-//! it) only makes the app slower. Reads and writes go through
-//! `spawn_blocking` so SQLite never blocks the async runtime.
+//! Read-through caching is an optimisation: database failures are logged
+//! and treated as misses. Explicit byte writes also hold unpublished photo
+//! previews that the PDS may not yet serve, so those writes report failure.
+//! Reads and writes go through `spawn_blocking` so SQLite never blocks the
+//! async runtime.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -17,7 +18,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::db::Database;
+use crate::db::{Database, DbError};
 
 /// Source of "now", injectable so tests can move time.
 pub trait Clock: Send + Sync + fmt::Debug {
@@ -275,13 +276,21 @@ impl Cache {
     }
 
     /// Store bytes fetched by other means, replacing any negative entry.
-    pub async fn put_bytes(&self, namespace: Namespace, key: &str, value: &[u8]) {
+    /// Unlike read-through writes, callers may rely on these bytes being
+    /// available: unpublished photo previews cannot always be re-fetched.
+    pub async fn put_bytes(
+        &self,
+        namespace: Namespace,
+        key: &str,
+        value: &[u8],
+    ) -> Result<(), DbError> {
         // A fetch already in flight must not overwrite this value with a miss.
         let lock = self.lock_for(namespace, key);
         let guard = lock.lock().await;
-        self.store(namespace, key, Some(value)).await;
+        let result = self.try_store(namespace, key, Some(value)).await;
         drop(guard);
         self.release_lock(namespace, key, &lock);
+        result
     }
 
     /// Forget one entry.
@@ -362,6 +371,17 @@ impl Cache {
     }
 
     async fn store(&self, namespace: Namespace, key: &str, value: Option<&[u8]>) {
+        if let Err(err) = self.try_store(namespace, key, value).await {
+            tracing::warn!(op = "store", %err, "cache database error; treating as miss");
+        }
+    }
+
+    async fn try_store(
+        &self,
+        namespace: Namespace,
+        key: &str,
+        value: Option<&[u8]>,
+    ) -> Result<(), DbError> {
         let ttl = if value.is_some() {
             namespace.ttl()
         } else {
@@ -372,19 +392,20 @@ impl Cache {
         let expires_at = now + i64::try_from(ttl.as_secs()).unwrap_or(i64::MAX / 2);
         let key = key.to_owned();
         let ns = namespace.as_str();
-        self.with_conn("store", move |conn| {
-            conn.execute(
-                "INSERT INTO cache (namespace, key, value, fetched_at, expires_at)
+        self.db
+            .run(move |conn| {
+                conn.execute(
+                    "INSERT INTO cache (namespace, key, value, fetched_at, expires_at)
                  VALUES (?1, ?2, ?3, ?4, ?5)
                  ON CONFLICT(namespace, key) DO UPDATE SET
                    value = excluded.value,
                    fetched_at = excluded.fetched_at,
                    expires_at = excluded.expires_at",
-                params![ns, key, bytes, now, expires_at],
-            )
-            .map(|_| ())
-        })
-        .await;
+                    params![ns, key, bytes, now, expires_at],
+                )
+                .map(|_| ())
+            })
+            .await
     }
 
     /// Run `f` on the connection off the async runtime. Errors are logged
@@ -443,6 +464,32 @@ mod tests {
     use std::sync::atomic::AtomicUsize;
 
     use super::*;
+
+    #[tokio::test]
+    async fn required_bytes_report_storage_failure_while_read_through_stays_best_effort() {
+        let (cache, _) = cache();
+        cache
+            .database()
+            .run(|conn| {
+                conn.execute_batch(
+                    "CREATE TRIGGER reject_cache_insert BEFORE INSERT ON cache
+                BEGIN SELECT RAISE(FAIL, 'simulated storage failure'); END;",
+                )
+            })
+            .await
+            .unwrap();
+        assert!(cache
+            .put_bytes(Namespace::Image, "preview", b"jpeg")
+            .await
+            .is_err());
+        let fetched = cache
+            .get_or_fetch_bytes::<Infallible, _, _>(Namespace::Image, "ordinary-cover", || async {
+                Ok(Some(b"jpeg".to_vec()))
+            })
+            .await
+            .unwrap();
+        assert_eq!(fetched, Some(b"jpeg".to_vec()));
+    }
 
     fn cache() -> (Cache, Arc<ManualClock>) {
         let clock = Arc::new(ManualClock::starting_at(1_000_000));

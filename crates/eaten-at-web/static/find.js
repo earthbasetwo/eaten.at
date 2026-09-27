@@ -26,8 +26,9 @@
   }
   function find() {
     var q = input.value.trim();
-    if (q === shown || (q.length === 1)) return;
     if (pending) pending.abort();
+    pending = null;
+    if (q === shown || (q.length === 1)) return;
     var ctrl = new AbortController();
     pending = ctrl;
     fetch(url(q), { signal: ctrl.signal, headers: { Accept: "text/html" } })

@@ -113,14 +113,12 @@ pub fn slug(title: &str) -> String {
         }
     }
     if out.len() > MAX_SLUG_BYTES {
-        let cut = out[..MAX_SLUG_BYTES]
-            .rfind('-')
-            .unwrap_or(MAX_SLUG_BYTES.min(out.len()));
-        let mut end = cut;
+        let mut end = MAX_SLUG_BYTES;
         while !out.is_char_boundary(end) {
             end -= 1;
         }
-        out.truncate(end);
+        let cut = out[..end].rfind('-').unwrap_or(end);
+        out.truncate(cut);
     }
     let out = out.trim_matches('-').to_owned();
     if out.is_empty() {
@@ -531,7 +529,17 @@ pub async fn publish(
     )
     .await?;
 
-    let held = taken(state, identity, &site).await?;
+    // An edit that keeps both addresses needs no collision scan. Apart
+    // from the extra reads, requiring a listing here would make a body
+    // edit fail when the PDS can read/write that record but cannot list.
+    let keeps_place_slug = editing.is_some_and(|old| {
+        same_place(&old.visit.place, &draft.visit.place) && old.visit.place.slug.is_some()
+    });
+    let held = if original.is_some_and(|doc| doc.path.is_some()) && keeps_place_slug {
+        Taken::default()
+    } else {
+        taken(state, identity, &site).await?
+    };
     let path = if let Some(path) = original.and_then(|d| d.path.clone()) {
         path
     } else {
@@ -832,8 +840,6 @@ async fn link_card(
     })
 }
 
-/// The paths already used in a publication, from the repo's most recent
-/// documents.
 /// What the author's repo already holds under `site`: every document's
 /// path, and the place of every visit with the record key it sits in.
 #[derive(Debug, Default)]
@@ -970,6 +976,8 @@ mod tests {
         let long = slug(&"word ".repeat(40));
         assert!(long.len() <= MAX_SLUG_BYTES, "{long}");
         assert!(!long.ends_with('-'));
+        assert_eq!(slug(&"あ".repeat(27)), "あ".repeat(26));
+        assert_eq!(slug(&format!("lunch {}", "あ".repeat(27))), "lunch");
     }
 
     fn a_place(name: &str, gers: Option<&str>, slug: Option<&str>) -> Place {

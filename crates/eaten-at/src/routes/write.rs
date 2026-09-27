@@ -162,7 +162,8 @@ fn render(
             publish_error: outcome.publish_error,
             reauthenticate: outcome.reauthenticate,
             pick_error: outcome.pick_error,
-            suggesting: state.places_enabled() && outcome.located != Located::Unknown,
+            suggesting: state.places_enabled()
+                && (outcome.located != Located::Unknown || state.cities().enabled()),
             near: match &outcome.near {
                 Near::Off => near_of_form(state, form),
                 near => near.clone(),
@@ -304,14 +305,24 @@ async fn submit(
                 let (_, located, near) = whereabouts(state, &author.identity, ip, &mut form).await;
                 outcome.located = located;
                 outcome.near = near;
-            } else if form.place_mode == PlaceMode::Manual && form.gers_id.is_empty() {
+            } else if matches!(action, Action::Manual | Action::Take)
+                && form.place_mode == PlaceMode::Manual
+                && form.gers_id.is_empty()
+            {
                 // A place by hand sits at its town (PL6): a coarse pin,
                 // never the request's point or the address. Home is a
                 // name and a town, never an address (Ken).
                 if form.place_name.trim().eq_ignore_ascii_case("home") {
                     form.place_address.clear();
                 }
-                if let Some(city) = near_city(state, &form) {
+                if action == Action::Take && had.is_some() {
+                    // A recent place already has its own point. The
+                    // chooser's town describes where the author is now,
+                    // not where that place was visited.
+                    form.near = had
+                        .and_then(|point| state.cities().nearest(point))
+                        .map_or_else(String::new, |city| city.id.to_string());
+                } else if let Some(city) = near_city(state, &form) {
                     form.lat_e6 = to_e6(city.point.lat).to_string();
                     form.lon_e6 = to_e6(city.point.lon).to_string();
                 }
@@ -505,10 +516,7 @@ fn near_of_form(state: &AppState, form: &EditorForm) -> Near {
 fn point_of(form: &EditorForm) -> Option<Point> {
     let lat: i32 = form.lat_e6.trim().parse().ok()?;
     let lon: i32 = form.lon_e6.trim().parse().ok()?;
-    Some(Point {
-        lat: f64::from(lat) / 1_000_000.0,
-        lon: f64::from(lon) / 1_000_000.0,
-    })
+    Some(Point::from_e6(LatE6::new(lat)?, LonE6::new(lon)?))
 }
 
 /// Degrees to microdegrees, for a town's centroid (always in range).

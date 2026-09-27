@@ -195,10 +195,13 @@ impl AppState {
                 };
                 let mut hits = search(RADIUS_MI, Some(CATEGORY)).await?;
                 if hits.len() >= usize::from(RESULT_LIMIT) {
-                    let close = search(CLOSE_RADIUS_MI, Some(CATEGORY)).await?;
-                    for hit in close {
-                        if !hits.iter().any(|h| h.gers_id == hit.gers_id) {
-                            hits.push(hit);
+                    // Refining a usable answer must not discard it if
+                    // the next call exhausts quota or the API goes down.
+                    if let Ok(close) = search(CLOSE_RADIUS_MI, Some(CATEGORY)).await {
+                        for hit in close {
+                            if !hits.iter().any(|h| h.gers_id == hit.gers_id) {
+                                hits.push(hit);
+                            }
                         }
                     }
                 } else if hits.is_empty() {
@@ -491,7 +494,6 @@ fn unescape(text: &str) -> String {
             ("&gt", ">"),
             ("&quot", "\""),
             ("&apos", "'"),
-            ("&#39", "'"),
         ] {
             if let Some(after) = rest.strip_prefix(entity) {
                 decoded = Some((
@@ -624,6 +626,8 @@ mod tests {
         assert_eq!(unescape("Katz&amp Nelson, Inc"), "Katz& Nelson, Inc");
         assert_eq!(unescape("Fish &amp; Chips"), "Fish & Chips");
         assert_eq!(unescape("Joe&#39;s &quot;Place&quot;"), "Joe's \"Place\"");
+        assert_eq!(unescape("&#399; Kitchen"), "Ə Kitchen");
+        assert_eq!(unescape("Unfinished &#399"), "Unfinished &#399");
         assert_eq!(unescape("Caf&#233; &lt;3"), "Café <3");
         assert_eq!(unescape("A & B &co"), "A & B &co");
         let hit = place(serde_json::json!({
