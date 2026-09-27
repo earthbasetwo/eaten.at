@@ -2202,6 +2202,48 @@ async fn suggestions_look_near_the_last_visit_and_are_not_offered_without_a_poin
     assert!(body.contains("value=\"Devocion\""), "{body}");
 }
 #[tokio::test]
+async fn an_address_past_its_limit_is_refused_where_it_is_typed() {
+    let server = mount(&one_publication()).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    // Refused on the choosing page, where the field is (PC4).
+    let long = "x".repeat(301);
+    let (status, body) = post_editor(
+        &state,
+        "/write",
+        &cookie,
+        &[
+            ("place_name", "A cart"),
+            ("place_address", &long),
+            ("action", "manual"),
+        ],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(body.contains("id=\"place_address-error\""), "{body}");
+    assert!(
+        body.contains("name=\"place_address\" type=\"text\""),
+        "the address stays a field: {body}"
+    );
+    // Should one reach the composer anyway, the refusal says where the
+    // address can be changed, and the way there answers for it.
+    let mut fields = good_fields();
+    fields.retain(|(k, _)| *k != "action");
+    fields.push(("place_address", &long));
+    fields.push(("action", "publish"));
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(
+        body.contains("characters or fewer. Change it with “somewhere else”."),
+        "{body}"
+    );
+    assert!(
+        body.contains("aria-describedby=\"place_address-error\" formnovalidate>somewhere else"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
 async fn a_place_by_hand_needs_a_name_and_a_place_can_be_changed() {
     let server = mount(&one_publication()).await;
     mount_places(

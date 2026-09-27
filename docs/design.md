@@ -458,7 +458,9 @@ actions; a suggestion is a name, not an action, so these stay roman. It
 appears only with JavaScript on and only while there are matches; the
 field it sits under works without it. Return never swallows the send: it
 takes the highlighted row when there is one and what was typed when there
-is not, then submits the form either way.
+is not, then submits the form either way; a row taken by pointer sends
+too, since a click that only filled the field read as nothing (L6). The
+place chooser is the exception: there a pick is a step, not a send.
 
 **Filed under** (`.tags-sentence`, `.tag-field`, `.chip`). The editor's
 tags as a sentence with a blank in it: "Filed under" in italic soft
@@ -577,7 +579,9 @@ from the same cached search (`action=pick:N`); typing over either line
 makes it a place by hand again (`action=manual`). Clearing the name
 clears the address with it. Without script the two lines are typed and
 Start writing takes them as written; there is no Search button and no
-results page any more.
+results page any more. An address past its limit is refused here, where
+the field is; the composer's copy of the refusal points back at
+"somewhere else" (PC4).
 
 **Editing** (`.editor-write`). Top to bottom, with the handoff's gaps:
 
