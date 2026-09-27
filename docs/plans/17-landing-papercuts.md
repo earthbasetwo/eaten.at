@@ -41,3 +41,25 @@ aside; the rest are here.
   title, left-aligned, on its own line. Nothing crowds. Whether the
   verdict should always sit under the title, for one shape on every
   row, is Ken's call; the row stays open for that.
+
+## Round two: the home, quieter (S7–S13)
+
+Ken found the home still cluttered after the first round and chose,
+from an artifact of six sheets (https://claude.ai/artifact/EdQgWvfo97C4njGFCsopW4),
+sheet F: the list as compact rows with the excerpt kept.
+
+- **S7, compact rows.** A square thumbnail on `--thumb-small`, the
+  title, the meta line, the excerpt (`listing_compact`). The front
+  page keeps the full card.
+- **S8, the verdict on the meta line, first.** Every row is the same
+  shape whatever the title does. Closes S6.
+- **S9, tags as a line.** The composer's treatment: the serif at field
+  size, commas, a hairline underline; counts only above one. The fold
+  from S4 works on the line's `li`s, and the "+n more" button takes
+  the words' class.
+- **S10, no "Your feed".** The heading stays for the landmark, hidden.
+- **S11, no "Recent digests" at rest.** The head returns during a find
+  as "Matching “q”" with its Clear.
+- **S12, no photo badge** on the home; the compact row has none.
+- **S13, one rhythm.** The feed block is a grid with a 24px step; the
+  field and its tag line sit 12px apart; rows keep `--row-pad`.

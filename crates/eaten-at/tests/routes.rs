@@ -436,9 +436,25 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
         "{body}"
     );
     assert!(!body.contains(">Find</button>"), "{body}");
-    // Each tag chip carries how often the tag appears (S4).
+    // The tags are a line under the find, a tag used more than once
+    // carrying its count (S4, S9); the "Your feed" heading names the
+    // landmark and shows nowhere (S10); the rows are compact and have
+    // no head at rest (S7, S11).
     assert!(
-        body.contains("/tagged/late\">late <span class=\"tag-count\">9</span></a>"),
+        body.contains("<ul class=\"tag-list tag-line\"><li><a class=\"tag-word\" href=\"/at/")
+            && body.contains("/tagged/late\">late <span class=\"tag-count\">9</span></a>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<p class=\"kicker visually-hidden\" id=\"own-heading\">Your feed</p>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<ol class=\"listing listing-compact\">"),
+        "{body}"
+    );
+    assert!(
+        !body.contains("Recent digests") && !body.contains("list-head"),
         "{body}"
     );
     assert_eq!(body.matches("listing-item").count(), 8, "{body}");

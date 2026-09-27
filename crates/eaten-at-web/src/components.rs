@@ -438,39 +438,74 @@ pub fn connect(connect: &Connect<'_>) -> Markup {
 /// the tag, so the landmark says so; `scope_note` adds visible copy where
 /// a page wants it spelled out.
 pub fn tag_links(tags: &[Link], scope_note: Option<&str>) -> Markup {
-    tag_nav(
-        &tags.iter().map(|tag| (tag, None)).collect::<Vec<_>>(),
-        scope_note,
-    )
-}
-
-/// Tag links with how often each tag appears, faint after the name
-/// (S4): the author's home, where the row is a picture of the feed.
-pub fn tag_counts(tags: &[(Link, usize)], scope_note: Option<&str>) -> Markup {
-    tag_nav(
-        &tags
-            .iter()
-            .map(|(tag, count)| (tag, Some(*count)))
-            .collect::<Vec<_>>(),
-        scope_note,
-    )
-}
-
-fn tag_nav(tags: &[(&Link, Option<usize>)], scope_note: Option<&str>) -> Markup {
     html! {
         @if !tags.is_empty() {
             nav.tags aria-label="Tags in this feed" {
                 ul.tag-list {
+                    @for tag in tags {
+                        li { a.tag href=(tag.href) { (tag.label) } }
+                    }
+                }
+                @if let Some(note) = scope_note { p.muted.tags-note { (note) } }
+            }
+        }
+    }
+}
+
+/// The author's home's tags as one line in the composer's treatment
+/// (S9): the serif, commas (drawn by the stylesheet, so a folded tag
+/// takes its comma with it), a faint count after a tag used more than
+/// once, the most used first. Each tag is a link.
+pub fn tag_line(tags: &[(Link, usize)]) -> Markup {
+    html! {
+        @if !tags.is_empty() {
+            nav.tags aria-label="Tags in this feed" {
+                ul.tag-list.tag-line {
                     @for (tag, count) in tags {
                         li {
-                            a.tag href=(tag.href) {
+                            a.tag-word href=(tag.href) {
                                 (tag.label)
-                                @if let Some(count) = count { " " span.tag-count { (count) } }
+                                @if *count > 1 { " " span.tag-count { (count) } }
                             }
                         }
                     }
                 }
-                @if let Some(note) = scope_note { p.muted.tags-note { (note) } }
+            }
+        }
+    }
+}
+
+/// The author's home's rows (S7): a square thumbnail on the small-thumb
+/// size when the visit has a photo, the title, one mono line with the
+/// verdict first (S8), then the excerpt. No badge and no photo count.
+/// A row without a photo has no thumbnail element; the stylesheet keeps
+/// the column, so every title starts on the same line.
+pub fn listing_compact(items: &[ListingItem]) -> Markup {
+    html! {
+        ol.listing.listing-compact {
+            @for item in items {
+                li.listing-item {
+                    article {
+                        @if let Some(photo) = &item.photo {
+                            // The same target as the title; not a second tab stop.
+                            a.listing-thumb href=(item.href) tabindex="-1" {
+                                img src=(photo.src) alt=(photo.alt)
+                                    width=(CARD_PHOTO_WIDTH) height=(CARD_PHOTO_HEIGHT) loading="lazy";
+                            }
+                        }
+                        div.listing-body {
+                            h2.listing-title { a href=(item.href) { (item.title) } }
+                            p.listing-meta {
+                                @if let Some(rating) = &item.rating { span.rating { (rating.word) } }
+                                time datetime=(item.published) { (human_date(&item.published)) }
+                                @if let Some(name) = &item.place_name {
+                                    span.listing-place-name { (name) }
+                                }
+                            }
+                            @if !item.excerpt.is_empty() { p.listing-excerpt { (item.excerpt) } }
+                        }
+                    }
+                }
             }
         }
     }
@@ -741,6 +776,52 @@ mod tests {
     }
 
     #[test]
+    fn compact_rows_lead_the_meta_line_with_the_verdict_and_carry_no_badge() {
+        let items = [
+            ListingItem {
+                href: "/a".into(),
+                title: "A".into(),
+                place_name: Some("Noodle House".into()),
+                rating: Some(RatingView {
+                    word: "Can’t Miss".into(),
+                }),
+                published: "2026-09-07T12:00:00Z".into(),
+                excerpt: "Twice.".into(),
+                photo: Some(ListingPhoto {
+                    src: "/img/d/a?kind=card".into(),
+                    alt: String::new(),
+                    more: 2,
+                }),
+            },
+            ListingItem {
+                href: "/b".into(),
+                title: "B".into(),
+                place_name: None,
+                rating: None,
+                published: "2026-08-15T12:00:00Z".into(),
+                excerpt: String::new(),
+                photo: None,
+            },
+        ];
+        let out = listing_compact(&items).into_string();
+        assert!(
+            out.starts_with("<ol class=\"listing listing-compact\">"),
+            "{out}"
+        );
+        assert!(
+            out.contains("<a class=\"listing-thumb\" href=\"/a\" tabindex=\"-1\"><img src=\"/img/d/a?kind=card\""),
+            "{out}"
+        );
+        assert!(!out.contains("listing-photo-count"), "{out}");
+        assert!(
+            out.contains("<p class=\"listing-meta\"><span class=\"rating\">Can’t Miss</span><time datetime=\"2026-09-07T12:00:00Z\">September 7, 2026</time><span class=\"listing-place-name\">Noodle House</span></p><p class=\"listing-excerpt\">Twice.</p>"),
+            "{out}"
+        );
+        assert_eq!(out.matches("listing-thumb").count(), 1, "{out}");
+        assert!(out.contains("<article><div class=\"listing-body\"><h2 class=\"listing-title\"><a href=\"/b\">B</a></h2><p class=\"listing-meta\"><time"), "{out}");
+    }
+
+    #[test]
     fn tags_name_their_scope() {
         assert_eq!(tag_links(&[], Some("note")).into_string(), "");
         let out = tag_links(&[link("mpb", "/t/mpb")], None).into_string();
@@ -750,12 +831,11 @@ mod tests {
             "{out}"
         );
         assert!(!out.contains("tags-note"), "{out}");
-        let counted = tag_counts(&[(link("mpb", "/t/mpb"), 3)], None).into_string();
+        let line =
+            tag_line(&[(link("mpb", "/t/mpb"), 3), (link("late", "/t/late"), 1)]).into_string();
         assert!(
-            counted.contains(
-                "<a class=\"tag\" href=\"/t/mpb\">mpb <span class=\"tag-count\">3</span></a>"
-            ),
-            "{counted}"
+            line.contains("<ul class=\"tag-list tag-line\"><li><a class=\"tag-word\" href=\"/t/mpb\">mpb <span class=\"tag-count\">3</span></a></li><li><a class=\"tag-word\" href=\"/t/late\">late</a></li></ul>"),
+            "{line}"
         );
         let noted = tag_links(&[link("mpb", "/t/mpb")], Some("Only here.")).into_string();
         assert!(

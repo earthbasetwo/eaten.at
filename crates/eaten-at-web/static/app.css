@@ -571,6 +571,17 @@
     margin-block-start: var(--space-sm); max-inline-size: var(--measure);
     font-size: var(--text-small); line-height: 1.6; color: var(--color-ink-body);
   }
+  /* Compact rows (S7), the author's home: a square thumbnail on the
+     small-thumb size when the visit has a photo, the title, one mono
+     line with the verdict first (S8), the excerpt. No badge. The column
+     stays on a row without a photo, so every title starts on the same
+     line. The front page keeps the full card. */
+  .listing-compact .listing-item article { grid-template-columns: var(--thumb-small) minmax(0, 1fr); gap: var(--card-gap); align-items: start; }
+  .listing-thumb { display: block; inline-size: var(--thumb-small); aspect-ratio: 1; background: var(--color-paper-bright); }
+  .listing-thumb img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+  .listing-compact .listing-body { grid-column: 2; }
+  .listing-compact .listing-meta .rating { font-size: inherit; line-height: inherit; }
+  .listing-compact .listing-excerpt { margin-block-start: var(--space-s); }
 
   /* Chooser: the publications of one account, one row each. Settings
      reuses the same row with a form inside. */
@@ -706,30 +717,27 @@
      form with the tag chips under it, the recent list, and one quiet
      closing line for settings and sign-out. */
   .page-head .handle { margin-block-end: var(--space-s); }
-  .own-publication { margin-block-start: var(--section-gap); }
-  .own-publication > .kicker { margin-block-end: var(--space-s); }
+  /* One rhythm (S13): a step between the nameplate, the find and the
+     list, a half step between the field and the tag line it owns. The
+     "Your feed" heading names the landmark and shows nowhere (S10). */
+  .own-publication { margin-block-start: var(--section-gap); display: grid; gap: var(--space-l); }
+  .own-find { display: grid; gap: var(--space-sm); }
+  .own-none { gap: var(--space-s); }
   .own-nameplate { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs) var(--space-sm); }
   .own-name { font-family: var(--font-serif); font-weight: 500; font-size: var(--text-card); line-height: 1.15; color: var(--color-ink); }
   .own-name a { color: inherit; text-decoration: none; }
   .own-name a:hover { color: var(--color-vermilion); }
   .own-address a { color: var(--color-ink-soft); }
-  .find { margin-block-start: var(--space-l); }
-  .find + .tags .tag-list { margin-block-start: var(--space-sm); }
-  /* The home's tag row folds to its first line with script; the chip
-     that unfolds it is a button drawn as the others are (S4). */
-  .tag-more .tag { font-style: normal; box-shadow: none; }
-  .tag-more .tag::after { content: none; }
-  .tag-more .tag:hover { box-shadow: none; }
-  /* The kicker already opens the list, and the ink rule read as a
-     second field rule under the find (S5): a hairline here. */
+  /* The list has no head at rest (S11); during a find it takes one,
+     "Matching …" with its Clear. The ink rule read as a second field
+     rule under the find (S5): a hairline here. */
   .own-publication .listing { border-block-start: var(--rule-hairline); }
   .own-publication .list-head {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm);
-    margin-block: var(--space-l) var(--space-sm);
+    margin-block-end: var(--space-sm);
   }
   .own-publication .list-head .kicker { margin: 0; }
   .own-publication .empty { padding-block: var(--space-l); }
-  .own-none .lede { margin-block-start: var(--space-xs); }
   .tertiary {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-s) var(--action-gap);
     margin-block-start: var(--section-gap); padding-block-start: var(--space-m);
@@ -1459,8 +1467,22 @@
     transition: color var(--ease), background-color var(--ease), border-color var(--ease);
   }
   .doc-footer .tag:hover, .tag:hover { border-color: var(--color-ink); color: var(--color-ink); text-decoration: none; }
-  /* How often a tag appears, faint after its name (S4). */
-  .tag-count { margin-inline-start: 0.4em; color: var(--color-stone); }
+  /* The author's home's tags as a line (S9): the composer's treatment,
+     the serif at field size, commas, a hairline underline; a faint mono
+     count after a tag used more than once (S4); and, with script, "+n
+     more" at the end of the first line, a button set like the words. */
+  .tag-list.tag-line { display: block; font-size: var(--text-field); line-height: 1.55; color: var(--color-ink-soft); }
+  .tag-line li { display: inline; }
+  .tag-line li + li::before { content: ", "; }
+  .tag-word {
+    color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em;
+    text-decoration-color: var(--color-hairline); transition: color var(--ease), text-decoration-color var(--ease);
+  }
+  .tag-word:hover { color: var(--color-vermilion); text-decoration-color: var(--color-vermilion); }
+  .tag-line .tag-count { font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em; color: var(--color-stone); margin-inline-start: 0.3em; }
+  .tag-more .tag-word { font: inherit; font-style: italic; color: var(--color-stone); padding: 0; box-shadow: none; text-decoration: none; }
+  .tag-more .tag-word::after { content: none; }
+  .tag-more .tag-word:hover { color: var(--color-vermilion); box-shadow: none; }
   .tags-note { inline-size: 100%; color: var(--color-stone); }
 }
 
