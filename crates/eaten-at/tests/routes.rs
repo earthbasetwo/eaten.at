@@ -4179,6 +4179,13 @@ async fn a_chosen_town_moves_the_search_and_pins_a_place_by_hand() {
     );
     assert!(body.contains("value=\"Home\""), "{body}");
     assert!(!body.contains("Secret Lane"), "Home has no address: {body}");
+    // The composer keeps the town on the line where the address would be.
+    assert!(
+        body.contains(
+            "<span class=\"place-near\"><span class=\"soft\">near</span> Acton, MA</span>"
+        ),
+        "{body}"
+    );
 }
 
 #[tokio::test]

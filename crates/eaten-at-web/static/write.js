@@ -69,6 +69,8 @@
     form.querySelector(".place-comma").hidden = !titled || !address;
     form.querySelector(".place-address-text").textContent = shownAddress(address);
     form.querySelector(".place-where").hidden = !titled && !address;
+    var near = form.querySelector(".place-near");
+    if (near) near.hidden = !!address || !near.textContent.trim().replace(/^near/, "");
   }
   form.elements.place_name.addEventListener("change", showPlace);
   form.elements.place_address.addEventListener("change", showPlace);
