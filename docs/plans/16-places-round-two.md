@@ -62,6 +62,12 @@ PL14 (the feed by place) and the rest stay on the backlog.
   a row: the combobox marks the list stale when a search starts and,
   400 ms later, the near line reads "looking near Acton, MA…" and a
   live region says the same; the answer clears both.
+- The town control, confirmed by Ken: pressing the town closes the
+  results and opens the town field empty (a town is retyped, not
+  edited); the name stays, and a picked town re-runs the same search
+  there, with "looking near…" on the near line while it does. Return in
+  the town field never sends the form (it had, and came back as "Name
+  the place."); Escape puts the town back.
 - The script tripwire went to 96 KiB (Ken) rather than trim comments a
   third time; T4 settles it.
 - "eve" never finds "Eve & Murray's Farm to Home" (Acton, 2 mi), even
