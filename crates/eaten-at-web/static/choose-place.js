@@ -97,7 +97,9 @@
     }
     arm();
   });
-  name.addEventListener("blur", function () {
+  name.addEventListener("blur", function (e) {
+    // Leaving for the town control is not leaving the search.
+    if (nearLine && e.relatedTarget && nearLine.contains(e.relatedTarget)) return;
     if (name.value.trim() && !matchesPick()) { byHand = true; arm(); }
   });
   address.addEventListener("input", arm);
@@ -116,7 +118,7 @@
     window.eaCombobox(name, {
       minChars: 3,
       delay: 300,
-      anchor: nearLine || name,
+      anchor: nearLine ? nearLine.lastElementChild : name,
       emptyHeading: "Recently",
       // The near line says it: "looking near Acton, MA…" (PL31).
       busy: function (on) { if (nearLine) nearLine.classList.toggle("looking", on); },
@@ -207,6 +209,9 @@
     // The town is a button until pressed; then the field takes its place.
     var townButton = nearLine.querySelector(".near-town"), townField = town.closest(".inline-field");
     function closeTown() { townField.hidden = true; townButton.hidden = false; town.value = ""; }
+    // Pressing the town keeps the name's focus until the field takes it,
+    // so a typed name is not taken as by hand on the way.
+    townButton.addEventListener("mousedown", function (e) { e.preventDefault(); });
     townButton.addEventListener("click", function () {
       townButton.hidden = true;
       townField.hidden = false;
