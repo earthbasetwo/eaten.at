@@ -758,7 +758,9 @@ the field is; the composer's copy of the refusal points back at
   back in a `.notice.restore` banner at the top of the form: one
   sentence dated the site's way ("An unsaved draft from September 26
   at 1:33 PM is on this device."), then two link buttons on a line of
-  their own, "Restore it" and "Discard it". The draft
+  their own, "Restore it" and "Discard it". In the writing, "Restore
+  it" fills the fields in place; in the chooser it submits the form with
+  the draft's fields, so the writing opens with them (PC9). The draft
   carries the photos as the form does, blob references and captions in
   order, and is saved whenever a photo is added, captioned (as the
   caption is typed, the photo still open), moved, or removed;
