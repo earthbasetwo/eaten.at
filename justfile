@@ -71,6 +71,22 @@ run-dev:
     set -a; . ./.env.dev; set +a
     cargo run -p eaten-at
 
+# Run the app against the local network with the real Open Places API behind the chooser
+run-places:
+    #!/usr/bin/env bash
+    # The key comes from .env and the base URL is the production default;
+    # .env.dev's stub lines are ignored (dev-env rewrites them anyway).
+    set -euo pipefail
+    real_key="${EATEN_AT_PLACES_API_KEY:-}"
+    if [ -z "$real_key" ] || [ "$real_key" = dev-key ]; then
+        echo "Put the real Open Places key in .env as EATEN_AT_PLACES_API_KEY" >&2
+        exit 1
+    fi
+    set -a; . ./.env.dev; set +a
+    unset EATEN_AT_PLACES_API_URL
+    export EATEN_AT_PLACES_API_KEY="$real_key"
+    cargo run -p eaten-at
+
 # Dry-run the lexicon publish against the local network
 lexicons-check-dev:
     #!/usr/bin/env bash
