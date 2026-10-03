@@ -32,9 +32,40 @@ pub fn distinct<'a>(tags: impl Iterator<Item = &'a str>) -> Vec<String> {
     out
 }
 
+/// The distinct tags with how many times each appears, the most used
+/// first and ties in the order first seen, spelled as first seen (S4).
+pub fn tally<'a>(tags: impl Iterator<Item = &'a str>) -> Vec<(String, usize)> {
+    let mut counts: Vec<(String, String, usize)> = Vec::new();
+    for tag in tags {
+        let key = normalize(tag);
+        if key.is_empty() {
+            continue;
+        }
+        match counts.iter_mut().find(|(k, _, _)| *k == key) {
+            Some((_, _, n)) => *n += 1,
+            None => counts.push((key, tag.trim().to_owned(), 1)),
+        }
+    }
+    counts.sort_by_key(|entry| std::cmp::Reverse(entry.2));
+    counts.into_iter().map(|(_, tag, n)| (tag, n)).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tally_counts_most_used_first_and_keeps_first_spellings() {
+        let tags = ["Noodles", "coffee", "noodles ", "late", "Coffee", "noodles"];
+        assert_eq!(
+            tally(tags.into_iter()),
+            vec![
+                ("Noodles".to_owned(), 3),
+                ("coffee".to_owned(), 2),
+                ("late".to_owned(), 1)
+            ]
+        );
+    }
 
     #[test]
     fn normalizes_case_and_whitespace() {

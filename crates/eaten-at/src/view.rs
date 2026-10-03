@@ -297,6 +297,21 @@ pub fn tag_links(did: &Did, pub_rkey: &str, tags: &[String]) -> Vec<Link> {
         .collect()
 }
 
+/// Tag links with their counts, as [`crate::tags::tally`] gives them.
+pub fn tag_counts(did: &Did, pub_rkey: &str, tags: &[(String, usize)]) -> Vec<(Link, usize)> {
+    tags.iter()
+        .map(|(tag, count)| {
+            (
+                Link {
+                    label: tag.clone(),
+                    href: paths::tagged(did, pub_rkey, tag),
+                },
+                *count,
+            )
+        })
+        .collect()
+}
+
 /// Canonical URL of a document: `publication.url + path`. A document
 /// without a `path` has no address at its publication origin, so the
 /// site route stands in.

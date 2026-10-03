@@ -140,6 +140,7 @@
     --text-action:    clamp(1rem,      0.929rem + 0.29vw,  1.125rem);  /* 16 → 18, the primary action */
     --text-action-small: clamp(0.9375rem, 0.902rem + 0.145vw, 1rem);   /* 15 → 16, every other action */
     --text-field:     clamp(1rem,      0.965rem + 0.145vw, 1.0625rem); /* 16 → 17, what is typed and what is chosen */
+    --field-height: calc(var(--text-field) * 1.55 + 0.75rem); /* a text field's box: its line at 1.55, 6px above and below the rule (the field rule in base) */
     --text-small:     0.875rem;                                         /* 14, interface text */
     --text-body:      clamp(0.875rem,  0.84rem + 0.145vw,  0.9375rem); /* 14 → 15 */
     --text-lede:      1rem;                                             /* 16 */
@@ -147,6 +148,7 @@
     --text-card:      clamp(1.25rem,   1.179rem + 0.29vw,  1.375rem);  /* 20 → 22, row titles and names */
     --text-heading:   clamp(1.375rem,  1.304rem + 0.29vw,  1.5rem);    /* 22 → 24, h2 in prose */
     --text-masthead:  clamp(1.375rem,  1.234rem + 0.58vw,  1.625rem);  /* 22 → 26, the running head */
+    --text-masthead-mini: clamp(1.75rem, 1.61rem + 0.58vw, 1.875rem); /* 28 → 30, the home's masthead, a step under the nameplate */
     --text-title:     clamp(1.75rem,   1.538rem + 0.87vw,  2.125rem);  /* 28 → 34, the page title */
     --text-nameplate: clamp(2rem,      1.717rem + 1.159vw, 2.5rem);    /* 32 → 40, a publication's name */
     --text-logotype:  clamp(2.5rem,    1.935rem + 2.319vw, 3.5rem);    /* 40 → 56 */
@@ -205,6 +207,7 @@
        key's own arrow, drawn to the same weight as the chevron and
        masked so it takes whatever colour the field gives it. */
     --return-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='12' viewBox='0 0 14 12'%3E%3Cpath d='M 6 4 L 3 7 L 6 10 M 3 7 L 12 7 L 12 1.5' stroke='%23000' stroke-width='1.4' fill='none' stroke-linecap='butt' stroke-linejoin='miter'/%3E%3C/svg%3E");
+    --clear-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M 2 2 L 10 10 M 10 2 L 2 10' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
     /* A dropdown's chevron, masked so it takes the accent of the day. */
     --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M 1 1.5 L 6 6.5 L 11 1.5' stroke='%23000' stroke-width='1.8' fill='none' stroke-linecap='square'/%3E%3C/svg%3E");
     /* Focus: a soft ring, the accent at just over half strength, set a
@@ -570,6 +573,19 @@
     margin-block-start: var(--space-sm); max-inline-size: var(--measure);
     font-size: var(--text-small); line-height: 1.6; color: var(--color-ink-body);
   }
+  /* Compact rows (S7), the author's home: a square thumbnail on the
+     small-thumb size when the visit has a photo, the title, one mono
+     line with the verdict first (S8), the excerpt. No badge. The front
+     page keeps the full card. */
+  .listing-compact .listing-item article { grid-template-columns: var(--thumb-small) minmax(0, 1fr); gap: var(--card-gap); align-items: start; }
+  .listing-thumb { display: block; inline-size: var(--thumb-small); aspect-ratio: 1; background: var(--color-paper-bright); }
+  .listing-thumb img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+  /* A row without a photo keeps the square, recessed and empty (S15's
+     first step), so every row is anchored the same way. */
+  .listing-thumb-blank { background: var(--color-recessed); }
+  .listing-compact .listing-body { grid-column: 2; }
+  .listing-compact .listing-meta .rating { font-size: inherit; line-height: inherit; }
+  .listing-compact .listing-excerpt { margin-block-start: var(--space-s); }
 
   /* Chooser: the publications of one account, one row each. Settings
      reuses the same row with a form inside. */
@@ -620,7 +636,9 @@
   .interstitial > .page-head + * { margin-block-start: 0; }
 
   /* Handle lookup: a labelled field and one button. */
-  .lookup { max-inline-size: 34rem; position: relative; }
+  /* A field runs the column's width, so its rule lines up with the
+     page's hairlines (S14, Ken); the lede beside it keeps its measure. */
+  .lookup { position: relative; }
   /* The handle list floats over what follows rather than pushing it
      down (L2, Ken 2026-09-26): an absolute at its static position. */
   .lookup .combobox-list { position: absolute; inset-block-start: auto; inset-inline: 0; z-index: 20; }
@@ -654,7 +672,7 @@
      drawn this way — signing in to write, and looking someone up to
      read — and a block that cannot say its whole reason on its button
      takes a line above it (.connect-intro), outside the block because
-     the row is lifted to the block's top corner in flight.
+     the row is lifted to the block's bottom corner in flight.
 
      The site's one animation, and the rule draws it: the rule under the
      button grows in place into the 2px of vermilion under the field,
@@ -662,19 +680,27 @@
      the two ends differ the rule grows and reddens on the way: the
      primary sets out on its own 2px of vermilion, a secondary on 1px of
      ink, and both land on the field's rule. The label fades as the rule
-     sets out; the field fades in as it lands; and the block eases to the
-     form's height so nothing below jumps. The script measures both ends,
-     reads both thicknesses from the two properties below, and moves one
-     rule (.connect-rule) between them, holding the row out of the flow
-     while the form takes its place. In flight, neither the button nor
-     the field shows a rule of its own: the moving one is the rule.
-     Reduced motion collapses every transition here to a cut. */
-  .connect { --connect-rule-from: 2px; --connect-rule-to: 2px; --connect-rule-ink: var(--color-vermilion); }
+     sets out; the field fades in as it lands. The block is the field's
+     height from the start (--field-height; the hidden form cannot size
+     it, since hidden is display: none) and the button stands at its
+     foot, on the line the field's rule will take, so the rule only
+     widens and nothing below the block moves (L3). The script
+     measures both ends, reads both thicknesses from the two properties
+     below, and moves one rule (.connect-rule) between them, holding the
+     row out of the flow while the form takes its place. In flight,
+     neither the button nor the field shows a rule of its own: the
+     moving one is the rule. Reduced motion collapses every transition
+     here to a cut. */
+  .connect {
+    --connect-rule-from: 2px; --connect-rule-to: 2px; --connect-rule-ink: var(--color-vermilion);
+    display: grid; align-items: end; min-block-size: var(--field-height);
+  }
+  .connect > .connect-idle, .connect > .connect-form { grid-area: 1 / 1; }
   .connect-read { --connect-rule-from: 1px; --connect-rule-ink: var(--color-ink); }
   .connect-intro { margin-block-end: var(--space-m); }
   .connect-live { position: relative; overflow: hidden; transition: height var(--connect-time) ease-out; }
   .connect-live .connect-idle {
-    position: absolute; inset-block-start: 0; inset-inline: 0; pointer-events: none;
+    position: absolute; inset-block-end: 0; inset-inline: 0; pointer-events: none;
     transition: opacity 120ms ease-out;
   }
   .connect-live .connect-button { box-shadow: none; transition: none; }
@@ -696,28 +722,74 @@
      kicker would go, a small nameplate for the publication, the find
      form with the tag chips under it, the recent list, and one quiet
      closing line for settings and sign-out. */
-  .page-head .handle { margin-block-end: var(--space-s); }
-  .own-publication { margin-block-start: var(--section-gap); }
-  .own-publication > .kicker { margin-block-end: var(--space-s); }
-  .own-nameplate { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs) var(--space-sm); }
-  .own-name { font-family: var(--font-serif); font-weight: 500; font-size: var(--text-card); line-height: 1.15; color: var(--color-ink); }
+  /* One rhythm (S13): a step between the nameplate, the find and the
+     list, a half step between the field and the tag line it owns. The
+     "Your feed" heading names the landmark and shows nowhere (S10). */
+  .own-publication { margin-block-start: var(--section-gap); display: grid; gap: var(--space-l); }
+  .own-find { display: grid; gap: var(--space-sm); }
+  .own-none { gap: var(--space-s); }
+  /* The front page's nameplate in miniature (S17, Ken's B3): centred,
+     the name a step under the nameplate size, the dateline and the
+     description as the front page draws them. A double rule above
+     parts it from the action; a hairline closes it; the find follows
+     at the block's step. */
+  .own-masthead {
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-sm); text-align: center;
+    padding-block: var(--space-l); border-block-start: var(--rule-double); border-block-end: var(--rule-hairline);
+  }
+  .own-name { font-family: var(--font-serif); font-weight: 500; font-size: var(--text-masthead-mini); line-height: 1.05; color: var(--color-ink); text-wrap: balance; }
   .own-name a { color: inherit; text-decoration: none; }
   .own-name a:hover { color: var(--color-vermilion); }
-  .own-address a { color: var(--color-ink-soft); }
-  .find { margin-block-start: var(--space-l); }
-  .find + .tags .tag-list { margin-block-start: var(--space-sm); }
+  .own-masthead .lede { font-style: italic; font-size: var(--text-lede); line-height: 1.5; max-inline-size: var(--measure); }
+  .own-masthead .tags { display: contents; }
+  .own-masthead .tag-line { margin-block-start: var(--space-xs); max-inline-size: var(--measure); }
+  /* The list has no head at rest (S11); during a find it takes one,
+     "Matching …" with its Clear. No rule opens the list here (Ken:
+     one hairline too many): the field's rule is the last stroke, and
+     the first row starts at the block's step under it. */
+  .own-publication .listing { border-block-start: 0; }
+  .own-publication .listing-item:first-child { padding-block-start: 0; }
   .own-publication .list-head {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm);
-    margin-block: var(--space-l) var(--space-sm);
+    margin-block-end: var(--space-sm);
   }
   .own-publication .list-head .kicker { margin: 0; }
   .own-publication .empty { padding-block: var(--space-l); }
-  .own-none .lede { margin-block-start: var(--space-xs); }
+  /* The last row keeps no padding below (S16): what follows, the
+     closing line or "All digests", sets its own distance, the same one
+     the signed-out page has above its closing line. */
+  .own-publication .listing-item:last-child { padding-block-end: 0; }
+  /* The find's clear (S19): a mark at the field's end, where the return
+     mark stands, shown while the field holds a query and in place of
+     the browser's own cancel button. A link home without script. */
+  .find input[type="search"]::-webkit-search-cancel-button,
+  .find input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+  .find-clear { position: absolute; inset-block: 0; inset-inline-end: 0; inline-size: 1.9em; display: block; }
+  .find-clear::before {
+    content: ""; position: absolute; inset-inline-end: 0.2em; inset-block-start: 50%; translate: 0 -50%;
+    inline-size: 0.7em; block-size: 0.7em; background: var(--color-stone);
+    -webkit-mask: var(--clear-mark) no-repeat center / contain; mask: var(--clear-mark) no-repeat center / contain;
+    transition: background-color var(--ease);
+  }
+  .find-clear:hover::before, .find-clear:focus-visible::before { background: var(--color-vermilion); }
+  .return-rule:has(.find-clear:not([hidden]))::after { content: none; }
   .tertiary {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-s) var(--action-gap);
     margin-block-start: var(--section-gap); padding-block-start: var(--space-m);
     border-top: var(--rule-hairline);
   }
+  /* The page foot (S18, S21): after main, which grows, and stuck to
+     the window's foot, so the line is there on a short page, stays
+     there as a long one scrolls under it, and rests under the content
+     at the end. It paints the paper so the rows pass beneath it. Main's
+     own bottom padding is the distance above it when the page is out.
+     Signed in, the handle sits at its far end. */
+  .page-foot {
+    position: sticky; inset-block-end: 0; z-index: 10;
+    background: var(--color-paper); padding-block-end: var(--space-m);
+  }
+  .page-foot .tertiary { margin-block-start: 0; }
+  .tertiary .handle { margin-inline-start: auto; color: var(--color-stone); }
   .tertiary a, .tertiary .link-button { color: var(--color-ink-soft); }
   .tertiary a:hover, .tertiary .link-button:hover { color: var(--color-vermilion); }
 
@@ -1283,7 +1355,7 @@
   .photo-row-body { min-inline-size: 0; flex: 1; }
   .photo-row-body > * + * { margin-block-start: var(--space-s); }
   .photo-row-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--action-gap); }
-  .hosting-form { margin-block-start: var(--space-m); max-inline-size: 34rem; }
+  .hosting-form { margin-block-start: var(--space-m); }
   .hosting-form > * + * { margin-block-start: var(--space-m); }
   /* A choice is the box and its label on one line, the whole row
      clickable because the row is the label. The label is the serif at
@@ -1442,6 +1514,22 @@
     transition: color var(--ease), background-color var(--ease), border-color var(--ease);
   }
   .doc-footer .tag:hover, .tag:hover { border-color: var(--color-ink); color: var(--color-ink); text-decoration: none; }
+  /* The author's home's tags as a line (S9): the composer's treatment,
+     the serif at field size, commas, a hairline underline; a faint mono
+     count after a tag used more than once (S4); and, with script, "+n
+     more" at the end of the first line, a button set like the words. */
+  .tag-list.tag-line { display: block; font-size: var(--text-field); line-height: 1.55; color: var(--color-ink-soft); }
+  .tag-line li { display: inline; }
+  .tag-line li + li::before { content: ", "; }
+  .tag-word {
+    color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em;
+    text-decoration-color: var(--color-hairline); transition: color var(--ease), text-decoration-color var(--ease);
+  }
+  .tag-word:hover { color: var(--color-vermilion); text-decoration-color: var(--color-vermilion); }
+  .tag-line .tag-count { font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em; color: var(--color-stone); margin-inline-start: 0.3em; }
+  .tag-more .tag-word { font: inherit; font-style: italic; color: var(--color-stone); padding: 0; box-shadow: none; text-decoration: none; }
+  .tag-more .tag-word::after { content: none; }
+  .tag-more .tag-word:hover { color: var(--color-vermilion); box-shadow: none; }
   .tags-note { inline-size: 100%; color: var(--color-stone); }
 }
 

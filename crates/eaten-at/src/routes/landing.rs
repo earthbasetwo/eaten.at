@@ -2,8 +2,10 @@
 //! that becomes a handle field (plan 09); signed in, the author's home:
 //! one primary "Write a new digest", their feed with its recent
 //! digests and a way to find one, and settings last (plan 11). Both
-//! states end on the same quiet line, which is where the about page
-//! (and with it the credits) is reached from.
+//! states end on the same quiet line, the page foot (S18), kept at the
+//! window's foot as the page scrolls (S21), which is where the about
+//! page (and with it the credits) is reached from; signed in it also
+//! names the handle.
 
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Response};
@@ -11,7 +13,7 @@ use eaten_at_atproto::identity::{Did, Identity};
 use eaten_at_atproto::lexicon::Publication;
 use eaten_at_atproto::repo::Record;
 use eaten_at_web::assets::{COMBOBOX_SCRIPT, CONNECT_SCRIPT, FIND_SCRIPT, HANDLE_TYPEAHEAD_SCRIPT};
-use eaten_at_web::components::{connect, listing, tag_links, Connect, ConnectWay};
+use eaten_at_web::components::{connect, listing_compact, tag_line, Connect, ConnectWay};
 use eaten_at_web::layout::{self, Masthead, Page};
 use maud::{html, Markup};
 use serde::Deserialize;
@@ -92,7 +94,10 @@ fn signed_out(nonce: &Nonce, appview: &str, origin: &str) -> Markup {
                 intro: Some("Oh, so you're one of the demanding public, eh?"),
                 label: "Look up a friend",
             }))
-            // The one quiet line signed out: where the credits are.
+        },
+        // The one quiet line signed out, in the page foot: where the
+        // credits are.
+        foot: html! {
             div.meta.tertiary {
                 a href="/about" { "About" }
             }
@@ -111,8 +116,11 @@ struct Own<'a> {
     items: Vec<eaten_at_web::components::ListingItem>,
     /// Whether the publication has more than the list shows.
     more: bool,
+    /// How many digests the feed has, when one scan saw them all.
+    count: Option<usize>,
     truncated: bool,
-    tags: Vec<eaten_at_web::components::Link>,
+    /// The feed's tags, the most used first, each with its count (S4, S9).
+    tags: Vec<(eaten_at_web::components::Link, usize)>,
 }
 
 /// The author's home. With a publication it ships the live-find island;
@@ -138,19 +146,23 @@ async fn signed_in(
         scripts,
         main: html! {
             div.page-head {
-                p.meta.handle { (label) }
                 h1 { "Where did you eat?" }
             }
             div.actions.landing-actions {
                 a.button href="/write" { "Write a new digest" }
             }
             (section)
+        },
+        // The closing line stays at the window's foot (S21) and says who
+        // is signed in, at its far end, where the head used to.
+        foot: html! {
             div.meta.tertiary {
                 a href="/settings" { "Settings" }
                 a href="/about" { "About" }
                 form.inline-form method="post" action="/logout" {
                     button.link-button type="submit" { "Sign out" }
                 }
+                span.handle { (label) }
             }
         },
         ..Page::default()
@@ -178,8 +190,22 @@ async fn own<'a>(
     // The recent list is the first page's newest eight; a find shows
     // its whole page. Both come through the same cached scan the front
     // page uses, so a fresh publish shows here at once.
+    // The tag line is always the feed's, not the find's: it is hidden
+    // while a find is on and comes back whole when it is cleared (S19).
+    let recent = state.visit_listing(identity, publication, None).await?;
+    let tags = view::tag_counts(
+        did,
+        pub_rkey,
+        &crate::tags::tally(
+            recent
+                .items
+                .iter()
+                .flat_map(|a| a.document().tags.iter().map(String::as_str)),
+        ),
+    );
+    let count = (recent.next_cursor.is_none() && !recent.truncated).then_some(recent.items.len());
     let listing = if query.is_empty() {
-        state.visit_listing(identity, publication, None).await?
+        recent
     } else {
         state
             .find_visits(identity, publication, query, None)
@@ -191,16 +217,6 @@ async fn own<'a>(
         listing.items.len()
     };
     let more = listing.items.len() > shown || listing.next_cursor.is_some();
-    let tags = view::tag_links(
-        did,
-        pub_rkey,
-        &crate::tags::distinct(
-            listing
-                .items
-                .iter()
-                .flat_map(|a| a.document().tags.iter().map(String::as_str)),
-        ),
-    );
     let items = listing
         .items
         .iter()
@@ -213,46 +229,65 @@ async fn own<'a>(
         query,
         items,
         more,
+        count,
         truncated: listing.truncated,
         tags,
     })
 }
 
-/// The publication: a small nameplate, the find form with the tag
-/// chips under it, then the list.
+/// The publication: the front page's nameplate in miniature (S17) with
+/// the tag line closing it, the find field, then the compact rows. The field has no button and
+/// no visible label (S1, S3): Return sends it, its placeholder says
+/// what it finds, and the live find filters as you type anyway. The
+/// "Your feed" heading names the landmark and shows nowhere (S10). The
+/// field carries the find's whole state (S19): while it holds a query
+/// a clear mark stands at the field's end where the return mark was,
+/// and the list has no visible head; a hidden "Matching …" line still
+/// tells assistive technology. The tags live in the masthead and stay.
 fn own_section(did: &Did, own: &Own<'_>) -> Markup {
     let pub_rkey = own.publication.rkey();
     let front = paths::publication(did, pub_rkey);
     let finding = !own.query.is_empty();
     html! {
         section.own-publication aria-labelledby="own-heading" {
-            p.kicker #own-heading { "Your feed" }
-            div.own-nameplate {
+            p.kicker.visually-hidden #own-heading { "Your feed" }
+            // The front page's nameplate in miniature (S17): the reader's
+            // masthead, so the rows below read as the feed. A double rule
+            // parts it from the action above; a hairline closes it.
+            header.own-masthead {
                 p.own-name { a href=(front) { (own.publication.value.name) } }
-                p.meta.own-address {
-                    (own.address) " · "
-                    a href=(paths::feed(did, pub_rkey)) rel="alternate" type="application/rss+xml" { "rss" }
+                ul.dateline {
+                    li { (own.address) }
+                    li { a href=(paths::feed(did, pub_rkey)) rel="alternate" type="application/rss+xml" { "rss" } }
+                    @if let Some(count) = own.count {
+                        li { (count) " " @if count == 1 { "digest" } @else { "digests" } }
+                    }
+                }
+                @if let Some(description) = &own.publication.value.description {
+                    p.lede { (description) }
+                }
+                // The tags close the masthead as the front page's chips do,
+                // and stay through a find: they are the feed's, not the find's.
+                (tag_line(&own.tags))
+            }
+            div.own-find {
+                form.lookup.find action="/" method="get" {
+                    label.visually-hidden for="q" { "Find a digest" }
+                    div.lookup-row {
+                        span.return-rule {
+                            input #q name="q" type="search" value=(own.query) autocomplete="off"
+                                placeholder="Find a place, a title, a street";
+                            // A link home without script; with it, the field empties in place.
+                            a.find-clear href="/" aria-label="Clear the find" hidden[!finding] {}
+                        }
+                    }
                 }
             }
-            form.lookup.find action="/" method="get" {
-                label.kicker.lookup-label for="q" { "Find a digest" }
-                div.lookup-row {
-                    input #q name="q" type="search" value=(own.query) autocomplete="off"
-                        placeholder="A place, a title, a street";
-                    button.button-secondary type="submit" { "Find" }
-                }
-            }
-            (tag_links(&own.tags, None))
             // What a find replaces, live or by a reload: the head and
             // the list, announced to assistive technology when it changes.
             div.find-results aria-live="polite" {
-                div.list-head {
-                    p.kicker {
-                        @if finding { "Matching “" (own.query) "”" } @else { "Recent digests" }
-                    }
-                    @if finding {
-                        a.button-link href="/" { "Clear" }
-                    }
+                @if finding {
+                    p.kicker.visually-hidden { "Matching “" (own.query) "”" }
                 }
                 @if own.items.is_empty() {
                     @if finding {
@@ -261,7 +296,7 @@ fn own_section(did: &Did, own: &Own<'_>) -> Markup {
                         p.empty { "No digests yet." }
                     }
                 } @else {
-                    (listing(&own.items))
+                    (listing_compact(&own.items))
                 }
                 @if own.truncated {
                     p.notice { "Showing recent digests; this feed also has many other documents." }

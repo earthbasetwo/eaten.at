@@ -407,8 +407,10 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
         "{body}"
     );
     assert!(body.contains("<h1>Where did you eat?</h1>"), "{body}");
+    // The handle is in the closing line, not the head (S21).
+    assert!(!body.contains("class=\"meta handle\""), "{body}");
     assert!(
-        body.contains("<p class=\"meta handle\">@alice.test</p>"),
+        body.contains("</form><span class=\"handle\">@alice.test</span></div></div></footer>"),
         "{body}"
     );
     // The publication: nameplate, find, tags, the newest eight, the rest
@@ -419,13 +421,53 @@ async fn the_signed_in_landing_page_is_the_authors_home() {
         )),
         "{body}"
     );
-    assert!(body.contains("ross.eaten.at · <a href="), "{body}");
+    // The front page's nameplate in miniature (S17): a dateline of the
+    // address, rss and the count, then the description.
+    assert!(
+        body.contains("<ul class=\"dateline\"><li>ross.eaten.at</li><li><a href=\"/at/")
+            && body.contains("</a></li><li>9 digests</li></ul>"),
+        "{body}"
+    );
     assert!(
         body.contains("<form class=\"lookup find\" action=\"/\" method=\"get\">"),
         "{body}"
     );
+    // The find is one field, sent with Return: no button, no visible
+    // label, the placeholder saying what it finds (S1, S3).
     assert!(
-        body.contains("href=\"/at/") && body.contains("/tagged/late\""),
+        body.contains("<label class=\"visually-hidden\" for=\"q\">Find a digest</label>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<span class=\"return-rule\"><input id=\"q\" name=\"q\" type=\"search\"")
+            && body.contains("placeholder=\"Find a place, a title, a street\""),
+        "{body}"
+    );
+    assert!(!body.contains(">Find</button>"), "{body}");
+    // The tags are a line under the find, a tag used more than once
+    // carrying its count (S4, S9); the "Your feed" heading names the
+    // landmark and shows nowhere (S10); the rows are compact and have
+    // no head at rest (S7, S11).
+    assert!(
+        body.contains("<ul class=\"tag-list tag-line\"><li><a class=\"tag-word\" href=\"/at/")
+            && body.contains("/tagged/late\">late <span class=\"tag-count\">9</span></a>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<p class=\"kicker visually-hidden\" id=\"own-heading\">Your feed</p>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<ol class=\"listing listing-compact\">"),
+        "{body}"
+    );
+    assert!(
+        body.contains("aria-label=\"Clear the find\" hidden></a>")
+            && body.contains("</ul></nav></header>"),
+        "the tags close the masthead: {body}"
+    );
+    assert!(
+        !body.contains("Recent digests") && !body.contains("list-head"),
         "{body}"
     );
     assert_eq!(body.matches("listing-item").count(), 8, "{body}");
@@ -471,10 +513,19 @@ async fn the_home_page_finds_write_ups_and_says_what_a_first_publish_makes() {
     let (status, _, body) = get_signed(&state, "/?q=place+3", &cookie).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body.matches("listing-item").count(), 1, "{body}");
-    assert!(body.contains("Matching “place 3”"), "{body}");
+    // The field carries the find (S19): a hidden "Matching" line for
+    // assistive technology, the clear mark shown, the tag line away.
     assert!(
-        body.contains("<a class=\"button-link\" href=\"/\">Clear</a>"),
+        body.contains("<p class=\"kicker visually-hidden\">Matching “place 3”</p>"),
         "{body}"
+    );
+    assert!(
+        body.contains("<a class=\"find-clear\" href=\"/\" aria-label=\"Clear the find\"></a>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("</ul></nav></header>") && !body.contains("own-tags"),
+        "the tags stay through a find: {body}"
     );
     assert!(!body.contains("All digests"), "{body}");
     let (_, _, body) = get_signed(&state, "/?q=zzz", &cookie).await;
@@ -1038,6 +1089,44 @@ async fn both_landing_pages_lead_to_the_about_page() {
     );
 }
 
+/// The icon paths a browser asks for on its own (L7), and the links
+/// every page carries to the hashed ones.
+#[tokio::test]
+async fn the_icons_are_where_browsers_look() {
+    let server = mount(&Repo::default()).await;
+    let state = state_for(&server, StaticDns::new());
+    for (path, content_type) in [
+        ("/favicon.ico", "image/png"),
+        ("/apple-touch-icon.png", "image/png"),
+    ] {
+        let response = router(state.clone())
+            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], content_type);
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=300",
+            "{path}"
+        );
+    }
+    let (_, _, landing) = get(&state, "/").await;
+    let svg = eaten_at_web::assets::path_of("favicon.svg");
+    assert!(
+        landing.contains(&format!(
+            "<link rel=\"icon\" type=\"image/svg+xml\" href=\"{svg}\">"
+        )),
+        "{landing}"
+    );
+    assert!(
+        landing.contains("<link rel=\"apple-touch-icon\" href=\"/static/apple-touch-icon."),
+        "{landing}"
+    );
+    let (status, _, _) = get(&state, &svg).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
 #[tokio::test]
 async fn stylesheet_is_served_with_cache_headers() {
     let server = mount(&Repo::default()).await;
@@ -1410,12 +1499,12 @@ async fn tag_links_appear_on_document_and_publication_pages() {
     );
 }
 
-/// The `<head>` of a page, with the hashed stylesheet path made stable.
+/// The `<head>` of a page, with the hashed asset paths made stable.
 fn head_of(body: &str) -> String {
     let start = body.find("<head>").unwrap();
     let end = body.find("</head>").unwrap() + "</head>".len();
-    let re = regex_lite::Regex::new(r"app\.[0-9a-f]{8}\.css").unwrap();
-    re.replace_all(&body[start..end], "app.HASH.css")
+    let re = regex_lite::Regex::new(r"\.[0-9a-f]{8}\.(css|svg|png)").unwrap();
+    re.replace_all(&body[start..end], ".HASH.$1")
         .replace("><", ">\n<")
 }
 
