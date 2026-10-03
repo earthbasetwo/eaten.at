@@ -1074,6 +1074,7 @@
   .tags-sentence { margin: 0; font-size: 1.0625rem; line-height: 1.55; color: var(--color-ink); }
   .tags-sentence > label { font-style: italic; color: var(--color-ink-soft); }
   .tag-field, .tag-chips { display: inline; }
+  .chip-item { white-space: nowrap; }
   .editor .chip { font: inherit; }
   .tag-field input { min-inline-size: 3ch; }
   .tag-field input:focus-visible { text-decoration-color: var(--color-ink); }
@@ -1503,6 +1504,10 @@
   .doc-footer .quiet-links { display: flex; gap: var(--action-gap); }
   .doc-footer .quiet-links a { color: var(--color-ink-soft); }
   .doc-footer .quiet-links a:hover { color: var(--color-vermilion); }
+  /* Filed under (P5): the document's tags as the composer's sentence,
+     above the footer's rule; the words on the home's hairline underline. */
+  .filed-under .tags-sentence { margin-block-start: var(--space-l); color: var(--color-ink-soft); }
+  .filed-label { font-style: italic; }
 
   /* Tag chip: a small square badge in the mono voice, hairlined. */
   .tag-list { display: flex; flex-wrap: wrap; gap: var(--space-s); align-items: center; }

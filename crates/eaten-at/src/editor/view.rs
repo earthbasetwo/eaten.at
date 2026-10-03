@@ -425,7 +425,7 @@ fn photos(page: &EditorPage<'_>) -> Markup {
                     }
                 }
                 p.hint.photo-hint {
-                    "Drag to reorder — the first photo is the cover."
+                    "Drag to reorder, or press Alt and an arrow key — the first photo is the cover."
                     @if let Some(path) = page.photos_page {
                         " " a href=(path) { "Captions and more" } "."
                     }

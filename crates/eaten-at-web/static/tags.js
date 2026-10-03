@@ -36,8 +36,14 @@
       chip.textContent = t;
       chip.title = "Remove " + t;
       chip.addEventListener("click", function () { remove(t); input.focus(); });
-      chips.appendChild(chip);
-      chips.appendChild(document.createTextNode(", "));
+      // The comma is bound to its chip, so a line breaks after it, never
+      // before it (PC2).
+      var item = document.createElement("span");
+      item.className = "chip-item";
+      item.appendChild(chip);
+      item.appendChild(document.createTextNode(","));
+      chips.appendChild(item);
+      chips.appendChild(document.createTextNode(" "));
     });
     carrier.value = tags.join(", ");
     input.placeholder = tags.length ? "another tag" : "a tag";

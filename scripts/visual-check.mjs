@@ -15,8 +15,9 @@
 //   just visual-check            # loads .env.dev, then runs this
 //
 // The app under test is built from the working tree and started on its own
-// port (VISUAL_CHECK_PORT, default 3100), so a `just run-dev` on :3000 is
-// left alone. Signing in goes through `dev-session`, which writes a browser
+// port (VISUAL_CHECK_PORT, default 3100) with its own database
+// (target/visual-check.db, wiped on each run), so a `just run-dev` on :3000
+// and its cache are left alone. Signing in goes through `dev-session`, which writes a browser
 // session straight into the dev database: no password, no OAuth screens.
 // Chrome is found at CHROME, or in the usual install locations.
 
@@ -65,8 +66,13 @@ async function main() {
   await expectOk(`${pds}/xrpc/_health`, 'the local PDS is not answering; start it with `just dev-env`')
 
   run('cargo', ['build', '-q', '-p', 'eaten-at', '--bin', 'eaten-at', '--bin', 'dev-session'])
+  // The harness's own database (T3): sessions minted here and listings
+  // cached here never meet a server running on .dev-cache.db.
+  const db = path.join(ROOT, 'target', 'visual-check.db')
+  for (const suffix of ['', '-wal', '-shm']) await rm(db + suffix, { force: true })
   const appEnv = {
     ...process.env,
+    EATEN_AT_DB: db,
     EATEN_AT_LISTEN: `127.0.0.1:${PORT}`,
     EATEN_AT_PUBLIC_URL: BASE,
     RUST_LOG: process.env.RUST_LOG ?? 'warn',
@@ -193,10 +199,12 @@ async function main() {
     path: `${discovered.documents[0]}?after=published`,
     expect: '.publish-confirmation',
     exercise: async browser => {
-      await browser.session.send('Browser.grantPermissions', { origin: BASE, permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] });
+      // Headless Chrome has no clipboard to read back (T1): the write is
+      // caught instead, and must carry the canonical permalink.
+      await browser.evaluate(`(() => { navigator.clipboard.writeText = async (text) => { window.__copied = text; }; })()`);
       await browser.evaluate(`document.querySelector('.copy-permalink').click()`);
       if (!await browser.appears('.copy-status:not(:empty)')) throw new Error('No copy feedback');
-      if (!await browser.evaluate(`(async () => document.querySelector('.copy-status').textContent === 'Link copied.' && await navigator.clipboard.readText() === document.querySelector('link[rel="canonical"]').href)()`)) throw new Error('Copy did not put the canonical permalink on the clipboard');
+      if (!await browser.evaluate(`document.querySelector('.copy-status').textContent === 'Link copied.' && window.__copied === document.querySelector('link[rel="canonical"]').href`)) throw new Error('Copy did not put the canonical permalink on the clipboard');
       // A denied clipboard must expose the plain link again.
       await browser.evaluate(`(() => {
         navigator.clipboard.writeText = async () => { throw new Error('denied'); };
@@ -206,7 +214,10 @@ async function main() {
       if (!await browser.appears('.permalink:not([hidden])')) throw new Error('No clipboard fallback');
     },
   });
-  await check({ name: 'publishing-reconnected', path: '/login/reconnected', expect: '.page-head .lede' });
+  // The harness's session has no OAuth grant (dev-session writes none), so
+  // /login/reconnected sends it back to sign in with the return kept (T1);
+  // the reconnected page itself is covered by the route test.
+  await check({ name: 'publishing-reconnected', path: '/login/reconnected', finalPath: '/login', expect: 'input[name="return_to"][value="/login/reconnected"]' });
   // Discover photo and empty-photo states; individual exercises supply
   // their own prose and teaser content without saving records.
   if (discovered.withPhotos.length === 0) throw new Error(`no write-up with photos listed on ${front}`)
@@ -216,11 +227,13 @@ async function main() {
   await check({ name: 'landing-signed-in', path: '/', expect: '.own-publication .listing-item' })
   await check({ name: 'landing-find', path: '/?q=noodle', expect: '.own-publication .listing-item' })
   await check({ name: 'landing-find-none', path: '/?q=zzz', expect: '.own-publication .empty' })
-  // The live find (plan 11): typing swaps the results in without a reload.
+  // The live find (plan 11): typing swaps the results in without a reload;
+  // the state is in the field (S17), so the swapped-in results are known
+  // by their hidden "Matching" kicker.
   await check({
     name: 'landing-find-live',
     path: '/',
-    steps: [{ type: { '#q': 'noodle' }, wait: '.find-results a.button-link[href="/"]' }],
+    steps: [{ type: { '#q': 'noodle' }, wait: '.find-results .kicker' }],
     expect: '.find-results .listing-item',
   })
   await check({ name: 'settings', path: '/settings', expect: '.chooser-item' })

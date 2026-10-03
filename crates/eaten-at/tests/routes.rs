@@ -926,6 +926,15 @@ async fn document_page_renders_card_body_tags_and_canonical() {
         "the coordinates become a map link: {body}"
     );
     assert!(body.contains("longform"), "{body}");
+    // The tags are the composer's sentence above the footer (P5), not
+    // chips inside it.
+    assert!(
+        body.contains(&format!(
+            "<nav class=\"tags filed-under\" aria-label=\"Tags in this feed\"><p class=\"tags-sentence\"><span class=\"filed-label\">Filed under</span> <a class=\"tag-word\" href=\"/at/{DID}/pub1/tagged/longform\">longform</a>.</p></nav>"
+        )),
+        "{body}"
+    );
+    assert!(!body.contains("class=\"tag\""), "{body}");
 }
 
 #[tokio::test]
@@ -3511,6 +3520,27 @@ async fn adding_photos_uploads_each_good_file_and_names_the_bad_ones() {
     let (status, location, _) = get(&state, "/write/ph0/photos").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert!(location.unwrap().starts_with("/login"));
+
+    // A post from a run-out session goes to sign in too, and comes back
+    // marked, so the page can say the chosen files were not kept (PC6).
+    let (status, location, _) = post_photos(
+        &state,
+        "/write/ph0/photos",
+        "",
+        &[("action", "add")],
+        &[("a.jpg", b"not kept")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(
+        location.as_deref(),
+        Some("/login?return_to=%2Fwrite%2Fph0%2Fphotos%3Fexpired%3D1")
+    );
+    let (status, _, body) = get_signed(&state, "/write/ph0/photos?expired=1", &cookie).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("what you sent was not kept"), "{body}");
+    // The mark is not carried into the form's own action.
+    assert!(body.contains("action=\"/write/ph0/photos\""), "{body}");
 }
 
 #[tokio::test]
@@ -3814,7 +3844,7 @@ async fn an_upload_says_so_when_the_sign_in_has_run_out() {
         if !json {
             assert_eq!(
                 response.headers()[header::LOCATION],
-                "/login?return_to=%2Fwrite%2Fd1%2Fphotos"
+                "/login?return_to=%2Fwrite%2Fd1%2Fphotos%3Fexpired%3D1"
             );
         }
     }
@@ -4148,11 +4178,11 @@ async fn the_photo_proxy_serves_listed_photos_only_and_pages_show_them() {
         "the others: {listing}"
     );
     let cookie = signed_in(&state).await;
+    // The author's foot leads to the editor; photos are managed from
+    // there, so the foot has no "photos" link of its own (P6).
     let (_, _, mine) = get_signed(&state, &format!("/at/{DID}/pub1/ph"), &cookie).await;
-    assert!(
-        mine.contains("<a href=\"/write/ph/photos\">photos</a>"),
-        "{mine}"
-    );
+    assert!(mine.contains("<a href=\"/write/ph\">edit</a>"), "{mine}");
+    assert!(!mine.contains("href=\"/write/ph/photos\""), "{mine}");
     let (_, _, editor) = get_signed(&state, "/write/ph", &cookie).await;
     assert!(
         editor.contains("name=\"photo_cid_0\" value=\"bafkcover\""),
