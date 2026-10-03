@@ -1104,21 +1104,38 @@ async fn both_landing_pages_lead_to_the_about_page() {
 async fn the_icons_are_where_browsers_look() {
     let server = mount(&Repo::default()).await;
     let state = state_for(&server, StaticDns::new());
+    let did = eaten_at_atproto::identity::Did::parse(DID).unwrap();
+    let publication = eaten_at_atproto::at_uri::AtUri::parse(&format!(
+        "at://{DID}/site.standard.publication/pub1"
+    ))
+    .unwrap();
+    state
+        .claims()
+        .claim("ross", &publication, &did)
+        .await
+        .unwrap();
     for (path, content_type) in [
         ("/favicon.ico", "image/png"),
         ("/apple-touch-icon.png", "image/png"),
     ] {
-        let response = router(state.clone())
-            .oneshot(Request::get(path).body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK, "{path}");
-        assert_eq!(response.headers()[header::CONTENT_TYPE], content_type);
-        assert_eq!(
-            response.headers()[header::CACHE_CONTROL],
-            "public, max-age=300",
-            "{path}"
-        );
+        for host in ["eaten.at", "ross.eaten.at"] {
+            let response = router(state.clone())
+                .oneshot(
+                    Request::get(path)
+                        .header(header::HOST, host)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{host}{path}");
+            assert_eq!(response.headers()[header::CONTENT_TYPE], content_type);
+            assert_eq!(
+                response.headers()[header::CACHE_CONTROL],
+                "public, max-age=300",
+                "{host}{path}"
+            );
+        }
     }
     let (_, _, landing) = get(&state, "/").await;
     let svg = eaten_at_web::assets::path_of("favicon.svg");
@@ -2226,7 +2243,7 @@ async fn a_picked_suggestion_fills_the_place_from_the_cached_search() {
     assert_eq!(searches, 1);
 }
 #[tokio::test]
-async fn suggestions_look_near_the_last_visit_and_are_not_offered_without_a_point() {
+async fn suggestions_use_the_last_visit_or_let_an_unlocated_author_choose_a_town() {
     let server = mount(&one_publication()).await;
     mount_places(
         &server,
@@ -2253,8 +2270,8 @@ async fn suggestions_look_near_the_last_visit_and_are_not_offered_without_a_poin
         "the town nearest the seed visit: New York City's centroid (plan 15)"
     );
 
-    // No visit has coordinates: nothing to suggest near, so the name is
-    // a plain field and Start writing takes it as typed.
+    // No visit has coordinates: the town picker can still supply the
+    // point, so the page must install the place suggestions island.
     let mut repo = one_publication();
     for (_, doc) in &mut repo.documents {
         if let Some(place) = doc["content"]["place"].as_object_mut() {
@@ -2272,7 +2289,8 @@ async fn suggestions_look_near_the_last_visit_and_are_not_offered_without_a_poin
     let cookie = signed_in(&state).await;
     let (status, _, body) = get_signed(&state, "/write", &cookie).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(!body.contains("data-suggest=\""), "{body}");
+    assert!(body.contains("data-suggest=\"/write/suggest\""), "{body}");
+    assert!(body.contains("data-recent=\"/write/recent\""), "{body}");
     assert!(
         body.contains("id=\"place_name\""),
         "by hand is still there: {body}"
@@ -2298,6 +2316,12 @@ async fn suggestions_look_near_the_last_visit_and_are_not_offered_without_a_poin
         "{body}"
     );
     assert!(body.contains("value=\"Devocion\""), "{body}");
+    let (status, _, body) =
+        get_signed(&state, "/write/suggest?q=Devocion&near=4928703", &cookie).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let suggestions: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(suggestions["near"], "Acton, MA");
+    assert!(!suggestions["hits"].as_array().unwrap().is_empty());
 }
 #[tokio::test]
 async fn an_address_past_its_limit_is_refused_where_it_is_typed() {
@@ -3025,6 +3049,46 @@ async fn recent_places_are_offered_before_typing_and_taken_as_posted() {
 }
 
 #[tokio::test]
+async fn taking_a_recent_manual_place_preserves_its_own_town_when_travelling() {
+    let mut repo = one_publication();
+    let mut document = visit_doc("pub1", "Lunch", "Grandma's kitchen", &[]);
+    let place = document["content"]["place"].as_object_mut().unwrap();
+    place.remove("gersId");
+    place.insert("latE6".into(), json!(40_650_100));
+    place.insert("lonE6".into(), json!(-73_949_580));
+    repo.documents = vec![("manual".into(), document)];
+    let server = mount(&repo).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = signed_in(&state).await;
+    let (status, _, body) = get_signed(&state, "/write/recent", &cookie).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let recent: Value = serde_json::from_str(&body).unwrap();
+    let place = &recent[0];
+    let lat = place["latE6"].to_string();
+    let lon = place["lonE6"].to_string();
+    let fields = [
+        ("place_name", place["name"].as_str().unwrap()),
+        ("place_address", place["address"].as_str().unwrap()),
+        ("lat_e6", lat.as_str()),
+        ("lon_e6", lon.as_str()),
+        ("near", "4928703"), // The chooser currently looks near Acton.
+        ("action", "take"),
+    ];
+    let (status, body) = post_editor(&state, "/write", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body.contains("name=\"lat_e6\" value=\"40650100\""),
+        "{body}"
+    );
+    assert!(
+        body.contains("name=\"lon_e6\" value=\"-73949580\""),
+        "{body}"
+    );
+    assert!(body.contains("name=\"near\" value=\"5110302\""), "{body}");
+    assert!(body.contains("Brooklyn, NY</span>"), "{body}");
+}
+
+#[tokio::test]
 async fn a_corrected_name_rides_with_the_pick() {
     let server = mount(&one_publication()).await;
     mount_places(
@@ -3198,6 +3262,39 @@ fn last_put(writes: &[(String, Value)]) -> Value {
         .find(|(name, _)| name == "com.atproto.repo.putRecord")
         .map(|(_, v)| v["record"].clone())
         .expect("a putRecord")
+}
+
+#[tokio::test]
+async fn an_extreme_existing_photo_count_cannot_overflow_the_capacity() {
+    let mut repo = one_publication();
+    repo.documents.insert(
+        0,
+        ("ph".into(), visit_doc_with_photos("pub1", &["bafkcover"])),
+    );
+    let server = mount(&repo).await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let existing = usize::MAX.to_string();
+    let png = png_bytes(4, 6);
+    let (status, _, body) = post_photos(
+        &state,
+        "/write/ph/photos",
+        &cookie,
+        &[("existing", &existing)],
+        &[("one.png", &png)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(body.contains("At most 24 photos on a digest"), "{body}");
+    assert!(server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .all(|request| {
+            request.url.path() != "/xrpc/com.atproto.repo.uploadBlob"
+                && request.url.path() != "/xrpc/com.atproto.repo.putRecord"
+        }));
 }
 
 #[tokio::test]
@@ -4077,7 +4174,8 @@ async fn a_first_publish_lands_on_the_write_up_and_removing_every_photo_drops_th
                 &format!("{DID}/ph/{size}"),
                 b"the old cover",
             )
-            .await;
+            .await
+            .unwrap();
     }
     let (_, _, page) = get_signed(&state, "/write/ph", &cookie).await;
     assert!(
@@ -4974,6 +5072,38 @@ async fn a_taken_default_label_gets_a_number() {
         "{writes:?}"
     );
     assert!(state.claims().by_name("alice-2").await.unwrap().is_some());
+}
+
+#[tokio::test]
+async fn an_edit_with_a_settled_place_and_path_does_not_need_the_document_listing() {
+    let mut repo = one_publication();
+    let mut document = visit_doc("pub1", "Lunch", "Promises", &[]);
+    document["content"]["place"]["slug"] = json!("promises");
+    repo.documents.push(("settled".into(), document));
+    let server = mount(&repo).await;
+    mount_writes(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/xrpc/com.atproto.repo.listRecords"))
+        .and(query_param("collection", "site.standard.document"))
+        .respond_with(ResponseTemplate::new(500))
+        .with_priority(1)
+        .expect(0)
+        .mount(&server)
+        .await;
+    let state = state_for(&server, dns_for_handle());
+    let cookie = author_session(&state, &server).await;
+    let mut fields = good_fields();
+    fields.retain(|(key, _)| *key != "action");
+    fields.push(("action", "publish"));
+    let (status, body) = post_editor(&state, "/write/settled", &cookie, &fields).await;
+    assert_eq!(status, StatusCode::SEE_OTHER, "{body}");
+    let document = last_put(&repo_writes(&server).await);
+    assert_eq!(document["path"], "/2026/09/lunch");
+    assert_eq!(document["content"]["place"]["slug"], "promises");
+    assert_eq!(
+        document["content"]["body"]["text"]["markdown"],
+        "Forty-six *minutes*.\n\nNine notes."
+    );
 }
 
 #[tokio::test]

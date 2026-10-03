@@ -86,6 +86,8 @@ async function main() {
   const [, bobCookieValue] = splitOnce(bobCookie, '=')
 
   const browser = await Browser.launch()
+  await checkPlaceState(browser)
+  await checkFindState(browser)
   await rm(OUT, { recursive: true, force: true })
   await mkdir(OUT, { recursive: true })
 
@@ -928,6 +930,116 @@ async function main() {
   return failures.length > 0
 }
 
+// Small fixtures exercise the actual islands without requiring a particular
+// recent-place history, search quota, or optional cities file in the dev seed.
+async function checkPlaceState(browser) {
+  const errors = []
+  const stop = browser.session.on('Runtime.exceptionThrown', ({ exceptionDetails }) => {
+    errors.push(exceptionDetails.exception?.description ?? exceptionDetails.text)
+  })
+  const script = async (name) => readFile(path.join(ROOT, 'crates/eaten-at-web/static', name + '.js'), 'utf8')
+  const [combobox, chooser, editor] = await Promise.all(['combobox', 'choose-place', 'editor'].map(script))
+  const load = async (html) => browser.navigate('data:text/html,' + encodeURIComponent(html))
+  const key = async (key, code) => {
+    await browser.session.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: code })
+    await browser.session.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: code })
+  }
+  const html = `<form class="editor editor-choosing">
+    <input id="place_name" name="place_name" data-suggest="/write/suggest" data-recent="/write/recent">
+    <input name="place_query" type="hidden"><input name="place_mode" type="hidden" value="choosing">
+    <input name="near" type="hidden" value="99">
+    <p class="near-line" hidden><span>near</span><button class="near-town" type="button">Town</button>
+      <span class="inline-field" hidden><input id="near_query" name="near_query" data-near="/write/near"></span></p>
+    <p class="place-line"><input name="place_address"></p>
+    <input name="gers_id" type="hidden"><input name="lat_e6" type="hidden"><input name="lon_e6" type="hidden">
+    <input name="place_category" type="hidden"><button id="start-writing" name="action" value="manual">Start writing</button>
+  </form>`
+  for (const unlocated of [false, true]) {
+    await load(unlocated ? html.replace('name="near" type="hidden" value="99"', 'name="near" type="hidden" value=""') : html)
+    await browser.evaluate(`window.searches = []; window.fetch = async (url) => {
+      searches.push(url);
+      return { ok: true, json: async () => url.includes('/near?') ? [{ id: 99, label: 'Town' }]
+        : url.includes('/recent') ? [] : { q: 'Cafe', hits: Array.from({ length: 8 }, (_, i) => ({ i, name: 'Cafe ' + i, address: i + ' Main St' })) } };
+    };`)
+    await browser.evaluate(combobox)
+    await browser.evaluate(chooser)
+    await browser.evaluate(`place_name.focus(); place_name.value = 'Cafe'; place_name.dispatchEvent(new Event('input', { bubbles: true }));`)
+    if (unlocated) {
+      await sleep(400)
+      if (await browser.evaluate(`searches.some(url => url.includes('/suggest'))`)) throw new Error('An unlocated chooser searched before a town was chosen')
+      await browser.evaluate(`document.querySelector('.near-town').click(); near_query.value = 'Tow'; near_query.dispatchEvent(new Event('input', { bubbles: true }));`)
+      if (!await browser.appears('#near_query-list .combobox-option')) throw new Error('Town choices did not appear')
+      await browser.evaluate(`document.querySelector('#near_query-list .combobox-option').click()`)
+    }
+    if (!await browser.appears('#place_name-list .combobox-option')) throw new Error('Restaurant choices did not appear after locating the search')
+    for (let i = 0; i < 6; i++) await key('ArrowDown', 40)
+    await key('Enter', 13)
+    await sleep(200)
+    if (!await browser.evaluate(`document.activeElement === place_name && !document.querySelector('.near-line').hidden && document.querySelectorAll('#place_name-list .combobox-option').length === 9`)) throw new Error('Show more lost its expanded choices or keyboard focus')
+    for (let i = 0; i < 7; i++) await key('ArrowDown', 40)
+    await key('Enter', 13)
+    if (!await browser.evaluate(`place_name.value === 'Cafe 6' && document.querySelector('#start-writing').value === 'pick:6'`)) throw new Error('The keyboard could not take an expanded result')
+  }
+  await load(html)
+  await browser.evaluate(`window.fetch = async () => ({ ok: true, json: async () => [{ name: 'Home', latE6: 100, lonE6: 200 }] });`)
+  await browser.evaluate(combobox)
+  await browser.evaluate(chooser)
+  await browser.evaluate('place_name.focus()')
+  if (!await browser.appears('#place_name-list .combobox-option')) throw new Error('The recent Home did not appear')
+  await browser.evaluate(`document.querySelector('#place_name-list .combobox-option').click()`)
+  if (!await browser.evaluate(`document.querySelector('#start-writing').value === 'take' && document.querySelector('[name=lat_e6]').value === '100' && document.querySelector('[name=lon_e6]').value === '200' && !document.querySelector('.near-line').hidden`)) throw new Error('Taking recent Home discarded its location')
+  const identity = { place_name: 'New cafe', place_address: 'New street', place_mode: 'picked', gers_id: 'new-gers', lat_e6: '100', lon_e6: '200' }
+  const fields = { ...identity, place_name: 'Old cafe', place_category: 'old_category', near: '1', draft_id: '' }
+  const inputs = Object.entries(fields).map(([name, value]) => `<input type="hidden" name="${name}" value="${value}">`).join('')
+  for (const choosing of [false, true]) {
+    const data = { ...identity, place_category: 'coffee_shop', near: '99' }
+    await load(`<form class="editor">${inputs}</form>`)
+    await browser.evaluate(`window.keptDraft = ${JSON.stringify({ at: 1, v: 2, photos: true, data })};
+      Object.defineProperty(window, 'localStorage', { value: {
+        getItem() { return JSON.stringify(keptDraft); }, setItem(key, value) { window.savedDraft = JSON.parse(value); document.body.dataset.draftSaved = '1'; }, removeItem() {}
+      }});
+      if (${choosing}) {
+        document.querySelector('[name=place_mode]').value = 'choosing';
+        document.querySelector('form').submit = function () { window.sentDraft = Object.fromEntries(new FormData(this)); };
+      }`)
+    await browser.evaluate(editor)
+    await browser.evaluate(`document.querySelector('.restore button').click()`)
+    const actual = await browser.evaluate(`window.sentDraft || Object.fromEntries(new FormData(document.querySelector('form')))`)
+    if (actual.gers_id !== identity.gers_id || actual.place_category !== 'coffee_shop' || actual.near !== '99') throw new Error('Restoring a place mixed or lost its metadata: ' + JSON.stringify(actual))
+    if (!choosing) {
+      await browser.evaluate(`document.querySelector('form').dispatchEvent(new Event('input', { bubbles: true }))`)
+      if (!await browser.appears('body[data-draft-saved]')) throw new Error('The draft snapshot was not saved')
+      const saved = await browser.evaluate('window.savedDraft?.data')
+      if (saved?.place_category !== actual.place_category || saved?.near !== actual.near) throw new Error('The draft snapshot omitted place metadata: ' + JSON.stringify(saved))
+    }
+  }
+  stop()
+  if (errors.length) throw new Error('Place island exceptions: ' + errors.join('\n'))
+  console.log('ok    isolated place keyboard, town and draft checks')
+}
+
+// Clearing a pending find must invalidate its response even when the fetch
+// implementation delivers it after cancellation.
+async function checkFindState(browser) {
+  const find = await readFile(path.join(ROOT, 'crates/eaten-at-web/static/find.js'), 'utf8')
+  await browser.navigate('data:text/html,' + encodeURIComponent(`<section class="own-publication">
+    <form class="find"><input name="q"><a class="find-clear" href="/" hidden>Clear</a></form>
+    <div class="find-results">All digests</div></section>`))
+  await browser.evaluate(`history.replaceState = (state, title, url) => { window.findUrl = url; };
+    window.fetch = (url, options) => { window.findSignal = options.signal;
+      document.body.dataset.requested = '1';
+      return new Promise(resolve => { window.finishFind = () => resolve({ ok: true, text: async () => '<div class="find-results">Stale noodles</div>' }); });
+    };`)
+  await browser.evaluate(find)
+  await browser.evaluate(`const input = document.querySelector('[name=q]'); input.value = 'noodles'; input.dispatchEvent(new Event('input', { bubbles: true }));`)
+  if (!await browser.appears('body[data-requested]')) throw new Error('The delayed find did not start')
+  await browser.evaluate(`document.querySelector('.find-clear').click(); finishFind();`)
+  await sleep(50)
+  const result = await browser.evaluate(`({ text: document.querySelector('.find-results').textContent, query: document.querySelector('[name=q]').value, url: window.findUrl, aborted: findSignal.aborted })`)
+  if (result.text !== 'All digests' || result.query !== '' || result.url || !result.aborted) throw new Error('Clearing a pending find let stale results return: ' + JSON.stringify(result))
+  console.log('ok    isolated delayed find cancellation')
+}
+
 // Exercise real keyboard selection and replacement in the browser. Clipboard
 // events use an in-memory clipboard so these checks never touch the user's.
 async function checkDigestSelection(browser) {
@@ -1214,7 +1326,21 @@ class Browser {
     }
 
     if (page.exercise) {
-      try { await page.exercise(this) } catch (error) { problems.push(error.message) }
+      // Event-handler exceptions are reported by CDP, not thrown by
+      // Runtime.evaluate. Keep listening while the exercise interacts.
+      const off = [
+        this.session.on('Runtime.exceptionThrown', ({ exceptionDetails }) => {
+          problems.push(`exception: ${exceptionDetails.exception?.description ?? exceptionDetails.text}`)
+        }),
+        this.session.on('Runtime.consoleAPICalled', ({ type, args }) => {
+          if (type === 'error') problems.push(`console.error: ${args.map(a => a.value ?? a.description).join(' ')}`)
+        }),
+        this.session.on('Log.entryAdded', ({ entry }) => {
+          if (entry.level === 'error' && entry.source !== 'network') problems.push(`${entry.source}: ${entry.text}`)
+        }),
+      ]
+      try { await page.exercise(this); await sleep(50) } catch (error) { problems.push(error.message) }
+      finally { off.forEach(stop => stop()) }
     }
     const expected = page.status ?? 200
     if (status !== expected) problems.push(`status ${status}, expected ${expected}`)

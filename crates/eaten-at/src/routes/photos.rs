@@ -618,7 +618,8 @@ async fn add(
     // Files are judged in turn and only a good one takes room, so a
     // refused file never costs a good one its place; once the digest is
     // full the rest are named by count, never decoded.
-    let room = |photos: &Vec<Photo>| MAX_PHOTOS.saturating_sub(photos.len() + form.existing);
+    let room =
+        |photos: &Vec<Photo>| MAX_PHOTOS.saturating_sub(photos.len().saturating_add(form.existing));
     if room(&photos) == 0 {
         tracing::info!(
             files = form.files.len(),

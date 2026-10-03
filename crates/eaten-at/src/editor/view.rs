@@ -340,9 +340,9 @@ fn meal_field(form: &EditorForm, errors: &FieldErrors) -> Markup {
             span.select-rule {
                 select #meal name="meal" aria-label="Meal" aria-describedby=[described(errors, "meal")] {
                     option value="" selected[form.meal == Choice::None] { "food" }
-                    // Late night is not offered any more (Ken and Ross,
-                    // 2026-09-25); a record that has it still reads.
-                    @for meal in Meal::ALL.iter().filter(|meal| **meal != Meal::LateNight) {
+                    // Keep a retired value when editing a record that
+                    // already has it, without offering it on new visits.
+                    @for meal in Meal::ALL.iter().filter(|meal| **meal != Meal::LateNight || form.meal == Choice::Known(**meal)) {
                         option value=(meal.as_str()) selected[form.meal == Choice::Known(*meal)] {
                             (match meal {
                                 Meal::Snack => "a snack".to_owned(),
@@ -832,6 +832,27 @@ pub fn delete_page(page: &DeletePage<'_>) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_retired_meal_survives_editing_but_is_not_offered_on_new_visits() {
+        let mut form = EditorForm::blank();
+        let errors = FieldErrors::default();
+        assert!(!meal_field(&form, &errors)
+            .into_string()
+            .contains("lateNight"));
+
+        form.meal = Choice::from_record(Some("lateNight"));
+        let out = meal_field(&form, &errors).into_string();
+        assert!(
+            out.contains("<option value=\"lateNight\" selected>"),
+            "{out}"
+        );
+
+        form.meal = Choice::Known(Meal::Dinner);
+        assert!(!meal_field(&form, &errors)
+            .into_string()
+            .contains("lateNight"));
+    }
 
     fn page_for(form: &EditorForm, photos_page: Option<&str>) -> String {
         page(&EditorPage {

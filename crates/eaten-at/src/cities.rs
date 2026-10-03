@@ -18,7 +18,6 @@ pub struct City {
     /// The `GeoNames` id, what the form carries.
     pub id: u32,
     pub name: String,
-    /// The name in ASCII, what typing is matched against.
     /// The name in ASCII, for slugs and matching.
     pub ascii: String,
     pub point: Point,
@@ -133,7 +132,7 @@ impl Cities {
     /// Towns whose name starts with what was typed, the biggest first,
     /// or the closest to `near` first when there is a near point.
     pub fn search(&self, q: &str, near: Option<Point>) -> Vec<&City> {
-        let q = q.trim().to_ascii_lowercase();
+        let q = q.trim().to_lowercase();
         if q.chars().count() < 2 {
             return Vec::new();
         }
@@ -232,5 +231,16 @@ mod tests {
         assert!(cities.search("a", None).is_empty(), "two characters first");
         assert!(cities.search("zzz", None).is_empty());
         assert_eq!(cities.search("  NEW ", None)[0].id, 5_128_581);
+    }
+
+    #[test]
+    fn search_matches_capitalized_non_ascii_names() {
+        let cities = Cities::parse(
+            "1\tÉvry\tEvry\t\t48.63\t2.45\tP\tPPL\tFR\t\t11\t\t\t\t50000",
+            "",
+        );
+        for query in ["Év", "év", "EV"] {
+            assert_eq!(cities.search(query, None)[0].name, "Évry", "{query}");
+        }
     }
 }

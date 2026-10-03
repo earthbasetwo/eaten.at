@@ -14,7 +14,7 @@
   // D48: near the town, or at the address; Home keeps near.
   var near = form.elements.near, nearLine = form.querySelector(".near-line");
   var placeLine = form.querySelector(".place-line");
-  function isHome() { return /^home$/i.test(name.value.trim()) && !matchesPick(); }
+  function isHome() { return /^home$/i.test(name.value.trim()); }
   function lines() {
     if (!nearLine) return;
     var at = (matchesPick() || byHand) && !isHome();
@@ -67,7 +67,8 @@
     return distance(a, b) <= (Math.min(a.length, b.length) >= 6 ? 2 : 1);
   }
   function matchesPick() {
-    return picked !== null && corrects(name.value, picked.name) && address.value === picked.address;
+    return picked !== null && address.value === picked.address &&
+      ((picked.take && name.value === picked.name) || corrects(name.value, picked.name));
   }
   var ids = ["gers_id", "lat_e6", "lon_e6", "place_category"];
   function fill(values) {
@@ -135,7 +136,7 @@
           });
       } : undefined,
       source: function (q, signal) {
-        if (matchesPick()) return Promise.resolve([]);
+        if (matchesPick() || (near && !near.value)) return Promise.resolve([]);
         return fetch(url + "?q=" + encodeURIComponent(q) + (near ? "&near=" + near.value : ""), {
           signal: signal,
           credentials: "same-origin",
@@ -229,7 +230,7 @@
   }
   // Return with nothing highlighted leaves the field as typed.
   name.addEventListener("keydown", function (e) {
-    if (e.isComposing || e.keyCode === 229) return;
+    if (e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter") { e.preventDefault(); name.blur(); }
   });
   arm();
