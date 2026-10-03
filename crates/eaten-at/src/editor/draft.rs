@@ -85,6 +85,14 @@ pub struct Context<'a> {
     pub original: Option<&'a Visit>,
 }
 
+/// The address's one rule, checked where the address is typed, on the
+/// choosing page, as well as at publish (PC4): by then the field is
+/// hidden and "somewhere else" is the only way back to it.
+pub fn address_error(address: &str) -> Option<String> {
+    (graphemes(address.trim()) > MAX_ADDRESS_GRAPHEMES)
+        .then(|| format!("Keep the address to {MAX_ADDRESS_GRAPHEMES} characters or fewer."))
+}
+
 /// Check every field. All problems are reported at once.
 #[allow(clippy::too_many_lines)]
 pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, FieldErrors> {
@@ -128,11 +136,8 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
     }
 
     let address = form.place_address.trim();
-    if graphemes(address) > MAX_ADDRESS_GRAPHEMES {
-        errors.add(
-            "place_address",
-            format!("Keep the address to {MAX_ADDRESS_GRAPHEMES} characters or fewer."),
-        );
+    if let Some(problem) = address_error(address) {
+        errors.add("place_address", problem);
     }
 
     let price = match form.place_price.trim() {
@@ -360,6 +365,13 @@ pub fn validate(form: &EditorForm, ctx: &Context<'_>) -> Result<DocumentDraft, F
             address: (!address.is_empty()).then(|| address.to_owned()),
             price,
             gers_id: (!gers_id.is_empty()).then(|| gers_id.to_owned()),
+            // The slug is settled by the route at publish time (PL7): it
+            // needs the author's other visits.
+            slug: None,
+            category: (!gers_id.is_empty())
+                .then(|| form.place_category.trim())
+                .filter(|c| !c.is_empty())
+                .map(str::to_owned),
             lat_e6,
             lon_e6,
             urls,
@@ -483,12 +495,15 @@ mod tests {
             description: String::new(),
             place_name: "Promises".into(),
             place_address: " 1 Example St ".into(),
+            place_category: "coffee_shop".into(),
             place_price: "2".into(),
             place_mode: PlaceMode::Picked,
             draft_id: None,
             changing_place: false,
             photos_unread: 0,
             place_query: String::new(),
+            near: String::new(),
+            near_query: String::new(),
             gers_id: " 08f2a5b6c7d8e9f0a1b2c3d4e5f60718 ".into(),
             lat_e6: "40688838".into(),
             lon_e6: "-73979914".into(),

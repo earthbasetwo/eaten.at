@@ -32,6 +32,16 @@
           "description": "The place's Overture Maps GERS id, exactly as Overture issues it. Two places with the same gersId are the same place.",
           "maxLength": 128
         },
+        "slug": {
+          "type": "string",
+          "description": "The place's short name in URLs on the author's own feed: lowercase letters, digits and hyphens. Set when the author first publishes a visit there and repeated on every later visit, never changed. Unique among the author's places, not across authors.",
+          "maxLength": 128
+        },
+        "category": {
+          "type": "string",
+          "description": "The place's category as Overture names it (coffee_shop, delicatessen), the leaf of Overture's hierarchy at pick time. Overture's vocabulary changes between releases; consumers should treat unknown values as opaque.",
+          "maxLength": 128
+        },
         "latE6": {
           "type": "integer",
           "minimum": -90000000,

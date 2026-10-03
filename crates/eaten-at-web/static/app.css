@@ -620,7 +620,10 @@
   .interstitial > .page-head + * { margin-block-start: 0; }
 
   /* Handle lookup: a labelled field and one button. */
-  .lookup { max-inline-size: 34rem; }
+  .lookup { max-inline-size: 34rem; position: relative; }
+  /* The handle list floats over what follows rather than pushing it
+     down (L2, Ken 2026-09-26): an absolute at its static position. */
+  .lookup .combobox-list { position: absolute; inset-block-start: auto; inset-inline: 0; z-index: 20; }
   /* A kicker used as a field's label is read, so it is the soft ink. */
   .lookup-label { display: block; margin-block-end: var(--space-s); color: var(--color-ink-soft); }
   .lookup-row { display: flex; align-items: baseline; gap: var(--space-m); }
@@ -733,8 +736,11 @@
   .combobox-option {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs) var(--space-s);
     padding: var(--space-s) var(--space-m); cursor: pointer;
-    transition: background-color var(--ease), color var(--ease);
+    transition: background-color var(--ease), color var(--ease), opacity var(--ease);
   }
+  /* While a search runs the rows on show are the last query's: they step
+     back (PL31). */
+  .combobox-list.stale .combobox-option { opacity: 0.45; }
   .combobox-option + .combobox-option { border-block-start: var(--rule-hairline); }
   .combobox-option:hover, .combobox-option[aria-selected="true"] {
     background: var(--color-paper); color: var(--color-vermilion);
@@ -742,7 +748,9 @@
   .combobox-option:hover .combobox-label, .combobox-option[aria-selected="true"] .combobox-label {
     color: var(--color-vermilion);
   }
+  .combobox-heading { padding: var(--space-s) var(--space-m) 0; }
   .combobox-label { color: var(--color-ink); transition: color var(--ease); }
+  .combobox-action .combobox-label { font-style: italic; }
   .combobox-detail {
     font-family: var(--font-mono); font-size: var(--text-mono); letter-spacing: 0.04em;
     color: var(--color-stone);
@@ -926,9 +934,32 @@
   .editor-choosing .place-head { position: relative; }
   .editor-choosing .headline { display: block; inline-size: 100%; min-inline-size: 0; }
   .editor-choosing .place-line { margin-block-start: var(--space-xs); }
+  /* The near line (plan 15, D48): "near" and the town, in the address
+     line's voice; the town is the control, a button that script swaps
+     for the town field in its place. */
+  .editor-choosing .near-line { margin-block-start: var(--space-xs); position: relative; }
+  .editor-choosing .near-town {
+    position: static; display: inline; font: inherit; font-style: normal; letter-spacing: 0; line-height: inherit;
+    color: var(--color-ink); background: none; border: 0; border-radius: 0; padding: 0; margin: 0; box-shadow: none;
+    cursor: pointer; text-align: start;
+    text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.14em;
+    text-decoration-color: var(--color-hairline); transition: text-decoration-color var(--ease);
+  }
+  .editor-choosing .near-town::before, .editor-choosing .near-town::after { content: none; }
+  /* After 400 ms of a search, the near line says so: "looking near Acton, MA…" (PL31). */
+  .editor-choosing .near-line.looking > .soft::before { content: "looking "; }
+  .editor-choosing .near-line.looking::after { content: "\2026"; color: var(--color-stone); }
+  .editor-choosing .near-town:hover { text-decoration-color: var(--color-ink); }
+  .editor-choosing .near-town:focus-visible { text-decoration-color: var(--color-vermilion); outline: none; }
+  .editor-choosing .near-line .inline-field .combobox-list { inset-inline: 0; min-inline-size: 16rem; max-inline-size: 24rem; }
   .editor-choosing .combobox-list {
     position: absolute; inset-block-start: 100%; inset-inline: 0; margin: 8px 0 0; z-index: 20;
   }
+  /* The place list hangs off the near line (its last child, since the
+     form is a flex column and a floating child of one would sit at its
+     top), so where the search looks stays in view above it and "Start
+     writing" stays put beneath it (Ken, 2026-09-27). */
+  .editor-choosing .near-line > .combobox-list { inset-block-start: 100%; inset-inline: 0; margin-block-start: var(--space-s); }
   .editor-choosing .combobox-option { padding: 9px 16px; gap: var(--space-xs) var(--space-s); }
   .editor-choosing .combobox-label { font-size: 1.0625rem; }
   .editor-choosing .start-writing { margin-block-start: 3rem; }
@@ -936,7 +967,7 @@
   /* ---- Screen 2: edit a write-up ---- */
   .editor-write .place-line { margin-block-start: var(--space-xs); }
   .editor-write .place-line .change-place, .place-change { white-space: nowrap; }
-  .place-where[hidden] + .place-change .place-dash { display: none; }
+  .place-where[hidden] + .place-near[hidden] + .place-change .place-dash { display: none; }
   .place-line .mark { margin-inline-start: var(--space-s); vertical-align: -2px; padding: 0; }
   .visit-row {
     margin-block-start: var(--space-xs);

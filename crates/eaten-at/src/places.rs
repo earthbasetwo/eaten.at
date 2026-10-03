@@ -4,8 +4,10 @@
 //! The API is proximity search only: every query needs a point, and there
 //! is no lookup by id. So everything the record keeps about a place (its
 //! GERS id, name, address, coordinates) is captured from a search hit at
-//! pick time. Results are cached for an hour so re-rendering a results
-//! page never spends quota; the terms allow storing results.
+//! pick time. Results are cached for a day (PL10; Overture updates
+//! monthly) so re-rendering a results page never spends quota; the terms
+//! allow storing results. Names come with HTML entities as stored
+//! upstream ("Katz&amp Nelson") and are decoded here (PL23).
 
 use std::fmt;
 
@@ -20,8 +22,20 @@ use crate::state::AppState;
 
 /// Where the production API lives.
 pub const DEFAULT_BASE_URL: &str = "https://api.openplacesapi.com";
-/// How many hits one search shows. The API caps text search at 20.
-pub const RESULT_LIMIT: u8 = 10;
+/// How many hits one search asks for: the API's cap on a text search.
+/// The API orders by name match, not distance, so a full answer is the
+/// one that can hide the nearest branches of a chain (PL24).
+pub const RESULT_LIMIT: u8 = 20;
+/// Overture's top-level food category, matched by hierarchy ancestor,
+/// so bars, bakeries, delis and diners all come through (PL21; the name
+/// as of release 2026-08-19).
+const CATEGORY: &str = "food_and_drink";
+/// The radius of the first search, in miles: the API's own default.
+const RADIUS_MI: u8 = 25;
+/// The radius of the second search when the first came back full.
+const CLOSE_RADIUS_MI: u8 = 3;
+/// The radius of the last search when nothing was found: the API's cap.
+const WIDE_RADIUS_MI: u8 = 50;
 /// Every `place_id` the API issues starts with this; the rest is the
 /// Overture GERS id (D36, verified 2026-09-13 against release 2026-08-19).
 const ID_PREFIX: &str = "overture:";
@@ -98,10 +112,19 @@ pub struct Hit {
     pub name: String,
     /// One line, assembled from the API's address parts.
     pub address: Option<String>,
+    /// The parts a short address is made of (PL25): the street line, the
+    /// locality, and the region as a two-letter code.
+    #[serde(default)]
+    pub street: Option<String>,
+    #[serde(default)]
+    pub locality: Option<String>,
+    #[serde(default)]
+    pub region: Option<String>,
     pub lat_e6: i32,
     pub lon_e6: i32,
     pub distance_mi: f64,
-    /// The primary category, as words (`coffee shop`).
+    /// The primary category as Overture names it (`coffee_shop`), the
+    /// leaf of its hierarchy; kept on the record as is (PL13).
     pub category: Option<String>,
     /// The place's website, as the API has it (may be plain `http`).
     pub website: Option<String>,
@@ -139,7 +162,12 @@ impl AppState {
         self.places().api_key.is_some()
     }
 
-    /// Places called `q` near `near`, cached by query and point.
+    /// Places called `q` near `near`, nearest first, cached by query
+    /// and point. Food and drink within 25 miles; when that answer is
+    /// full, the same within 3 miles is merged in, since the API orders
+    /// by name and a chain can fill the twenty with far branches; when
+    /// it is empty, once more without the category (a market filed
+    /// under retail), and then once at 50 miles (PL21, PL22, PL24).
     pub async fn search_places(&self, q: &str, near: Point) -> Result<Vec<Hit>, SearchError> {
         let config = self.places();
         let Some(key) = &config.api_key else {
@@ -157,11 +185,33 @@ impl AppState {
                 "That's too long for a search.".to_owned(),
             ));
         }
-        let cache_key = format!("{q}|{}", near.cache_key());
+        // The version keeps a list from an older shape out of a pick.
+        let cache_key = format!("3|{q}|{}", near.cache_key());
         let hits = self
             .cache()
             .get_or_fetch(Namespace::PlaceSearch, &cache_key, || async {
-                let hits = fetch(self, &config.base_url, key, &q, near).await?;
+                let search = |radius: u8, category: Option<&'static str>| {
+                    fetch(self, &config.base_url, key, &q, near, radius, category)
+                };
+                let mut hits = search(RADIUS_MI, Some(CATEGORY)).await?;
+                if hits.len() >= usize::from(RESULT_LIMIT) {
+                    let close = search(CLOSE_RADIUS_MI, Some(CATEGORY)).await?;
+                    for hit in close {
+                        if !hits.iter().any(|h| h.gers_id == hit.gers_id) {
+                            hits.push(hit);
+                        }
+                    }
+                } else if hits.is_empty() {
+                    hits = search(RADIUS_MI, None).await?;
+                    if hits.is_empty() {
+                        hits = search(WIDE_RADIUS_MI, Some(CATEGORY)).await?;
+                    }
+                }
+                hits.sort_by(|a, b| {
+                    a.distance_mi
+                        .partial_cmp(&b.distance_mi)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
                 Ok::<_, SearchError>(Some(hits))
             })
             .await?;
@@ -184,15 +234,24 @@ async fn fetch(
     key: &str,
     q: &str,
     near: Point,
+    radius_mi: u8,
+    category: Option<&str>,
 ) -> Result<Vec<Hit>, SearchError> {
     let mut url = base_url
         .join("/v1/places")
         .map_err(|_| SearchError::Unavailable)?;
-    url.query_pairs_mut()
-        .append_pair("q", q)
-        .append_pair("lat", &near.lat.to_string())
-        .append_pair("lon", &near.lon.to_string())
-        .append_pair("limit", &RESULT_LIMIT.to_string());
+    {
+        let mut pairs = url.query_pairs_mut();
+        pairs
+            .append_pair("q", q)
+            .append_pair("lat", &near.lat.to_string())
+            .append_pair("lon", &near.lon.to_string())
+            .append_pair("radius_mi", &radius_mi.to_string())
+            .append_pair("limit", &RESULT_LIMIT.to_string());
+        if let Some(category) = category {
+            pairs.append_pair("category", category);
+        }
+    }
     let mut headers = HeaderMap::new();
     headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
     let bearer = HeaderValue::from_str(&format!("Bearer {key}")).map_err(|_| {
@@ -223,22 +282,34 @@ async fn fetch(
         .unwrap_or("-")
         .to_owned();
     let status = response.status;
+    // The month's remaining calls, on every answer (PL12), so the log
+    // shows the quota running down and not only the refusal at the end.
+    let quota_remaining = response
+        .headers
+        .get("x-quota-remaining")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-")
+        .to_owned();
     if status.is_success() {
         let body: SearchResponse = response.json().map_err(|err| {
             tracing::warn!(%err, request_id, "place search response did not decode");
             SearchError::Unavailable
         })?;
-        return Ok(body.hits());
+        let hits = body.hits();
+        tracing::info!(
+            request_id,
+            quota_remaining,
+            radius_mi,
+            category = category.unwrap_or("-"),
+            results = hits.len(),
+            "place search"
+        );
+        return Ok(hits);
     }
     let envelope: Option<ErrorEnvelope> = response.json().ok();
     let code = envelope
         .as_ref()
         .map_or_else(|| "-".to_owned(), |e| e.error.code.clone());
-    let quota_remaining = response
-        .headers
-        .get("x-quota-remaining")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("-");
     match status.as_u16() {
         400 => {
             let message = envelope
@@ -344,16 +415,28 @@ impl WirePlace {
             .unwrap_or(&self.place_id)
             .trim()
             .to_owned();
-        let name = self.name.trim().to_owned();
+        let name = unescape(self.name.trim());
         if gers_id.is_empty() || name.is_empty() {
             return None;
         }
+        let address = self.address.map(|mut a| {
+            for part in [&mut a.formatted, &mut a.street, &mut a.locality] {
+                if let Some(text) = part.as_deref() {
+                    *part = Some(unescape(text));
+                }
+            }
+            a
+        });
         let lat_e6 = to_e6(self.lat).and_then(LatE6::new)?.value();
         let lon_e6 = to_e6(self.lon).and_then(LonE6::new)?.value();
+        let parts = address.as_ref().map(address_parts).unwrap_or_default();
         Some(Hit {
             gers_id,
             name,
-            address: self.address.as_ref().and_then(one_line),
+            address: address.as_ref().and_then(one_line),
+            street: parts.0,
+            locality: parts.1,
+            region: parts.2,
             lat_e6,
             lon_e6,
             distance_mi: self.distance_mi.unwrap_or(0.0).max(0.0),
@@ -362,7 +445,7 @@ impl WirePlace {
                 .as_deref()
                 .map(str::trim)
                 .filter(|c| !c.is_empty())
-                .map(|c| c.replace('_', " ")),
+                .map(str::to_owned),
             website: self
                 .website
                 .as_deref()
@@ -386,6 +469,105 @@ fn to_e6(degrees: f64) -> Option<i32> {
     // Bounded above, so the cast cannot truncate or wrap.
     #[allow(clippy::cast_possible_truncation)]
     Some(scaled as i32)
+}
+
+/// Overture stores some names and addresses with HTML entities in them,
+/// with or without the closing semicolon ("Katz&amp Nelson, Inc"). The
+/// five named entities and numeric ones are decoded; anything else is
+/// left as written (PL23).
+fn unescape(text: &str) -> String {
+    if !text.contains('&') {
+        return text.to_owned();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('&') {
+        out.push_str(&rest[..at]);
+        rest = &rest[at..];
+        let mut decoded = None;
+        for (entity, replacement) in [
+            ("&amp", "&"),
+            ("&lt", "<"),
+            ("&gt", ">"),
+            ("&quot", "\""),
+            ("&apos", "'"),
+            ("&#39", "'"),
+        ] {
+            if let Some(after) = rest.strip_prefix(entity) {
+                decoded = Some((
+                    replacement.to_owned(),
+                    after.strip_prefix(';').unwrap_or(after),
+                ));
+                break;
+            }
+        }
+        if decoded.is_none() {
+            if let Some(digits) = rest.strip_prefix("&#") {
+                let end = digits
+                    .find(|c: char| !c.is_ascii_digit())
+                    .unwrap_or(digits.len());
+                if end > 0 && digits[end..].starts_with(';') {
+                    if let Some(c) = digits[..end].parse::<u32>().ok().and_then(char::from_u32) {
+                        decoded = Some((c.to_string(), &digits[end + 1..]));
+                    }
+                }
+            }
+        }
+        if let Some((replacement, after)) = decoded {
+            out.push_str(&replacement);
+            rest = after;
+        } else {
+            out.push('&');
+            rest = &rest[1..];
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The cleaned street line, locality, and two-letter region code.
+fn address_parts(address: &WireAddress) -> (Option<String>, Option<String>, Option<String>) {
+    let clean = |s: &Option<String>| {
+        s.as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+    };
+    let street = clean(&address.street).or_else(|| clean(&address.formatted));
+    let locality = clean(&address.locality);
+    let region = clean(&address.region)
+        .filter(|r| r.len() == 2 && r.chars().all(|c| c.is_ascii_alphabetic()))
+        .map(|r| r.to_ascii_uppercase());
+    (street, locality, region)
+}
+
+/// What a suggestion row says under each name (PL25, Ken 2026-09-27):
+/// the town and state, short enough to share the line; the street is
+/// added only where two rows with one name would otherwise read the
+/// same. A hit with no parts at all falls back to its one-line address.
+pub fn short_addresses(hits: &[Hit]) -> Vec<Option<String>> {
+    let town = |hit: &Hit| match (&hit.locality, &hit.region) {
+        (Some(locality), Some(region)) => Some(format!("{locality}, {region}")),
+        (Some(locality), None) => Some(locality.clone()),
+        (None, Some(region)) => Some(region.clone()),
+        (None, None) => hit.address.clone(),
+    };
+    hits.iter()
+        .map(|hit| {
+            let short = town(hit);
+            let twins = hits
+                .iter()
+                .filter(|other| other.name == hit.name && town(other) == short)
+                .count();
+            match (&hit.street, twins > 1) {
+                (Some(street), true) => Some(match &short {
+                    Some(short) => format!("{street}, {short}"),
+                    None => street.clone(),
+                }),
+                _ => short,
+            }
+        })
+        .collect()
 }
 
 /// One display line from the API's address parts: the street line, the
@@ -438,6 +620,26 @@ mod tests {
     }
 
     #[test]
+    fn entities_in_names_and_addresses_are_decoded() {
+        assert_eq!(unescape("Katz&amp Nelson, Inc"), "Katz& Nelson, Inc");
+        assert_eq!(unescape("Fish &amp; Chips"), "Fish & Chips");
+        assert_eq!(unescape("Joe&#39;s &quot;Place&quot;"), "Joe's \"Place\"");
+        assert_eq!(unescape("Caf&#233; &lt;3"), "Café <3");
+        assert_eq!(unescape("A & B &co"), "A & B &co");
+        let hit = place(serde_json::json!({
+            "place_id": "overture:k1", "name": "Katz&amp Nelson", "lat": 40.7, "lon": -74.0,
+            "address": {"street": "1 Main &amp; Elm", "locality": "Brooklyn", "region": "NY"}
+        }))
+        .unwrap();
+        assert_eq!(hit.name, "Katz& Nelson");
+        assert_eq!(hit.street.as_deref(), Some("1 Main & Elm"));
+        assert!(
+            hit.address.as_deref().unwrap().starts_with("1 Main & Elm"),
+            "{hit:?}"
+        );
+    }
+
+    #[test]
     fn a_hit_keeps_the_gers_id_and_assembles_the_address() {
         let hit = place(serde_json::json!({
             "place_id": "overture:76f1250d-8e38-40b3-a021-bfe1c16b4e1c",
@@ -457,7 +659,7 @@ mod tests {
             Some("105 York St, Brooklyn, NY 11201-2597")
         );
         assert_eq!((hit.lat_e6, hit.lon_e6), (40_701_607, -73_986_565));
-        assert_eq!(hit.category.as_deref(), Some("coffee shop"));
+        assert_eq!(hit.category.as_deref(), Some("coffee_shop"));
         assert!(hit.website.is_some());
     }
 
@@ -490,6 +692,46 @@ mod tests {
             place(serde_json::json!({"place_id": "abc", "name": "P", "lat": 0.0, "lon": 0.0}))
                 .unwrap();
         assert_eq!(hit.gers_id, "abc");
+    }
+
+    #[test]
+    fn short_addresses_say_the_town_and_the_street_only_to_tell_twins_apart() {
+        let hit = |name: &str, street: &str, locality: &str| Hit {
+            gers_id: format!("{name}-{street}"),
+            name: name.into(),
+            address: Some(format!("{street}, {locality}, MA 01720")),
+            street: Some(street.into()),
+            locality: Some(locality.into()),
+            region: Some("MA".into()),
+            lat_e6: 0,
+            lon_e6: 0,
+            distance_mi: 1.0,
+            category: None,
+            website: None,
+        };
+        let hits = vec![
+            hit("Dunkin'", "182 Great Rd", "Acton"),
+            hit("Dunkin'", "315 Main St", "Acton"),
+            hit("Dunkin'", "794 Elm St", "Concord"),
+            hit("Silver Girl", "1 Nagog Park", "Acton"),
+            Hit {
+                locality: None,
+                region: None,
+                street: None,
+                address: Some("Somewhere".into()),
+                ..hit("Cart", "", "")
+            },
+        ];
+        assert_eq!(
+            short_addresses(&hits),
+            vec![
+                Some("182 Great Rd, Acton, MA".to_owned()),
+                Some("315 Main St, Acton, MA".to_owned()),
+                Some("Concord, MA".to_owned()),
+                Some("Acton, MA".to_owned()),
+                Some("Somewhere".to_owned()),
+            ]
+        );
     }
 
     #[test]

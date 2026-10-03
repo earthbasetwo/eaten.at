@@ -103,6 +103,8 @@ Required: `name`.
 | `address` | string | ≤ 3000 bytes, ≤ 300 graphemes | A one-line street address, normally as Overture has it, for display and a map link. |
 | `price` | integer | 1–4 | Price band, 1 (cheapest) to 4, shown as that many currency signs. |
 | `gersId` | string | ≤ 128 bytes | The place's Overture Maps GERS id, exactly as Overture issues it (D33). |
+| `slug` | string | ≤ 128 bytes | The place's short name in URLs on the author's own feed (PL7, D49): lowercase letters, digits and hyphens, set at the first visit published there, repeated on every later visit, never changed. Unique among the author's places, not across authors. |
+| `category` | string | ≤ 128 bytes | Overture's category for the place at pick time, its own value (`coffee_shop`), the leaf of its hierarchy (PL13). The vocabulary changes between releases; unknown values are opaque. Absent for a place by hand. |
 | `latE6`, `lonE6` | integer | ±90 000 000, ±180 000 000 | The place's position in microdegrees (degrees × 1 000 000), as Overture gives it. Lexicons have no float type; microdegrees are exact. |
 | `urls` | array of [`#externalUrl`](#externalurl) | ≤ 12 items | Places to read more, in the author's preferred order. |
 

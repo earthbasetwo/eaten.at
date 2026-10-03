@@ -26,8 +26,15 @@ pub struct EditorForm {
     pub changing_place: bool,
     /// The search box on the choosing state.
     pub place_query: String,
+    /// The near line (plan 15): the `GeoNames` id of the town the search
+    /// looks near, and a town typed to change it without script.
+    pub near: String,
+    pub near_query: String,
     /// The Overture GERS id of the picked place; blank by hand.
     pub gers_id: String,
+    /// Overture's category for the picked place (PL13), a hidden field
+    /// filled by a pick or carried from the record; blank by hand.
+    pub place_category: String,
     /// The place's coordinates in microdegrees, hidden fields filled by a
     /// pick (plan 06) or carried from the record; blank when unknown.
     pub lat_e6: String,
@@ -239,6 +246,10 @@ pub enum Action {
     Pick(usize),
     /// Take the name and address as typed, with no listing behind them.
     Manual,
+    /// Take the place as the hidden fields describe it: one of the
+    /// author's own recent places, offered before anything is typed
+    /// (PL11). A place with an id is a pick; one without is by hand.
+    Take,
     /// Back to choosing a place, keeping everything else.
     ChangePlace,
     /// Re-render the form as it is. Return pressed in a text field
@@ -259,6 +270,7 @@ impl Action {
             "publish" => Some(Self::Publish),
             "publish_photos" => Some(Self::PublishPhotos),
             "manual" => Some(Self::Manual),
+            "take" => Some(Self::Take),
             "change_place" => Some(Self::ChangePlace),
             other => {
                 if let Some(kind) = other.strip_prefix("add_") {
@@ -282,6 +294,7 @@ impl Action {
             Self::RemoveRow(kind, i) => format!("remove_{}:{i}", kind.name()),
             Self::Pick(i) => format!("pick:{i}"),
             Self::Manual => "manual".to_owned(),
+            Self::Take => "take".to_owned(),
             Self::ChangePlace => "change_place".to_owned(),
             Self::Keep => "keep".to_owned(),
             Self::Publish => "publish".to_owned(),
@@ -334,7 +347,10 @@ impl EditorForm {
             changing_place: false,
             photos_unread: 0,
             place_query: String::new(),
+            near: String::new(),
+            near_query: String::new(),
             gers_id: visit.place.gers_id.clone().unwrap_or_default(),
+            place_category: visit.place.category.clone().unwrap_or_default(),
             lat_e6: visit
                 .place
                 .lat_e6
@@ -388,7 +404,10 @@ impl EditorForm {
                 "draft_id" => form.draft_id = value.parse().ok(),
                 "changing_place" => form.changing_place = value == "1",
                 "place_query" => form.place_query = value,
+                "near" => form.near = value,
+                "near_query" => form.near_query = value,
                 "gers_id" => form.gers_id = value,
+                "place_category" => form.place_category = value,
                 "lat_e6" => form.lat_e6 = value,
                 "lon_e6" => form.lon_e6 = value,
                 "visited_on" => form.visited_on = value,
@@ -452,6 +471,13 @@ impl EditorForm {
             },
             Action::ChangePlace => self.change_place(),
             Action::Manual => self.manual(),
+            Action::Take => {
+                self.place_mode = if self.gers_id.trim().is_empty() {
+                    PlaceMode::Manual
+                } else {
+                    PlaceMode::Picked
+                };
+            }
             Action::Pick(_) | Action::Keep | Action::Publish | Action::PublishPhotos => {}
         }
         self.ensure_rows();
@@ -479,6 +505,7 @@ impl EditorForm {
     pub fn pick(&mut self, hit: &Hit) {
         self.place_mode = PlaceMode::Picked;
         self.gers_id.clone_from(&hit.gers_id);
+        self.place_category = hit.category.clone().unwrap_or_default();
         self.place_name.clone_from(&hit.name);
         self.place_address = hit.address.clone().unwrap_or_default();
         self.lat_e6 = hit.lat_e6.to_string();
@@ -498,6 +525,7 @@ impl EditorForm {
 
     fn forget_listing(&mut self) {
         self.gers_id.clear();
+        self.place_category.clear();
         self.lat_e6.clear();
         self.lon_e6.clear();
     }
@@ -589,10 +617,13 @@ mod tests {
             gers_id: "76f1250d".into(),
             name: "Devocion".into(),
             address: Some("105 York St, Brooklyn, NY 11201".into()),
+            street: Some("105 York St".into()),
+            locality: Some("Brooklyn".into()),
+            region: Some("NY".into()),
             lat_e6: 40_701_607,
             lon_e6: -73_986_565,
             distance_mi: 0.9,
-            category: Some("coffee shop".into()),
+            category: Some("coffee_shop".into()),
             website: Some("https://www.devocion.com/".into()),
         };
         let mut form = EditorForm::blank();

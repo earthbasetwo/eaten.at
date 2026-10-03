@@ -14,6 +14,7 @@ use axum::response::{IntoResponse, Json, Redirect, Response};
 use axum::Form;
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
+use eaten_at_atproto::lexicon::{LatE6, LonE6};
 use eaten_at_web::assets::{
     CHOOSE_PLACE_SCRIPT, COMBOBOX_SCRIPT, DIGEST_SCRIPT, EDITOR_SCRIPT, PHOTOS_SCRIPT, TAGS_SCRIPT,
     WRITE_SCRIPT,
@@ -24,22 +25,24 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::auth::{PostPermission, RequireUser};
 use crate::editor::view::{
-    self, CrosspostPage, CrosspostState, DeletePage, DeletePost, EditorPage, Located,
+    self, CrosspostPage, CrosspostState, DeletePage, DeletePost, EditorPage, Located, Near,
 };
 use crate::editor::{self, Action, Context, EditorForm, FieldErrors, PlaceMode};
 use crate::error::AppError;
 use crate::geoip::ClientIp;
 use crate::model::VisitDocument;
 use crate::paths;
-use crate::places::{Point, SearchError};
+use crate::places::{self, Point, SearchError};
 use crate::publish::{self, PublishError, MAX_POST_GRAPHEMES};
 use crate::security::Nonce;
 use crate::state::AppState;
 
 /// Suggestion requests one session may make per minute (plan 12, D45).
 pub const SUGGESTS_PER_MINUTE: u32 = 30;
-/// Suggestions the listbox shows, of the search's ten.
-const SUGGEST_LIMIT: usize = 6;
+/// Suggestions sent to the browser, nearest first: the whole answer, so
+/// "show more" needs no second request. The browser shows five and a
+/// row for the rest (Ken, 2026-09-27: five, not ten; PL32).
+const SUGGEST_LIMIT: usize = 20;
 
 /// Who is writing. The publication is not part of it: every write-up
 /// goes to the account's one publication, made on the first publish if
@@ -118,6 +121,8 @@ struct Outcome<'a> {
     /// Where the choosing screen's suggestions would look; unknown
     /// means none are offered.
     located: Located,
+    /// The near line (plan 15).
+    near: Near,
 }
 
 fn render(
@@ -158,6 +163,10 @@ fn render(
             reauthenticate: outcome.reauthenticate,
             pick_error: outcome.pick_error,
             suggesting: state.places_enabled() && outcome.located != Located::Unknown,
+            near: match &outcome.near {
+                Near::Off => near_of_form(state, form),
+                near => near.clone(),
+            },
             photos_page: photos_page.as_deref(),
         }),
         ..Page::default()
@@ -174,9 +183,11 @@ pub async fn new_form(
 ) -> Result<Response, AppError> {
     let nonce = nonce.0.as_str();
     let author = author(&state, &did).await?;
-    let form = EditorForm::blank();
+    let mut form = EditorForm::blank();
+    let (_, located, near) = whereabouts(&state, &author.identity, ip, &mut form).await;
     let outcome = Outcome {
-        located: locate(&state, &author.identity, ip).await.1,
+        located,
+        near,
         ..Outcome::default()
     };
     Ok(render(&state, nonce, StatusCode::OK, None, &form, &outcome))
@@ -249,12 +260,21 @@ async fn submit(
             return Ok(pick(state, nonce, author, editing, ip, form, index).await)
         }
         Action::Publish | Action::PublishPhotos => {}
-        Action::Manual if form.place_name.trim().is_empty() => {
-            // The one error the choosing page can show: a place by hand
-            // needs a name.
+        Action::Manual
+            if form.place_name.trim().is_empty()
+                || editor::address_error(&form.place_address).is_some() =>
+        {
+            // The errors the choosing page can show: a place by hand
+            // needs a name, and its address is refused here, where it
+            // can be changed, not at publish (PC4).
             let mut errors = FieldErrors::default();
-            errors.add("place_name", "Name the place.");
-            let located = locate(state, &author.identity, ip).await.1;
+            if form.place_name.trim().is_empty() {
+                errors.add("place_name", "Name the place.");
+            }
+            if let Some(problem) = editor::address_error(&form.place_address) {
+                errors.add("place_address", problem);
+            }
+            let (_, located, near) = whereabouts(state, &author.identity, ip, &mut form).await;
             return Ok(render(
                 state,
                 nonce,
@@ -264,28 +284,45 @@ async fn submit(
                 &Outcome {
                     errors,
                     located,
+                    near,
                     ..Outcome::default()
                 },
             ));
         }
         _ => {
+            // Changing the place starts the search near the place it had.
+            let had = point_of(&form);
             form.apply(&action);
-            // Back to choosing needs to know where the search would look.
-            let located = if form.place_mode == PlaceMode::Choosing {
-                locate(state, &author.identity, ip).await.1
-            } else {
-                Located::Unknown
-            };
+            let mut outcome = Outcome::default();
+            if form.place_mode == PlaceMode::Choosing {
+                if form.near.trim().is_empty() {
+                    if let Some(city) = had.and_then(|p| state.cities().nearest(p)) {
+                        form.near = city.id.to_string();
+                    }
+                }
+                // Back to choosing needs to know where the search would look.
+                let (_, located, near) = whereabouts(state, &author.identity, ip, &mut form).await;
+                outcome.located = located;
+                outcome.near = near;
+            } else if form.place_mode == PlaceMode::Manual && form.gers_id.is_empty() {
+                // A place by hand sits at its town (PL6): a coarse pin,
+                // never the request's point or the address. Home is a
+                // name and a town, never an address (Ken).
+                if form.place_name.trim().eq_ignore_ascii_case("home") {
+                    form.place_address.clear();
+                }
+                if let Some(city) = near_city(state, &form) {
+                    form.lat_e6 = to_e6(city.point.lat).to_string();
+                    form.lon_e6 = to_e6(city.point.lon).to_string();
+                }
+            }
             return Ok(render(
                 state,
                 nonce,
                 StatusCode::OK,
                 editing,
                 &form,
-                &Outcome {
-                    located,
-                    ..Outcome::default()
-                },
+                &outcome,
             ));
         }
     }
@@ -404,6 +441,84 @@ async fn locate(state: &AppState, identity: &Identity, ip: ClientIp) -> (Option<
     }
 }
 
+/// The town the form's near line names, when the site has a cities list
+/// and the form carries a town it knows.
+fn near_city<'s>(state: &'s AppState, form: &EditorForm) -> Option<&'s crate::cities::City> {
+    let id: u32 = form.near.trim().parse().ok()?;
+    state.cities().get(id)
+}
+
+/// Where the search looks (plan 15), settling the form's near line on
+/// the way: the town the form names, else the town typed to change it,
+/// else the town nearest the located point. Without a cities list the
+/// located point is used as it is and there is no line.
+async fn whereabouts(
+    state: &AppState,
+    identity: &Identity,
+    ip: ClientIp,
+    form: &mut EditorForm,
+) -> (Option<Point>, Located, Near) {
+    let cities = state.cities();
+    if !cities.enabled() {
+        let (point, located) = locate(state, identity, ip).await;
+        return (point, located, Near::Off);
+    }
+    let mut city = near_city(state, form);
+    if city.is_none() {
+        let (here, _) = locate(state, identity, ip).await;
+        let typed = form.near_query.trim();
+        city = if typed.is_empty() {
+            here.and_then(|p| cities.nearest(p))
+        } else {
+            cities.search(typed, here).first().copied()
+        };
+    }
+    form.near_query.clear();
+    let Some(city) = city else {
+        form.near.clear();
+        return (None, Located::Unknown, Near::Unknown);
+    };
+    form.near = city.id.to_string();
+    let label = city.label();
+    (
+        Some(city.point),
+        Located::Ip(Some(label.clone())),
+        Near::Town { id: city.id, label },
+    )
+}
+
+/// The town the editing screen names for a place with no address: the
+/// form's near town, else the town nearest the place's own position.
+fn near_of_form(state: &AppState, form: &EditorForm) -> Near {
+    let city =
+        near_city(state, form).or_else(|| point_of(form).and_then(|p| state.cities().nearest(p)));
+    match city {
+        Some(city) => Near::Town {
+            id: city.id,
+            label: city.label(),
+        },
+        None => Near::Off,
+    }
+}
+
+/// The place's position as the form carries it, if it has one.
+fn point_of(form: &EditorForm) -> Option<Point> {
+    let lat: i32 = form.lat_e6.trim().parse().ok()?;
+    let lon: i32 = form.lon_e6.trim().parse().ok()?;
+    Some(Point {
+        lat: f64::from(lat) / 1_000_000.0,
+        lon: f64::from(lon) / 1_000_000.0,
+    })
+}
+
+/// Degrees to microdegrees, for a town's centroid (always in range).
+fn to_e6(degrees: f64) -> i64 {
+    #[allow(clippy::cast_possible_truncation)]
+    {
+        (degrees * 1_000_000.0).round() as i64
+    }
+}
+
 /// The coordinates of the newest visit that has them, from the repo's
 /// first page of documents.
 async fn last_visit_point(state: &AppState, identity: &Identity) -> Option<Point> {
@@ -428,7 +543,7 @@ async fn pick(
     mut form: EditorForm,
     index: usize,
 ) -> Response {
-    let (point, located) = locate(state, &author.identity, ip).await;
+    let (point, located, near) = whereabouts(state, &author.identity, ip, &mut form).await;
     let hit = match point {
         Some(point) => state
             .search_places(&form.place_query, point)
@@ -439,12 +554,20 @@ async fn pick(
     };
     let outcome = match hit {
         Some(hit) => {
+            // A small correction to the picked name ("Devocion" to
+            // "Devoción") keeps the pick (PL29, Ken): the id and the
+            // address are the listing's, the name is the author's.
+            let typed = form.place_name.trim().to_owned();
             form.pick(&hit);
+            if !typed.is_empty() {
+                form.place_name = typed;
+            }
             Outcome::default()
         }
         None => Outcome {
             pick_error: Some("That suggestion is gone; pick it again, or keep what you typed."),
             located,
+            near,
             ..Outcome::default()
         },
     };
@@ -455,6 +578,108 @@ async fn pick(
 pub struct SuggestQuery {
     #[serde(default)]
     q: String,
+    /// The near line's town, so the browser and a pick search the same
+    /// point (plan 15).
+    #[serde(default)]
+    near: String,
+}
+
+/// One town the near line's field offers.
+#[derive(Debug, Serialize)]
+struct Town {
+    id: u32,
+    label: String,
+}
+
+/// One of the author's own recent places (PL11), as the chooser offers
+/// it before anything is typed: everything a pick would fill, so
+/// taking it needs no search.
+#[derive(Debug, Serialize)]
+struct RecentPlace {
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    address: Option<String>,
+    #[serde(rename = "gersId", skip_serializing_if = "Option::is_none")]
+    gers_id: Option<String>,
+    #[serde(rename = "latE6", skip_serializing_if = "Option::is_none")]
+    lat_e6: Option<i32>,
+    #[serde(rename = "lonE6", skip_serializing_if = "Option::is_none")]
+    lon_e6: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    category: Option<String>,
+}
+
+/// How many recent places the chooser opens with.
+const RECENT_LIMIT: usize = 5;
+
+/// `GET /write/recent` — the author's most recent places, one row per
+/// place, newest visit first (PL11). Read from the author's own visits,
+/// so it costs no quota; empty for an author with no feed yet.
+pub async fn recent_places(
+    State(state): State<AppState>,
+    RequireUser(did): RequireUser,
+) -> Result<Response, AppError> {
+    let identity = state.require_identity(&did).await?;
+    let mut recent: Vec<RecentPlace> = Vec::new();
+    if let Some(publication) = state.own_publication(&identity).await? {
+        let listing = state.visit_listing(&identity, &publication, None).await?;
+        let mut seen: Vec<eaten_at_atproto::lexicon::at_eaten::Place> = Vec::new();
+        for visit_doc in listing.items {
+            let place = visit_doc.visit.place;
+            if seen.iter().any(|s| publish::same_place(s, &place)) {
+                continue;
+            }
+            recent.push(RecentPlace {
+                name: place.name.clone(),
+                address: place.address.clone(),
+                gers_id: place.gers_id.clone(),
+                lat_e6: place.lat_e6.map(LatE6::value),
+                lon_e6: place.lon_e6.map(LonE6::value),
+                category: place.category.clone(),
+            });
+            seen.push(place);
+            if recent.len() >= RECENT_LIMIT {
+                break;
+            }
+        }
+    }
+    let mut response = Json(recent).into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
+}
+
+/// `GET /write/near?q=…&near=…` — towns called `q`, the closest to the
+/// current near town first (plan 15). Local, so no rate limit.
+pub async fn near_towns(
+    State(state): State<AppState>,
+    RequireUser(_did): RequireUser,
+    Query(query): Query<SuggestQuery>,
+) -> Response {
+    let cities = state.cities();
+    let from = query
+        .near
+        .trim()
+        .parse()
+        .ok()
+        .and_then(|id| cities.get(id))
+        .map(|c| c.point);
+    let towns: Vec<Town> = cities
+        .search(&query.q, from)
+        .into_iter()
+        .map(|c| Town {
+            id: c.id,
+            label: c.label(),
+        })
+        .collect();
+    let mut response = Json(towns).into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    response
 }
 
 /// One place the listbox offers: its index into the same cached search
@@ -508,7 +733,9 @@ pub async fn suggest(
         return reply(StatusCode::TOO_MANY_REQUESTS, empty(Some("rate_limited")));
     }
     let identity = state.require_identity(&did).await?;
-    let (point, located) = locate(&state, &identity, ip).await;
+    let mut form = EditorForm::blank();
+    form.near.clone_from(&query.near);
+    let (point, located, _) = whereabouts(&state, &identity, ip, &mut form).await;
     let Some(point) = point else {
         return reply(StatusCode::OK, empty(Some("no_location")));
     };
@@ -522,20 +749,23 @@ pub async fn suggest(
             Suggestions {
                 q: q.clone(),
                 near,
-                hits: hits
-                    .iter()
-                    .take(SUGGEST_LIMIT)
-                    .enumerate()
-                    .map(|(i, hit)| Suggestion {
-                        i,
-                        name: hit.name.clone(),
-                        detail: match &hit.address {
-                            Some(address) => format!("{address} · {:.1} mi", hit.distance_mi),
-                            None => format!("{:.1} mi", hit.distance_mi),
-                        },
-                        address: hit.address.clone(),
-                    })
-                    .collect(),
+                hits: {
+                    let shown = &hits[..hits.len().min(SUGGEST_LIMIT)];
+                    shown
+                        .iter()
+                        .zip(places::short_addresses(shown))
+                        .enumerate()
+                        .map(|(i, (hit, short))| Suggestion {
+                            i,
+                            name: hit.name.clone(),
+                            detail: match short {
+                                Some(short) => format!("{short} · {:.1} mi", hit.distance_mi),
+                                None => format!("{:.1} mi", hit.distance_mi),
+                            },
+                            address: hit.address.clone(),
+                        })
+                        .collect()
+                },
                 error: None,
             },
         ),

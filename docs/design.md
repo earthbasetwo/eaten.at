@@ -458,7 +458,9 @@ actions; a suggestion is a name, not an action, so these stay roman. It
 appears only with JavaScript on and only while there are matches; the
 field it sits under works without it. Return never swallows the send: it
 takes the highlighted row when there is one and what was typed when there
-is not, then submits the form either way.
+is not, then submits the form either way; a row taken by pointer sends
+too, since a click that only filled the field read as nothing (L6). The
+place chooser is the exception: there a pick is a step, not a send.
 
 **Filed under** (`.tags-sentence`, `.tag-field`, `.chip`). The editor's
 tags as a sentence with a blank in it: "Filed under" in italic soft
@@ -543,17 +545,43 @@ islands dress it and fall away.
   time; an outside click or Escape closes it.
 
 **Choosing** (`.editor-choosing`). The place's name as the headline,
-`at [address].` under it, "Start writing" 48px below, and nothing
+and one second line (plan 15, D48): `near [town]` while no place is
+chosen, the town underlined like the address and itself the control
+(a button; pressing it puts a town field in its place, a combobox
+over `/write/near`), or `at [address].` once a place is picked or typed
+by hand. The town is the one nearest the request or the last visit,
+"where?" when nothing locates. The near line ships hidden and script
+shows it, since only script offers suggestions; without script the
+address line stands alone and the town still pins a place by hand.
+Home keeps the near line: it is a name and a town, and any address
+posted with it is dropped. An empty name, focused, lists the author's
+own recent places (plan 16) under a "Recently" kicker: rows like the
+suggestions, the address as the detail, taken as they were written. A
+corrected name keeps the pick; another name drops it. The list sits
+under the near line, in the flow, never over it. While a search runs
+the rows on show step back to 45% and, after 400 ms, the near line
+itself says "looking near Acton, MA…"; a live region says the same and
+then how many rows came back. Then "Start writing" 48px below, and nothing
 else: the Overture and DB-IP credit the earlier choosing page carried
 (plan 12) is gone with it, and is given on the about page instead. Suggestions (the combobox, positioned under the headline) open
-while the name has three characters and matches; ↓/↑ cycle, Return takes
+while the name has three characters and matches: five, nearest
+first, each row the name with the town, state and distance in the mono
+voice beside it (the street too, only where two rows with one name in
+one town would read the same), then "Show n more" in italic for the
+rest of the same answer (PL32), and a last row in italic, "Add “what was typed” by hand", which fills
+the name, clears the address and moves to it (PL25, PL26). Food and
+drink is searched first, within 25 miles; a full answer is searched
+again within 3 miles, an empty one without the category and then at 50
+(PL21, PL24). ↓/↑ cycle, Return takes
 the highlighted row or leaves the field, Escape closes. A pick fills
 both lines and arms Start writing as that pick, which the server reads
 from the same cached search (`action=pick:N`); typing over either line
 makes it a place by hand again (`action=manual`). Clearing the name
 clears the address with it. Without script the two lines are typed and
 Start writing takes them as written; there is no Search button and no
-results page any more.
+results page any more. An address past its limit is refused here, where
+the field is; the composer's copy of the refusal points back at
+"somewhere else" (PC4).
 
 **Editing** (`.editor-write`). Top to bottom, with the handoff's gaps:
 

@@ -3,9 +3,11 @@
 //! the document itself, and the cache entries that must forget the old
 //! state afterwards.
 
+use std::collections::HashSet;
+
 use eaten_at_atproto::at_uri::AtUri;
 use eaten_at_atproto::identity::{Did, Identity};
-use eaten_at_atproto::lexicon::at_eaten::{PREFERENCES_NSID, PREFERENCES_RKEY};
+use eaten_at_atproto::lexicon::at_eaten::{Place, PREFERENCES_NSID, PREFERENCES_RKEY};
 use eaten_at_atproto::lexicon::{
     BlobRef, Datetime, Document, Photo, Preferences, Publication, Visit, DOCUMENT_NSID,
     PUBLICATION_NSID, VISIT_NSID,
@@ -161,6 +163,8 @@ pub struct Placement<'a> {
     pub updated_at: Option<&'a Datetime>,
     /// The record being replaced, whose unknown fields are kept.
     pub original: Option<&'a Document>,
+    /// The place's slug (PL7), settled from the author's other visits.
+    pub place_slug: Option<&'a str>,
 }
 
 /// The `site.standard.document` record for a draft, exactly as written
@@ -199,7 +203,11 @@ pub fn build_document(draft: &DocumentDraft, placement: &Placement<'_>) -> Value
             fields.remove("description");
         }
     }
-    fields.insert("content".into(), content(draft));
+    let mut content = content(draft);
+    if let Some(slug) = placement.place_slug {
+        content["place"]["slug"] = json!(slug);
+    }
+    fields.insert("content".into(), content);
     // The cover follows the photos (D38): the first one, or, once the
     // author has removed the last, none. A cover another client set
     // on a visit that never had photos is not ours to touch.
@@ -523,12 +531,30 @@ pub async fn publish(
     )
     .await?;
 
+    let held = taken(state, identity, &site).await?;
     let path = if let Some(path) = original.and_then(|d| d.path.clone()) {
         path
     } else {
-        let taken = taken_paths(state, identity, &site).await?;
-        document_path(&now, &draft.title, &taken)
+        document_path(&now, &draft.title, &held.paths)
     };
+    let others: Vec<&Place> = held
+        .places
+        .iter()
+        .filter(|(rkey, _)| editing.is_none_or(|e| e.rkey() != rkey))
+        .map(|(_, place)| place)
+        .collect();
+    let town = draft
+        .visit
+        .place
+        .coordinates()
+        .and_then(|(lat, lon)| state.cities().nearest(crate::places::Point { lat, lon }))
+        .map(|city| city.ascii.as_str());
+    let slug = place_slug(
+        &draft.visit.place,
+        editing.map(|e| &e.visit.place),
+        &others,
+        town,
+    );
     let published_at = original.map_or_else(|| now.clone(), |d| d.published_at.clone());
     let record = build_document(
         draft,
@@ -538,6 +564,7 @@ pub async fn publish(
             published_at: &published_at,
             updated_at: editing.map(|_| &now),
             original,
+            place_slug: Some(&slug),
         },
     );
 
@@ -807,27 +834,99 @@ async fn link_card(
 
 /// The paths already used in a publication, from the repo's most recent
 /// documents.
-async fn taken_paths(
-    state: &AppState,
-    identity: &Identity,
-    site: &str,
-) -> Result<Vec<String>, AppError> {
-    let mut taken = Vec::new();
+/// What the author's repo already holds under `site`: every document's
+/// path, and the place of every visit with the record key it sits in.
+#[derive(Debug, Default)]
+struct Taken {
+    paths: Vec<String>,
+    places: Vec<(String, Place)>,
+}
+
+async fn taken(state: &AppState, identity: &Identity, site: &str) -> Result<Taken, AppError> {
+    let mut held = Taken::default();
     let mut cursor: Option<String> = None;
     for _ in 0..MAX_PATH_PAGES {
         let page = state.documents(identity, cursor.as_deref()).await?;
-        taken.extend(
-            page.records
-                .iter()
-                .filter(|r| r.value.site.trim_end_matches('/') == site)
-                .filter_map(|r| r.value.path.clone()),
-        );
-        match page.cursor {
-            Some(next) if !page.records.is_empty() => cursor = Some(next),
-            _ => break,
+        let more = page.cursor.filter(|_| !page.records.is_empty());
+        for record in page.records {
+            if record.value.site.trim_end_matches('/') != site {
+                continue;
+            }
+            if let Some(path) = record.value.path.clone() {
+                held.paths.push(path);
+            }
+            let rkey = record.rkey().to_owned();
+            if let Some(visit_doc) = VisitDocument::from_record(record) {
+                held.places.push((rkey, visit_doc.visit.place));
+            }
+        }
+        match more {
+            Some(next) => cursor = Some(next),
+            None => break,
         }
     }
-    Ok(taken)
+    Ok(held)
+}
+
+/// Whether two places are one place for the author's purposes: the same
+/// GERS id, or, for two places by hand, the same name.
+pub fn same_place(a: &Place, b: &Place) -> bool {
+    a.same_as(b)
+        || (a.gers_id.is_none()
+            && b.gers_id.is_none()
+            && crate::tags::normalize(&a.name) == crate::tags::normalize(&b.name))
+}
+
+/// The place's slug (PL7, D49): the one it already has, if this visit
+/// or an earlier one at the same place carries one; else the name's
+/// slug, and where another of the author's places already holds that,
+/// the town is added, then a number. `others` are the author's other
+/// visits' places, not counting the record being replaced.
+pub fn place_slug(
+    place: &Place,
+    was: Option<&Place>,
+    others: &[&Place],
+    town: Option<&str>,
+) -> String {
+    if let Some(kept) = was
+        .filter(|w| same_place(w, place))
+        .and_then(|w| w.slug.clone())
+    {
+        return kept;
+    }
+    if let Some(shared) = others
+        .iter()
+        .filter(|o| same_place(o, place))
+        .find_map(|o| o.slug.clone())
+    {
+        return shared;
+    }
+    let taken: HashSet<&str> = others
+        .iter()
+        .filter(|o| !same_place(o, place))
+        .filter_map(|o| o.slug.as_deref())
+        .collect();
+    // Apostrophes close up rather than break the word: "katzs", not
+    // "katz-s".
+    let base = match slug(&place.name.replace(['\'', '\u{2019}'], "")) {
+        s if s == "untitled" => "place".to_owned(),
+        s => s,
+    };
+    if !taken.contains(base.as_str()) {
+        return base;
+    }
+    if let Some(town) = town {
+        let placed = format!("{base}-{}", slug(town));
+        if !taken.contains(placed.as_str()) {
+            return placed;
+        }
+    }
+    // Bounded by the slugs taken: one more number than there are of them
+    // is always free.
+    (2..=taken.len() + 2)
+        .map(|n| format!("{base}-{n}"))
+        .find(|candidate| !taken.contains(candidate.as_str()))
+        .unwrap_or(base)
 }
 
 /// The document, every listing that might have shown it, and the
@@ -871,6 +970,76 @@ mod tests {
         let long = slug(&"word ".repeat(40));
         assert!(long.len() <= MAX_SLUG_BYTES, "{long}");
         assert!(!long.ends_with('-'));
+    }
+
+    fn a_place(name: &str, gers: Option<&str>, slug: Option<&str>) -> Place {
+        Place {
+            type_: None,
+            name: name.to_owned(),
+            address: None,
+            price: None,
+            gers_id: gers.map(str::to_owned),
+            slug: slug.map(str::to_owned),
+            category: None,
+            lat_e6: None,
+            lon_e6: None,
+            urls: Vec::new(),
+            extra: serde_json::Map::new(),
+        }
+    }
+
+    #[test]
+    fn a_place_slug_is_kept_shared_or_made_unique_by_town_then_number() {
+        let katz = a_place("Katz's Delicatessen", Some("k1"), None);
+        // First visit anywhere: the name's slug.
+        assert_eq!(
+            place_slug(&katz, None, &[], Some("New York City")),
+            "katzs-delicatessen"
+        );
+        // The same place, visited before: its slug, whatever the name now says.
+        let earlier = a_place("Katz's", Some("k1"), Some("katzs"));
+        assert_eq!(place_slug(&katz, None, &[&earlier], None), "katzs");
+        // Editing a visit keeps the slug the record had at the same place.
+        let was = a_place("Katz's Delicatessen", Some("k1"), Some("katzs-deli"));
+        assert_eq!(
+            place_slug(&katz, Some(&was), &[&earlier], None),
+            "katzs-deli"
+        );
+        // Moved to another place: the record's old slug does not count.
+        let other = a_place("Katz's Delicatessen", Some("k2"), None);
+        assert_eq!(
+            place_slug(&other, Some(&was), &[], None),
+            "katzs-delicatessen"
+        );
+        // Another of the author's places holds the name: the town, then a number.
+        let branch = a_place(
+            "Katz's Delicatessen",
+            Some("k9"),
+            Some("katzs-delicatessen"),
+        );
+        assert_eq!(
+            place_slug(&other, None, &[&branch], Some("Brooklyn")),
+            "katzs-delicatessen-brooklyn"
+        );
+        let in_brooklyn = a_place("Katz's", Some("k8"), Some("katzs-delicatessen-brooklyn"));
+        assert_eq!(
+            place_slug(&other, None, &[&branch, &in_brooklyn], Some("Brooklyn")),
+            "katzs-delicatessen-2"
+        );
+        assert_eq!(
+            place_slug(&other, None, &[&branch], None),
+            "katzs-delicatessen-2"
+        );
+        // Places by hand are the same place by name; Home stays home.
+        let home = a_place("Home", None, Some("home"));
+        assert_eq!(
+            place_slug(&a_place("home", None, None), None, &[&home], None),
+            "home"
+        );
+        assert_eq!(
+            place_slug(&a_place("!!!", None, None), None, &[], None),
+            "place"
+        );
     }
 
     #[test]
@@ -1001,6 +1170,7 @@ mod tests {
                 published_at: &at,
                 updated_at: None,
                 original: None,
+                place_slug: None,
             },
         );
         insta::assert_snapshot!(serde_json::to_string_pretty(&doc).unwrap());
@@ -1071,6 +1241,7 @@ mod tests {
                 published_at: &published,
                 updated_at: Some(&updated),
                 original: Some(&original),
+                place_slug: Some("old-place"),
             },
         );
         assert_eq!(doc["title"], "A room with the lights off");

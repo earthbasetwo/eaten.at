@@ -447,6 +447,9 @@ const envDev = [
   // Loopback addresses locate to nothing, so every request is in Brooklyn
   // (plan 12); the stub's places are near there.
   'EATEN_AT_DEV_LOCATION=40.6888,-73.9799',
+  // The near line's towns (plan 15): `just cities-refresh` fetches them
+  // here; until then the line is off and the app says so at startup.
+  `EATEN_AT_CITIES=${path.join(ROOT, 'data', 'cities5000.txt')}`,
   '',
 ].join('\n')
 await writeFile(path.join(ROOT, '.env.dev'), envDev)

@@ -48,6 +48,19 @@ pub enum Located {
     LastVisit,
 }
 
+/// The chooser's near line (plan 15): where the search looks, as the
+/// author can change it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum Near {
+    /// No cities file: no line, and the search looks where the request is.
+    #[default]
+    Off,
+    /// Nothing located: the line asks for a town and the search waits.
+    Unknown,
+    /// A town, by its `GeoNames` id and its label ("Acton, MA").
+    Town { id: u32, label: String },
+}
+
 /// Everything the page needs.
 #[derive(Debug)]
 pub struct EditorPage<'a> {
@@ -65,6 +78,8 @@ pub struct EditorPage<'a> {
     /// Whether the choosing screen suggests places as the author types:
     /// the site has a search and the request could be located.
     pub suggesting: bool,
+    /// The near line, when the site has a cities list.
+    pub near: Near,
     /// The photos page of the write-up being edited, the way photos are
     /// managed without script; a new write-up has none yet.
     pub photos_page: Option<&'a str>,
@@ -88,7 +103,7 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
             // this one only re-renders the page, so nothing typed is ever
             // sent by accident.
             button.visually-hidden type="submit" name="action" value=(Action::Keep.value()) tabindex="-1" aria-hidden="true" { "Keep editing" }
-            (place_heading(form, errors))
+            (place_heading(form, errors, &page.near))
             div.visit-row {
                 (date_line(form, errors))
             }
@@ -122,9 +137,15 @@ pub fn page(page: &EditorPage<'_>) -> Markup {
 /// [address] — somewhere else`, the name shown there once the title
 /// is something else. Changing the restaurant is the shrug at the end
 /// of that line, so the two jobs sit on two lines (C6, 2026-09-25).
-fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
+fn place_heading(form: &EditorForm, errors: &FieldErrors, near: &Near) -> Markup {
     let titled = !form.title.trim().is_empty();
     let has_address = !form.place_address.trim().is_empty();
+    // A place with no address, Home say, keeps its town on the line so
+    // the layout holds (plan 15; Ken, 2026-09-27).
+    let town = match near {
+        Near::Town { label, .. } => Some(label.as_str()),
+        Near::Off | Near::Unknown => None,
+    };
     html! {
         div.place-head {
             label.visually-hidden for="title" { "Title" }
@@ -142,6 +163,11 @@ fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
                 span.place-comma hidden[!titled || !has_address] { ", " }
                 span.place-address-text { (crate::view::display_address(&form.place_address)) }
             }
+            // The leading space parts it from "at [name]" when a title
+            // is typed; at a line's start it collapses.
+            span.place-near hidden[has_address || town.is_none()] {
+                " " span.soft { "near" } " " (town.unwrap_or_default())
+            }
             " "
             // The dash and "somewhere else" never part at a line's end;
             // the dash goes when there is nothing before it.
@@ -149,18 +175,24 @@ fn place_heading(form: &EditorForm, errors: &FieldErrors) -> Markup {
                 span.soft.place-dash { "—\u{a0}" }
                 button #change_restaurant.hint-action.change-place type="submit" name="action" value=(Action::ChangePlace.value())
                     aria-label=(format!("Change restaurant: {}", form.place_name))
-                    aria-describedby=[described(errors, "place_name")] formnovalidate { "somewhere else" }
+                    aria-describedby=[described_by(errors, &["place_name", "place_address"])] formnovalidate { "somewhere else" }
             }
         }
         input type="hidden" name="place_name" value=(form.place_name);
         input type="hidden" name="place_address" value=(form.place_address);
-        @for field in ["place_name", "place_address", "gers_id"] {
-            (field_error(errors, field))
+        (field_error(errors, "place_name"))
+        // The address is hidden here, so its refusal says where it can
+        // be changed (PC4); the choosing page refuses it first.
+        @if let Some(message) = errors.get("place_address") {
+            p.field-error #place_address-error { (message) " Change it with “somewhere else”." }
         }
+        (field_error(errors, "gers_id"))
         input type="hidden" name="place_mode" value=(form.place_mode.value());
         input type="hidden" name="gers_id" value=(form.gers_id);
+        input type="hidden" name="place_category" value=(form.place_category);
         input type="hidden" name="lat_e6" value=(form.lat_e6);
         input type="hidden" name="lon_e6" value=(form.lon_e6);
+        input type="hidden" name="near" value=(form.near);
     }
 }
 
@@ -527,13 +559,22 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
             @if form.changing_place { input type="hidden" name="changing_place" value="1"; }
             input type="hidden" name="place_mode" value=(PlaceMode::Choosing.value());
             input type="hidden" name="place_query" value=(form.place_query);
+            // Filled by a recent place taken before typing (PL11); a
+            // search pick fills them on the server, a place by hand
+            // never has them.
+            input type="hidden" name="gers_id" value="";
+            input type="hidden" name="lat_e6" value="";
+            input type="hidden" name="lon_e6" value="";
+            input type="hidden" name="place_category" value="";
             div.place-head {
                 input #place_name.headline name="place_name" type="text" value=(form.place_name)
                     placeholder="St. John Bread and Wine" autocomplete="off" autofocus
                     aria-label="Name of the place"
                     data-suggest=[page.suggesting.then_some("/write/suggest")]
+                    data-recent=[page.suggesting.then_some("/write/recent")]
                     aria-describedby=[described(errors, "place_name")];
             }
+            (near_line(&page.near))
             p.place-line {
                 span.soft { "at" } " "
                 span.inline-field {
@@ -549,6 +590,34 @@ fn choosing(page: &EditorPage<'_>) -> Markup {
                 button #start-writing type="submit" name="action" value=(Action::Manual.value()) {
                     @if form.changing_place { "Keep writing" } @else { "Start writing" }
                 }
+            }
+        }
+    }
+}
+
+/// Where the search looks (plan 15, D48): "near" and the town, the
+/// second line while no place is chosen, in the address line's voice.
+/// The town is the control: a button that script swaps for a town
+/// field in its place, a combobox over `/write/near`. The line ships
+/// hidden: only script offers suggestions, so only script shows it, and
+/// the address line stands alone without; a pick or a place by hand
+/// swaps the line for the address.
+fn near_line(near: &Near) -> Markup {
+    let (id, label) = match near {
+        Near::Off => return html! {},
+        Near::Unknown => (String::new(), None),
+        Near::Town { id, label } => (id.to_string(), Some(label.as_str())),
+    };
+    html! {
+        input type="hidden" name="near" value=(id);
+        p.near-line hidden {
+            span.soft { "near" } " "
+            button.near-town type="button" aria-label="Town to search near; press to change it" {
+                (label.unwrap_or("where?"))
+            }
+            span.inline-field hidden {
+                input #near_query name="near_query" type="text" value="" placeholder="Town"
+                    autocomplete="off" aria-label="Town to search near" data-near="/write/near";
             }
         }
     }
@@ -600,6 +669,16 @@ fn alerts(page: &EditorPage<'_>) -> Markup {
 
 fn described(errors: &FieldErrors, field: &str) -> Option<String> {
     errors.get(field).map(|_| format!("{field}-error"))
+}
+
+/// The error ids of whichever of `fields` have one, for a control that
+/// answers for several; `None` when none does.
+fn described_by(errors: &FieldErrors, fields: &[&str]) -> Option<String> {
+    let ids: Vec<String> = fields
+        .iter()
+        .filter_map(|field| described(errors, field))
+        .collect();
+    (!ids.is_empty()).then(|| ids.join(" "))
 }
 
 /// A field's problem, under the line it belongs to.
@@ -764,6 +843,7 @@ mod tests {
             reauthenticate: false,
             pick_error: None,
             suggesting: true,
+            near: Near::Off,
             photos_page,
         })
         .into_string()

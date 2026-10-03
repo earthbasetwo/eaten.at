@@ -200,6 +200,13 @@ pub struct Place {
     /// The Overture Maps GERS id: the place's identity (D33).
     #[serde(rename = "gersId", default, skip_serializing_if = "Option::is_none")]
     pub gers_id: Option<String>,
+    /// The place's short name in the author's own URLs (PL7): set on the
+    /// first visit published there, repeated after, never changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    /// Overture's category for the place, as named at pick time (PL13).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
     /// Out-of-range values from other clients read as absent.
     #[serde(
         rename = "latE6",
